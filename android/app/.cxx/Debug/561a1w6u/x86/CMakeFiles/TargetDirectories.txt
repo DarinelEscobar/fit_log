@@ -1,0 +1,2 @@
+C:/Users/darin/Documents/fit_log/android/app/.cxx/Debug/561a1w6u/x86/CMakeFiles/edit_cache.dir
+C:/Users/darin/Documents/fit_log/android/app/.cxx/Debug/561a1w6u/x86/CMakeFiles/rebuild_cache.dir

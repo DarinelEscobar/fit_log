@@ -37,7 +37,7 @@ dependencies:
   # 📦 Local Data Persistence
   path_provider: ^2.1.1
   excel: ^2.0.9 # To read/write .xlsx files
-  file_picker: ^6.1.1
+  file_picker: ^10.1.2
   permission_handler: ^11.3.0
 
   # 🧊 Code Generation / Model Helpers
