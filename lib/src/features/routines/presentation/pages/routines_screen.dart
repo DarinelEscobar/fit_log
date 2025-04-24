@@ -122,8 +122,11 @@ class XlsxRepository {
     final excel = Excel.decodeBytes(file.readAsBytesSync());
     final sheet = excel['Rutinas'];
     for (var i = 1; i < sheet.maxRows; i++) {
-      if (sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i)).value == id) {
-        sheet.updateCell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i), newName);
+      final idCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i));
+      if (idCell.value == id) {
+        // Asignar directamente el nuevo nombre
+        final nameCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i));
+        nameCell.value = newName;
         break;
       }
     }
@@ -131,26 +134,36 @@ class XlsxRepository {
     await file.writeAsBytes(bytes!, flush: true);
   }
   Future<List<RoutineExercise>> getExercises(String routineId) async {
-    final file = await _relFile();
-    final excel = Excel.decodeBytes(file.readAsBytesSync());
-    final sheet = excel['Rel'];
-    final exercises = <RoutineExercise>[];
-    for (var i = 1; i < sheet.maxRows; i++) {
-      if (sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i)).value == routineId) {
-        final row = sheet.row(i);
-        exercises.add(RoutineExercise(
-          routineId: routineId,
-          idExercise: row[1]!.value.toString(),
-          name: row[2]!.value.toString(),
-          muscle: row[3]!.value.toString(),
-          series: int.tryParse(row[4]!.value.toString()) ?? 0,
-          reps: int.tryParse(row[5]!.value.toString()) ?? 0,
-          weight: double.tryParse(row[6]!.value.toString()) ?? 0,
-        ));
-      }
-    }
-    return exercises;
+  final file = await _relFile();
+  final excel = Excel.decodeBytes(file.readAsBytesSync());
+  final sheet = excel['Rel'];
+  final exercises = <RoutineExercise>[];
+  for (var i = 1; i < sheet.maxRows; i++) {
+    final row = sheet.row(i);
+    // Verificar si la fila tiene todas las columnas necesarias
+    if (row.length < 7) continue;
+    final cellRoutineId = row[0]?.value.toString();
+    if (cellRoutineId != routineId) continue;
+    // Extraer valores con manejo de nulos
+    final idExercise = row[1]?.value.toString() ?? '';
+    final name = row[2]?.value.toString() ?? '';
+    final muscle = row[3]?.value.toString() ?? '';
+    final series = int.tryParse(row[4]?.value.toString() ?? '') ?? 0;
+    final reps = int.tryParse(row[5]?.value.toString() ?? '') ?? 0;
+    final weight = double.tryParse(row[6]?.value.toString() ?? '') ?? 0.0;
+    exercises.add(RoutineExercise(
+      routineId: routineId,
+      idExercise: idExercise,
+      name: name,
+      muscle: muscle,
+      series: series,
+      reps: reps,
+      weight: weight,
+    ));
   }
+  return exercises;
+}
+
   Future<void> addExercise({
     required String routineId,
     required String name,
@@ -159,13 +172,19 @@ class XlsxRepository {
     required int reps,
     required double weight,
   }) async {
-    final file = await _relFile();
-    final excel = Excel.decodeBytes(file.readAsBytesSync());
-    final sheet = excel['Rel'];
-    final nextId = _nextId(sheet, prefix: 'ex', idColumn: 1);
-    sheet.appendRow([routineId, nextId, name, muscle, series, reps, weight]);
-    final bytes = excel.encode();
-    await file.writeAsBytes(bytes!, flush: true);
+    try {
+      final file = await _relFile();
+      final excel = Excel.decodeBytes(file.readAsBytesSync());
+      final sheet = excel['Rel'];
+      final nextId = _nextId(sheet, prefix: 'ex', idColumn: 1);
+      sheet.appendRow([routineId, nextId, name, muscle, series, reps, weight]);
+      final bytes = excel.encode();
+      if (bytes == null) throw Exception('Error al codificar el Excel de ejercicios');
+      await file.writeAsBytes(bytes, flush: true);
+    } catch (e) {
+      debugPrint('Error añadiendo ejercicio: $e');
+      rethrow;
+    }
   }
   Future<void> deleteExercise(String routineId, String exerciseId) async {
     final file = await _relFile();
@@ -183,24 +202,29 @@ class XlsxRepository {
     await file.writeAsBytes(bytes!, flush: true);
   }
   String _nextId(Sheet sheet, {required String prefix, int idColumn = 0}) {
-    final ids = <int>[];
-    for (var i = 1; i < sheet.maxRows; i++) {
-      final val = sheet.cell(CellIndex.indexByColumnRow(columnIndex: idColumn, rowIndex: i)).value;
-      if (val != null && val.toString().startsWith(prefix)) {
-        final numPart = int.tryParse(val.toString().substring(prefix.length));
-        if (numPart != null) ids.add(numPart);
-      }
+  final ids = <int>[];
+  for (var i = 1; i < sheet.maxRows; i++) {
+    final val = sheet.cell(CellIndex.indexByColumnRow(columnIndex: idColumn, rowIndex: i)).value;
+    if (val != null && val.toString().startsWith(prefix)) {
+      final numPart = int.tryParse(val.toString().substring(prefix.length));
+      if (numPart != null) ids.add(numPart);
     }
-    final nextNum = ids.isEmpty ? 1 : (ids.reduce((a, b) => a > b ? a : b) + 1);
-    return prefix + nextNum.toString().padLeft(3, '0');
   }
+  final nextNum = ids.isEmpty ? 1 : (ids.reduce((a, b) => a > b ? a : b) + 1);
+  return '$prefix${nextNum.toString().padLeft(3, '0')}';
 }
+}
+
 
 class RoutinesScreen extends StatefulWidget {
   const RoutinesScreen({super.key});
+
+  static const String routeName = '/routines';
+
   @override
   State<RoutinesScreen> createState() => _RoutinesScreenState();
 }
+
 
 class _RoutinesScreenState extends State<RoutinesScreen> {
   final repo = XlsxRepository.instance;
@@ -336,6 +360,7 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
       ),
     );
     if (ok == true && nameCtrl.text.trim().isNotEmpty) {
+    try {
       await repo.addExercise(
         routineId: widget.routine.id,
         name: nameCtrl.text.trim(),
@@ -345,32 +370,46 @@ class _RoutineDetailScreenState extends State<RoutineDetailScreen> {
         weight: double.tryParse(weightCtrl.text) ?? 0,
       );
       _load();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo añadir el ejercicio: $e'))
+      );
     }
+  }
+
   }
   Future<void> _deleteExercise(RoutineExercise ex) async {
     await repo.deleteExercise(widget.routine.id, ex.idExercise);
     _load();
   }
   Future<void> _renameRoutine() async {
-    final ctrl = TextEditingController(text: widget.routine.name);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Renombrar rutina'),
-        content: TextField(controller: ctrl),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
-        ],
-      ),
+  final ctrl = TextEditingController(text: widget.routine.name);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Renombrar rutina'),
+      content: TextField(controller: ctrl),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+        ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
+      ],
+    ),
+  );
+
+  if (ok == true && ctrl.text.trim().isNotEmpty) {
+    final newName = ctrl.text.trim();
+    await repo.renameRoutine(widget.routine.id, newName);
+    setState(() {
+      // Actualiza título de AppBar
+      widget.routine.name = newName;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Rutina renombrada a "$newName"'))
     );
-    if (ok == true && ctrl.text.trim().isNotEmpty) {
-      await repo.renameRoutine(widget.routine.id, ctrl.text.trim());
-      setState(() {
-        widget.routine.name = ctrl.text.trim();
-      });
-    }
+    // Opcional: si quieres volver automáticamente a la lista y disparar el reload:
+    // Navigator.pop(context);
   }
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
