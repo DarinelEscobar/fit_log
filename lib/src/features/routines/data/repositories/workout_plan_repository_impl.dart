@@ -3,8 +3,12 @@ import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/workout_plan.dart';
+import '../../domain/entities/plan_exercise_detail.dart';
+import '../../domain/entities/workout_log_entry.dart';
+import '../../domain/entities/workout_session.dart';
 import '../../domain/repositories/workout_plan_repository.dart';
 import '../../../../data/schema/schemas.dart';
+
 
 
 class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
@@ -99,6 +103,82 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     if (newFileBytes != null) {
       await file.writeAsBytes(newFileBytes);
     }
+  }
+
+
+  @override
+  Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final peFile = File('${dir.path}/plan_exercise.xlsx');
+    final exFile = File('${dir.path}/exercise.xlsx');
+    if (!await peFile.exists() || !await exFile.exists()) return [];
+    final peSheet =
+        Excel.decodeBytes(await peFile.readAsBytes())[kTableSchemas['plan_exercise.xlsx']!.sheetName];
+    final exSheet =
+        Excel.decodeBytes(await exFile.readAsBytes())[kTableSchemas['exercise.xlsx']!.sheetName];
+    if (peSheet == null || exSheet == null) return [];
+    final mapIdName = {
+      for (var r in exSheet.rows.skip(1))
+        if (r.isNotEmpty) r[0]!.value as int: r[1]!.value.toString()
+    };
+    return peSheet.rows.skip(1).where((r) => r.isNotEmpty && r[0]!.value == planId).map((r) {
+      final id = r[1]!.value as int;
+      return PlanExerciseDetail(
+        exerciseId: id,
+        name: mapIdName[id] ?? 'Unknown',
+        sets: r[2]!.value as int,
+        reps: r[3]!.value as int,
+        weight: (r[4]!.value as num).toDouble(),
+      );
+    }).toList();
+  }
+
+
+  @override
+  Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/workout_log.xlsx');
+    if (!await file.exists()) throw Exception('workout_log.xlsx not found');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['workout_log.xlsx']!.sheetName];
+    if (sheet == null) throw Exception('sheet missing');
+    final ids = sheet.rows.skip(1).where((r) => r.isNotEmpty).map((r) => r[0]!.value as int);
+    var nextId = ids.isEmpty ? 1 : ids.reduce((a, b) => a > b ? a : b) + 1;
+    for (final l in logs) {
+      sheet.appendRow([
+        nextId++,
+        '${l.date.year}-${l.date.month.toString().padLeft(2, '0')}-${l.date.day.toString().padLeft(2, '0')}',
+        l.planId,
+        l.exerciseId,
+        l.setNumber,
+        l.reps,
+        l.weight,
+        l.rir
+      ]);
+    }
+    await file.writeAsBytes(excel.save()!);
+  }
+
+  @override
+  Future<void> saveWorkoutSession(WorkoutSession s) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}/workout_session.xlsx');
+    if (!await file.exists()) throw Exception('workout_session.xlsx not found');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['workout_session.xlsx']!.sheetName];
+    if (sheet == null) throw Exception('sheet missing');
+    final ids = sheet.rows.skip(1).where((r) => r.isNotEmpty).map((r) => r[0]!.value as int);
+    final sessionId = ids.isEmpty ? 1 : ids.reduce((a, b) => a > b ? a : b) + 1;
+    sheet.appendRow([
+      sessionId,
+      '${s.date.year}-${s.date.month.toString().padLeft(2, '0')}-${s.date.day.toString().padLeft(2, '0')}',
+      s.planId,
+      s.fatigueLevel,
+      s.durationMinutes,
+      s.mood,
+      s.notes
+    ]);
+    await file.writeAsBytes(excel.save()!);
   }
 
 }

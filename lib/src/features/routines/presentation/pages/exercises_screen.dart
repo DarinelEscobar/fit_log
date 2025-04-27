@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/exercises_provider.dart';
+// TODO: adjust the import path for StartRoutineScreen as needed
+import 'start_routine_screen.dart';
 
 class ExercisesScreen extends ConsumerWidget {
   final int planId;
@@ -19,12 +21,22 @@ class ExercisesScreen extends ConsumerWidget {
             final exercise = exercises[i];
             return ListTile(
               title: Text(exercise.name),
-              subtitle: Text('${exercise.category} • ${exercise.mainMuscleGroup}'),
+              subtitle:
+                  Text('${exercise.category} • ${exercise.mainMuscleGroup}'),
             );
           },
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, __) => Center(child: Text('Error: $e')),
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: const Icon(Icons.play_arrow),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => StartRoutineScreen(planId: planId),
+          ),
+        ),
       ),
     );
   }
