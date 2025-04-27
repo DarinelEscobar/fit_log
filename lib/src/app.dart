@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'navigation/main_scaffold.dart';
 
-import 'features/routines/presentation/pages/routines_screen.dart';
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
-final GoRouter appRouter = GoRouter(
-  initialLocation: '/routines',
-  routes: [
-    GoRoute(
-      path: '/routines',
-      name: RoutinesScreen.routeName,
-      builder: (_, __) => const RoutinesScreen(),
-    ),
-  ],
-);
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Fit Log',
+      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
+      home: const MainScaffold(),
+    );
+  }
+}
