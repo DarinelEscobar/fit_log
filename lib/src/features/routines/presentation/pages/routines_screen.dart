@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/workout_plan_provider.dart';
+import '../../../routines/presentation/providers/workout_plan_provider.dart';
+import '../pages/exercises_screen.dart'; // Nueva pantalla
+import '../widgets/add_routine_button.dart'; // importar botón
 
 class RoutinesScreen extends ConsumerWidget {
-  static const routeName = 'routines';
+  static const routeName = '/routines';
 
   const RoutinesScreen({super.key});
 
@@ -13,14 +15,26 @@ class RoutinesScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Rutinas')),
+      floatingActionButton: const AddRoutineButton(), // <- el botón mágico
       body: asyncPlans.when(
         data: (plans) => ListView.builder(
           itemCount: plans.length,
-          itemBuilder: (_, i) => ListTile(
-            leading: Text(plans[i].id.toString()),
-            title: Text(plans[i].name),
-            subtitle: Text(plans[i].frequency),
-          ),
+          itemBuilder: (_, i) {
+            final plan = plans[i];
+            return ListTile(
+              leading: Text(plan.id.toString()),
+              title: Text(plan.name),
+              subtitle: Text(plan.frequency),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ExercisesScreen(planId: plan.id),
+                  ),
+                );
+              },
+            );
+          },
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, __) => Center(child: Text('Error: $e')),
