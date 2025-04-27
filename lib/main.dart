@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'src/data/create/initialize_xlsx.dart';
 import 'src/app.dart';
 
-void main() => runApp(const FitLogApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await XlsxInitializer.ensureXlsxFilesExist(); // ← crea sólo la 1.ª vez
+  runApp(const FitLogApp());
+}
 
 class FitLogApp extends StatelessWidget {
   const FitLogApp({super.key});
@@ -10,7 +15,7 @@ class FitLogApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'FitLog MVP',
+      title: 'FitLog MVP',
       theme: ThemeData(
         colorSchemeSeed: Colors.deepPurple,
         useMaterial3: true,
