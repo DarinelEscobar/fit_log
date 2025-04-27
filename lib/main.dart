@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'src/data/create/initialize_xlsx.dart';
 import 'src/app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await XlsxInitializer.ensureXlsxFilesExist(); // ← crea sólo la 1.ª vez
-  runApp(const FitLogApp());
+  await XlsxInitializer.ensureXlsxFilesExist();
+  runApp(
+    ProviderScope(
+      child: FitLogApp(),
+    ),
+  );
 }
 
 class FitLogApp extends StatelessWidget {
