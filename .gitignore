@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/release
 
 .vscode/
+
+# Ignore C++ Debug binaries for Android
+/android/app/.cxx/
+
+# Or if quieres ser más específico:
+*.bin
+
