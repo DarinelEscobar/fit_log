@@ -1,9 +1,4 @@
 // lib/src/features/routines/presentation/pages/start_routine_screen.dart
-// ─────────────────────────────────────────────────────────────────────
-// Archivo completo y funcional: cronómetro, log por serie, iconos,
-// botón “Finalizar” que guarda workout_log.xlsx + workout_session.xlsx.
-// Usa los use-cases SaveWorkoutLogsUseCase y SaveWorkoutSessionUseCase.
-// ─────────────────────────────────────────────────────────────────────
 
 import 'dart:async';
 import 'package:flutter/material.dart';

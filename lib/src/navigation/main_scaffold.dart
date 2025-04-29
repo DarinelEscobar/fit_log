@@ -1,4 +1,3 @@
-// Path: lib/src/navigation/main_scaffold.dart
 import 'package:flutter/material.dart';
 import '../features/routines/presentation/pages/routines_screen.dart';
 import '../features/history/presentation/pages/logs_screen.dart';
@@ -44,7 +43,7 @@ class _MainScaffoldState extends State<MainScaffold> {
 class _HomeTab extends StatelessWidget {
   const _HomeTab();
   @override
-  Widget build(BuildContext context) => const Center(child: Text('Bienvenido a Fit Log'));
+  Widget build(BuildContext context) => const Center(child: Text('Bienvenido a Fit Log'));
 }
 
 class _StatsTab extends StatelessWidget {

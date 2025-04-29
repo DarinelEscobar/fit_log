@@ -8,7 +8,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Fit Log',
+      title: 'Fit Log',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
       home: const MainScaffold(),
     );
