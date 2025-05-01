@@ -1,8 +1,12 @@
 // lib/src/features/routines/presentation/pages/start_routine_screen.dart
+//
+// Minimal UI: filas limpias; botones + / – estilizados; sin etiqueta "Serie X".
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../providers/plan_exercise_details_provider.dart';
 import '../state/workout_log_state.dart';
 import '../../domain/entities/workout_log_entry.dart';
@@ -23,8 +27,13 @@ class StartRoutineScreen extends ConsumerStatefulWidget {
 class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   late final Stopwatch _sw;
   late final Timer _ticker;
+
   final Map<int, GlobalKey<_ExerciseTileState>> _keys = {};
   int? _expandedExerciseId;
+
+  String _fatigue = 'Normal';
+  String _mood = '🙂';
+  final TextEditingController _notesCtl = TextEditingController();
 
   @override
   void initState() {
@@ -40,269 +49,550 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     super.dispose();
   }
 
+  // ═════════════════════════════════ UI ROOT ═══════════════════════════════
   @override
   Widget build(BuildContext context) {
     final asyncDetails =
         ref.watch(planExerciseDetailsProvider(widget.planId));
-    final logs = ref.watch(workoutLogProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_fmt(_sw.elapsed)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.flag),
-            tooltip: 'Finalizar sesión',
+    final logsMap = ref.watch(workoutLogProvider);
+    final notifier = ref.read(workoutLogProvider.notifier);
+
+    final cs = Theme.of(context).colorScheme;
+
+    return WillPopScope(
+      onWillPop: () => _confirmExit(context, notifier),
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
             onPressed: () async {
-              final ok = await _finishDialog(context);
-              if (!ok) return;
-              final repo = WorkoutPlanRepositoryImpl();
-              await SaveWorkoutLogsUseCase(repo)(logs);
-              await SaveWorkoutSessionUseCase(repo)(
-                WorkoutSession(
-                  planId: widget.planId,
-                  date: DateTime.now(),
-                  fatigueLevel: _fatigue,
-                  durationMinutes: _sw.elapsed.inMinutes,
-                  mood: _mood,
-                  notes: _notesCtl.text,
-                ),
-              );
-              ref.read(workoutLogProvider.notifier).clear();
-              if (mounted) Navigator.pop(context);
+              if (await _confirmExit(context, notifier)) {
+                if (mounted) Navigator.pop(context);
+              }
             },
-          )
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.check),
-        label: const Text('Log exercise'),
-        onPressed: () {
-          if (_expandedExerciseId == null) return;
-          final tileKey = _keys[_expandedExerciseId]!;
-          tileKey.currentState!.logNextSet(
-            (e) => ref.read(workoutLogProvider.notifier).add(e),
-            widget.planId,
-          );
-        },
-      ),
-      body: asyncDetails.when(
-        data: (details) => ListView(
-          children: details.map((d) {
-            _keys[d.exerciseId] ??= GlobalKey<_ExerciseTileState>();
-            return _ExerciseTile(
-              key: _keys[d.exerciseId],
-              detail: d,
-              expanded: _expandedExerciseId == d.exerciseId,
-              onExpand: () => setState(() {
-                _expandedExerciseId =
-                    _expandedExerciseId == d.exerciseId ? null : d.exerciseId;
-              }),
-              logged: logs,
-            );
-          }).toList(),
+          ),
+          title: Text(_formatTime(_sw.elapsed)),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.flag_rounded),
+              tooltip: 'Finalizar sesión',
+              onPressed: () async {
+                if (notifier.completedLogs.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('No has completado ninguna serie')),
+                  );
+                  return;
+                }
+                if (!await _showFinishDialog(context)) return;
+
+                final repo = WorkoutPlanRepositoryImpl();
+                try {
+                  await SaveWorkoutLogsUseCase(repo)(notifier.completedLogs);
+                  await SaveWorkoutSessionUseCase(repo)(
+                    WorkoutSession(
+                      planId: widget.planId,
+                      date: DateTime.now(),
+                      fatigueLevel: _fatigue,
+                      durationMinutes: _sw.elapsed.inMinutes,
+                      mood: _mood,
+                      notes: _notesCtl.text,
+                    ),
+                  );
+                  notifier.clear();
+                  if (mounted) Navigator.pop(context);
+                } catch (e) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text('Error: $e')));
+                }
+              },
+            ),
+          ],
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, __) => Center(child: Text('Error: $e')),
+        floatingActionButton: FloatingActionButton.extended(
+          icon: const Icon(Icons.check),
+          label: const Text('Registrar serie'),
+          onPressed: () {
+            if (_expandedExerciseId == null) return;
+            _keys[_expandedExerciseId]!.currentState!.logCurrentSet(
+              addOrUpdate: notifier.addOrUpdate,
+              planId: widget.planId,
+            );
+            setState(() {});
+          },
+        ),
+        body: asyncDetails.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+          data: (details) {
+            final completedExercises = details.where((d) {
+              final st = _keys[d.exerciseId]?.currentState;
+              return st?.isComplete(logsMap) ?? false;
+            }).length;
+
+            return Column(
+              children: [
+                _ProgressHeader(
+                  completed: completedExercises,
+                  total: details.length,
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    children: details.map((d) {
+                      _keys[d.exerciseId] ??= GlobalKey<_ExerciseTileState>();
+                      final st = _keys[d.exerciseId]!.currentState;
+                      final done = st?.isComplete(logsMap) ?? false;
+                      return _ExerciseTile(
+                        key: _keys[d.exerciseId],
+                        detail: d,
+                        expanded: _expandedExerciseId == d.exerciseId,
+                        onToggle: () => setState(() {
+                          _expandedExerciseId =
+                              _expandedExerciseId == d.exerciseId ? null : d.exerciseId;
+                        }),
+                        logsMap: logsMap,
+                        highlightDone: done,
+                        onChanged: () => setState(() {}),
+                        removeLog: notifier.remove,
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  // ------------- diálogo de cierre (fatiga, mood, notas) -------------
-  String _fatigue = 'Normal';
-  String _mood = '🙂';
-  final _notesCtl = TextEditingController();
+  // ═════════════════════════════ helpers ══════════════════════════════════
+  String _formatTime(Duration d) =>
+      '${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}';
 
-  Future<bool> _finishDialog(BuildContext ctx) async {
-    return await showDialog<bool>(
+  Future<bool> _confirmExit(
+      BuildContext ctx, WorkoutLogNotifier notifier) async {
+    return await showModalBottomSheet<bool>(
           context: ctx,
-          builder: (_) => AlertDialog(
-            title: const Text('Finalizar sesión'),
-            content: Column(
+          isDismissible: false,
+          shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          builder: (_) => Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButton<String>(
-                  value: _fatigue,
-                  items: const [
-                    DropdownMenuItem(value: 'Easy', child: Text('Easy')),
-                    DropdownMenuItem(value: 'Normal', child: Text('Normal')),
-                    DropdownMenuItem(value: 'Exhausted', child: Text('Exhausted')),
-                  ],
-                  onChanged: (v) => setState(() => _fatigue = v!),
-                ),
-                DropdownButton<String>(
-                  value: _mood,
-                  items: const [
-                    DropdownMenuItem(value: '🙂', child: Text('🙂')),
-                    DropdownMenuItem(value: '😐', child: Text('😐')),
-                    DropdownMenuItem(value: '😫', child: Text('😫')),
-                  ],
-                  onChanged: (v) => setState(() => _mood = v!),
-                ),
-                TextField(
-                  controller: _notesCtl,
-                  decoration: const InputDecoration(labelText: 'Notas'),
-                ),
+                const Icon(Icons.warning_amber_rounded, size: 48),
                 const SizedBox(height: 12),
-                Text('Duración: ${_sw.elapsed.inMinutes} min'),
+                const Text('¿Salir sin guardar?',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                const Text('Perderás el progreso de esta sesión.'),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          notifier.clear();
+                          Navigator.pop(ctx, true);
+                        },
+                        child: const Text('Salir'),
+                      ),
+                    ),
+                  ],
+                )
               ],
             ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-              ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
-            ],
           ),
         ) ??
         false;
   }
 
-  String _fmt(Duration d) =>
-      '${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+  // ─────────── Diálogo de finalización ────────────
+  Future<bool> _showFinishDialog(BuildContext ctx) async {
+    String localFatigue = _fatigue;
+    String localMood = _mood;
+    final localNotesCtl = TextEditingController(text: _notesCtl.text);
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (dCtx) => StatefulBuilder(
+        builder: (dCtx, setD) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: const [
+              Icon(Icons.flag_rounded),
+              SizedBox(width: 8),
+              Text('Finalizar sesión'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _NiceDropdown(
+                  icon: Icons.bolt_rounded,
+                  value: localFatigue,
+                  items: const ['Easy', 'Normal', 'Exhausted'],
+                  onChanged: (v) => setD(() => localFatigue = v),
+                ),
+                const SizedBox(height: 8),
+                _NiceDropdown(
+                  icon: Icons.mood_rounded,
+                  value: localMood,
+                  items: const ['🙂', '😐', '😫'],
+                  onChanged: (v) => setD(() => localMood = v),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: localNotesCtl,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Notas',
+                    prefixIcon: Icon(Icons.edit_note_rounded),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Chip(
+                  avatar: const Icon(Icons.timer_outlined, size: 20),
+                  label: Text('${_sw.elapsed.inMinutes} min de sesión'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: () {
+                _fatigue = localFatigue;
+                _mood = localMood;
+                _notesCtl.text = localNotesCtl.text;
+                Navigator.pop(dCtx, true);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    return ok ?? false;
+  }
 }
 
-// ───────────────── tile con sets y logNextSet() ─────────────────────
+// ════════════════════ HEADERS & WIDGETS AUX ════════════════════
+
+class _ProgressHeader extends StatelessWidget {
+  const _ProgressHeader({required this.completed, required this.total});
+  final int completed;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+              color: cs.primaryContainer.withOpacity(.4),
+              offset: const Offset(0, 2),
+              blurRadius: 4)
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.fitness_center_rounded),
+              const SizedBox(width: 6),
+              Text('Ejercicios $completed / $total',
+                  style: Theme.of(context).textTheme.bodyLarge),
+            ],
+          ),
+          const SizedBox(height: 6),
+          LinearProgressIndicator(
+            value: total == 0 ? 0 : completed / total,
+            minHeight: 6,
+            backgroundColor: cs.onPrimaryContainer.withOpacity(.2),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+class _NiceDropdown extends StatelessWidget {
+  const _NiceDropdown(
+      {required this.icon,
+      required this.value,
+      required this.items,
+      required this.onChanged});
+  final IconData icon;
+  final String value;
+  final List<String> items;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon),
+        border: const OutlineInputBorder(),
+      ),
+      items:
+          items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+      onChanged: (v) => onChanged(v ?? value),
+    );
+  }
+}
+
+// ═══════════════════════════  TILE  ════════════════════════════
+
 class _ExerciseTile extends StatefulWidget {
   final dynamic detail;
   final bool expanded;
-  final VoidCallback onExpand;
-  final List<WorkoutLogEntry> logged;
+  final VoidCallback onToggle;
+  final Map<String, WorkoutLogEntry> logsMap;
+  final bool highlightDone;
+  final VoidCallback onChanged;
+  final void Function(WorkoutLogEntry) removeLog;
+
   const _ExerciseTile({
     super.key,
     required this.detail,
     required this.expanded,
-    required this.onExpand,
-    required this.logged,
+    required this.onToggle,
+    required this.logsMap,
+    required this.highlightDone,
+    required this.onChanged,
+    required this.removeLog,
   });
+
   @override
   State<_ExerciseTile> createState() => _ExerciseTileState();
 }
 
-class _SeriesControllers extends InheritedWidget {
-  final List<TextEditingController> reps;
-  final List<TextEditingController> kg;
-  final List<TextEditingController> rir;
-  const _SeriesControllers({
-    required super.child,
-    required this.reps,
-    required this.kg,
-    required this.rir,
-  });
-  static _SeriesControllers? of(BuildContext ctx) =>
-      ctx.dependOnInheritedWidgetOfExactType<_SeriesControllers>();
-  @override
-  bool updateShouldNotify(_) => false;
-}
-
 class _ExerciseTileState extends State<_ExerciseTile> {
-  late final List<TextEditingController> _repCtl;
-  late final List<TextEditingController> _kgCtl;
-  late final List<TextEditingController> _rirCtl;
+  late List<TextEditingController> _repCtl;
+  late List<TextEditingController> _kgCtl;
+  late List<TextEditingController> _rirCtl;
 
   @override
   void initState() {
     super.initState();
+    _buildControllers(widget.detail.sets);
+  }
+
+  void _buildControllers(int n) {
     _repCtl = List.generate(
-      widget.detail.sets,
-      (_) => TextEditingController(text: widget.detail.reps.toString()),
-    );
-    _kgCtl = List.generate(
-      widget.detail.sets,
-      (_) => TextEditingController(text: widget.detail.weight.toString()),
-    );
+        n, (_) => TextEditingController(text: widget.detail.reps.toString()));
+    _kgCtl = List.generate(n,
+        (_) => TextEditingController(text: widget.detail.weight.toStringAsFixed(0)));
     _rirCtl =
-        List.generate(widget.detail.sets, (_) => TextEditingController(text: '2'));
+        List.generate(n, (_) => TextEditingController(text: '2'));
   }
 
-  // -------- método invocado por FAB (StartRoutineScreen) -------------
-  void logNextSet(void Function(WorkoutLogEntry) add, int planId) {
-    final done = widget.logged
-        .where((l) => l.exerciseId == widget.detail.exerciseId)
-        .length;
-    if (done >= widget.detail.sets) return;
+  // ───── añadir / quitar sets ─────
+  void _addSet() {
+    setState(() {
+      _repCtl
+          .add(TextEditingController(text: widget.detail.reps.toString()));
+      _kgCtl.add(TextEditingController(
+          text: widget.detail.weight.toStringAsFixed(0)));
+      _rirCtl.add(TextEditingController(text: '2'));
+    });
+    widget.onChanged();
+  }
 
-    final entry = WorkoutLogEntry(
+  void _removeSet() {
+    if (_repCtl.length <= 1) return;
+    final removed = _repCtl.length;
+    _repCtl.removeLast();
+    _kgCtl.removeLast();
+    _rirCtl.removeLast();
+    widget.removeLog(WorkoutLogEntry(
       date: DateTime.now(),
-      planId: planId,
+      planId: -1,
       exerciseId: widget.detail.exerciseId,
-      setNumber: done + 1,
-      reps: int.tryParse(_repCtl[done].text) ?? widget.detail.reps,
-      weight: double.tryParse(_kgCtl[done].text) ?? widget.detail.weight,
-      rir: int.tryParse(_rirCtl[done].text) ?? 2,
-    );
-    add(entry);
+      setNumber: removed,
+      reps: 0,
+      weight: 0,
+      rir: 0,
+    ));
     setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Serie ${entry.setNumber} registrada')),
-    );
+    widget.onChanged();
   }
-  // ------------------------------------------------------------------
+
+  bool isComplete(Map<String, WorkoutLogEntry> logs) {
+    for (var s = 1; s <= _repCtl.length; s++) {
+      if (!(logs['${widget.detail.exerciseId}-$s']?.completed ?? false)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void logCurrentSet({
+    required void Function(WorkoutLogEntry) addOrUpdate,
+    required int planId,
+  }) {
+    int current = 1;
+    String key(int s) => '${widget.detail.exerciseId}-$s';
+    for (var s = 1; s <= _repCtl.length; s++) {
+      if (!(widget.logsMap[key(s)]?.completed ?? false)) {
+        current = s;
+        break;
+      }
+      if (s == _repCtl.length) current = s;
+    }
+
+    addOrUpdate(
+      WorkoutLogEntry(
+        date: DateTime.now(),
+        planId: planId,
+        exerciseId: widget.detail.exerciseId,
+        setNumber: current,
+        reps: int.tryParse(_repCtl[current - 1].text) ?? widget.detail.reps,
+        weight:
+            double.tryParse(_kgCtl[current - 1].text) ?? widget.detail.weight,
+        rir: int.tryParse(_rirCtl[current - 1].text) ?? 2,
+        completed: true,
+      ),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Serie $current registrada/actualizada')));
+    setState(() {});
+    widget.onChanged();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return _SeriesControllers(
-      reps: _repCtl,
-      kg: _kgCtl,
-      rir: _rirCtl,
-      child: Card(
+    final cs = Theme.of(context).colorScheme;
+    String keyBy(int s) => '${widget.detail.exerciseId}-$s';
+
+    return GestureDetector(
+      onTap: widget.onToggle,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          color: widget.highlightDone ? cs.secondaryContainer : cs.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: cs.shadow.withOpacity(.1),
+              offset: const Offset(0, 2),
+              blurRadius: 4,
+            ),
+          ],
+        ),
         child: Column(
           children: [
             ListTile(
-              title: Text(widget.detail.name),
-              trailing: IconButton(
-                icon: Icon(
-                    widget.expanded ? Icons.expand_less : Icons.expand_more),
-                onPressed: widget.onExpand,
+              title: Text(widget.detail.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              trailing: Icon(
+                widget.expanded ? Icons.expand_less : Icons.expand_more,
+                color: cs.primary,
               ),
             ),
-            if (widget.expanded)
+            if (widget.expanded) ...[
+              Padding(
+                padding: const EdgeInsets.only(right: 12, bottom: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _removeSet,
+                      icon: const Icon(Icons.remove),
+                      label: const Text('Set'),
+                      style: OutlinedButton.styleFrom(
+                          visualDensity: VisualDensity.compact),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: _addSet,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Set'),
+                      style: OutlinedButton.styleFrom(
+                          visualDensity: VisualDensity.compact),
+                    ),
+                  ],
+                ),
+              ),
               Column(
-                children: List.generate(widget.detail.sets, (i) {
-                  final loggedSet = widget.logged.any((l) =>
-                      l.exerciseId == widget.detail.exerciseId &&
-                      l.setNumber == i + 1);
+                children: List.generate(_repCtl.length, (i) {
+                  final logged =
+                      widget.logsMap[keyBy(i + 1)]?.completed ?? false;
                   return Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 6),
                     child: Row(
                       children: [
-                        Expanded(child: Text('Serie ${i + 1}')),
-                        SizedBox(
-                          width: 50,
-                          child: TextField(
-                            controller: _repCtl[i],
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const Text(' reps  '),
-                        SizedBox(
-                          width: 60,
-                          child: TextField(
-                            controller: _kgCtl[i],
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const Text(' kg  '),
-                        SizedBox(
-                          width: 40,
-                          child: TextField(
-                            controller: _rirCtl[i],
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const Text(' RIR'),
-                        const SizedBox(width: 8),
+                        _numField(_repCtl[i], width: 52, suffix: 'r'),
+                        const SizedBox(width: 12),
+                        _numField(_kgCtl[i], width: 70, suffix: 'kg'),
+                        const SizedBox(width: 12),
+                        _numField(_rirCtl[i], width: 54, suffix: 'RIR'),
+                        const Spacer(),
                         Icon(
-                          loggedSet
+                          logged
                               ? Icons.check_circle
                               : Icons.radio_button_unchecked,
-                          color: loggedSet ? Colors.green : Colors.grey,
+                          color: logged ? cs.primary : cs.outline,
                         ),
                       ],
                     ),
                   );
                 }),
               ),
+              const SizedBox(height: 12),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _numField(TextEditingController ctl,
+      {required double width, required String suffix}) {
+    final cs = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: width,
+      child: TextField(
+        controller: ctl,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 14),
+        keyboardType:
+            const TextInputType.numberWithOptions(decimal: true, signed: false),
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+        onTap: () => ctl.selection = TextSelection(baseOffset: 0, extentOffset: ctl.text.length),
+        decoration: InputDecoration(
+          contentPadding: const EdgeInsets.symmetric(vertical: 6),
+          isDense: true,
+          suffixText: suffix,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: cs.primary),
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
       ),
     );
