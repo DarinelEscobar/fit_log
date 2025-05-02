@@ -11,7 +11,6 @@ import '../../domain/repositories/workout_plan_repository.dart';
 import '../../../../data/schema/schemas.dart';
 
 class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
-  // ───────────────────────── helpers internos ────────────────────────
   Future<File> _getOrCreateFile(String filename) async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/$filename');
@@ -23,7 +22,9 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
       if (defaultSheet != null) {
         excel.rename(defaultSheet, schema.sheetName);
       }
-      excel[schema.sheetName]!.appendRow(schema.headers);
+      excel[schema.sheetName]!.appendRow(
+        schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList(),
+      );
       final bytes = excel.save();
       if (bytes != null) await file.writeAsBytes(bytes);
     }
@@ -31,15 +32,22 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   int _getLastId(Sheet sheet) {
-    // Busca desde la última fila válida hacia arriba y devuelve el último id
     for (var i = sheet.rows.length - 1; i >= 1; i--) {
       final val = sheet.rows[i][0]?.value;
       if (val != null) return int.tryParse(val.toString()) ?? 0;
     }
     return 0;
   }
+  T? _cast<T>(Data? cell) {
+    final v = cell?.value;
+    if (v == null) return null;
+    if (v is T) return v as T;
+    if (T == int) return int.tryParse(v.toString()) as T?;
+    if (T == double) return double.tryParse(v.toString()) as T?;
+    if (T == String) return v.toString() as T;
+    return null;
+  }
 
-  // ────────────────────────── Workout Plans ──────────────────────────
   @override
   Future<List<WorkoutPlan>> getAllPlans() async {
     final file = await _getOrCreateFile('workout_plan.xlsx');
@@ -65,11 +73,14 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName]!;
 
-    sheet.appendRow([_getLastId(sheet) + 1, name, frequency]);
+    sheet.appendRow([
+      IntCellValue(_getLastId(sheet) + 1),
+      TextCellValue(name),
+      TextCellValue(frequency),
+    ]);
     await file.writeAsBytes(excel.save()!);
   }
 
-  // ────────────────────────── Exercises x Plan ───────────────────────
   @override
   Future<List<Exercise>> getExercisesForPlan(int planId) async {
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
@@ -84,21 +95,24 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
     final exerciseIdsForPlan = peSheet.rows
         .skip(1)
-        .where((row) => row.isNotEmpty && (row[0]?.value == planId))
-        .map((row) => row[1]?.value as int)
+        .where((row) => row.isNotEmpty && _cast<int>(row[0]) == planId)
+        .map((row) => _cast<int>(row[1]))
+        .whereType<int>()
         .toSet();
 
     return exSheet.rows
         .skip(1)
         .where((row) =>
-            row.isNotEmpty && exerciseIdsForPlan.contains(row[0]?.value))
+            row.isNotEmpty &&
+            exerciseIdsForPlan
+                .contains(int.tryParse(row[0]?.value.toString() ?? '')))
         .map(
           (row) => Exercise(
-            id: row[0]?.value as int,
-            name: row[1]?.value.toString() ?? '',
-            description: row[2]?.value.toString() ?? '',
-            category: row[3]?.value.toString() ?? '',
-            mainMuscleGroup: row[4]?.value.toString() ?? '',
+            id: _cast<int>(row[0]) ?? 0,
+            name: _cast<String>(row[1]) ?? '',
+            description: _cast<String>(row[2]) ?? '',
+            category: _cast<String>(row[3]) ?? '',
+            mainMuscleGroup: _cast<String>(row[4]) ?? '',
           ),
         )
         .toList();
@@ -118,26 +132,28 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
     final mapIdName = {
       for (var r in exSheet.rows.skip(1))
-        if (r.isNotEmpty) r[0]!.value as int: r[1]!.value.toString(),
+        if (r.isNotEmpty) _cast<int>(r[0])!: r[1]?.value.toString() ?? '',
     };
 
     return peSheet.rows
         .skip(1)
-        .where((r) => r.isNotEmpty && r[0]!.value == planId)
+        .where((r) =>
+            r.isNotEmpty &&
+            _cast<int>(r[0]) == planId)
         .map((r) {
-          final id = r[1]!.value as int;
+          final id = _cast<int>(r[1]) ?? 0;
           return PlanExerciseDetail(
             exerciseId: id,
             name: mapIdName[id] ?? 'Unknown',
-            sets: r[2]!.value as int,
-            reps: r[3]!.value as int,
-            weight: (r[4]!.value as num).toDouble(),
+            sets: _cast<int>(r[2]) ?? 0,
+            reps: _cast<int>(r[3]) ?? 0,
+            weight: _cast<double>(r[4]) ?? 0,
           );
         })
         .toList();
   }
 
-  // ──────────────────────────── Logs y Sesiones ──────────────────────
+
   @override
   Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs) async {
     if (logs.isEmpty) return;
@@ -149,14 +165,14 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     var id = _getLastId(sheet) + 1;
     for (final l in logs) {
       sheet.appendRow([
-        id++,
-        l.date.toIso8601String().split('T').first,
-        l.planId,
-        l.exerciseId,
-        l.setNumber,
-        l.reps,
-        l.weight,
-        l.rir,
+        IntCellValue(id++),
+        TextCellValue(l.date.toIso8601String().split('T').first),
+        IntCellValue(l.planId),
+        IntCellValue(l.exerciseId),
+        IntCellValue(l.setNumber),
+        IntCellValue(l.reps),
+        DoubleCellValue(l.weight),
+        IntCellValue(l.rir),
       ]);
     }
     await file.writeAsBytes(excel.save()!);
@@ -169,13 +185,13 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final sheet = excel[kTableSchemas['workout_session.xlsx']!.sheetName]!;
 
     sheet.appendRow([
-      _getLastId(sheet) + 1,
-      s.date.toIso8601String().split('T').first,
-      s.planId,
-      s.fatigueLevel,
-      s.durationMinutes,
-      s.mood,
-      s.notes,
+      IntCellValue(_getLastId(sheet) + 1),
+      TextCellValue(s.date.toIso8601String().split('T').first),
+      IntCellValue(s.planId),
+      TextCellValue(s.fatigueLevel),
+      IntCellValue(s.durationMinutes),
+      TextCellValue(s.mood),
+      TextCellValue(s.notes),
     ]);
     await file.writeAsBytes(excel.save()!);
   }

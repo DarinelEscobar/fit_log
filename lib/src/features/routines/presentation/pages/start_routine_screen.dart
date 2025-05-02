@@ -31,8 +31,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   final Map<int, GlobalKey<_ExerciseTileState>> _keys = {};
   int? _expandedExerciseId;
 
-  String _fatigue = 'Normal';
-  String _mood = '🙂';
+  String _fatigue = '5';
+  String _mood = '3';
   final TextEditingController _notesCtl = TextEditingController();
 
   @override
@@ -243,14 +243,14 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                 _NiceDropdown(
                   icon: Icons.bolt_rounded,
                   value: localFatigue,
-                  items: const ['Easy', 'Normal', 'Exhausted'],
+                  items: const ['1', '2', '3', '4', '5','7', '8', '9', '10'],
                   onChanged: (v) => setD(() => localFatigue = v),
                 ),
                 const SizedBox(height: 8),
                 _NiceDropdown(
                   icon: Icons.mood_rounded,
                   value: localMood,
-                  items: const ['🙂', '😐', '😫'],
+                  items: const ['1', '2', '3', '4', '5'],
                   onChanged: (v) => setD(() => localMood = v),
                 ),
                 const SizedBox(height: 8),
