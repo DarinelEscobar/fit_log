@@ -9,7 +9,17 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Fit Log',
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
+      themeMode: ThemeMode.system,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.blue,
+        brightness: Brightness.light,
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.blue,
+        brightness: Brightness.dark,
+      ),
       home: const MainScaffold(),
     );
   }
