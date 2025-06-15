@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../providers/history_providers.dart';
+import '../providers/history_providers.dart';
 import '../../../routines/domain/entities/workout_log_entry.dart';
 
 class ExerciseLogsScreen extends ConsumerWidget {
   final int exerciseId;
   final String exerciseName;
+
   const ExerciseLogsScreen({super.key, required this.exerciseId, required this.exerciseName});
 
   @override
@@ -50,11 +51,13 @@ class _WeekSummary {
   final DateTime weekStart;
   final double volume;
   final WorkoutLogEntry top;
+
   _WeekSummary(this.weekStart, this.volume, this.top);
 }
 
 class _Chart extends StatelessWidget {
   final List<_WeekSummary> data;
+
   const _Chart({required this.data});
 
   @override
@@ -62,9 +65,11 @@ class _Chart extends StatelessWidget {
     if (data.isEmpty) {
       return const Center(child: Text('Sin datos'));
     }
+
     final spotsWeight = <FlSpot>[];
     final spotsVolume = <FlSpot>[];
     final labels = <String>[];
+
     for (var i = 0; i < data.length; i++) {
       spotsWeight.add(FlSpot(i.toDouble(), data[i].top.weight));
       spotsVolume.add(FlSpot(i.toDouble(), data[i].volume));
@@ -76,15 +81,19 @@ class _Chart extends StatelessWidget {
       child: LineChart(
         LineChartData(
           lineTouchData: LineTouchData(
-            getTooltipItems: (touched) {
-              return touched.map((e) {
-                final w = data[e.spotIndex];
-                return LineTooltipItem(
-                  '${w.top.reps} reps\nRIR ${w.top.rir}',
-                  const TextStyle(color: Colors.white),
-                );
-              }).toList();
-            },
+            enabled: true,
+            touchTooltipData: LineTouchTooltipData(
+              tooltipBgColor: Colors.grey,
+              getTooltipItems: (touchedSpots) {
+                return touchedSpots.map((e) {
+                  final w = data[e.spotIndex];
+                  return LineTooltipItem(
+                    '${w.top.reps} reps\nRIR ${w.top.rir}',
+                    const TextStyle(color: Colors.white),
+                  );
+                }).toList();
+              },
+            ),
           ),
           titlesData: FlTitlesData(
             leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true)),
@@ -115,7 +124,6 @@ class _Chart extends StatelessWidget {
               color: Colors.green,
               dashArray: [5, 5],
               dotData: FlDotData(show: false),
-              yAxis: 1,
             ),
           ],
           minY: 0,
