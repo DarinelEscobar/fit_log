@@ -39,6 +39,18 @@ class ProfileRepositoryImpl implements ProfileRepository {
       height: _cast<double>(row[4]) ?? 0,
       experienceLevel: _cast<String>(row[5]) ?? '',
       goal: _cast<String>(row[6]) ?? '',
+      targetWeight: _cast<double>(row[7]) ?? 0,
+      targetBodyFat: _cast<double>(row[8]) ?? 0,
+      targetNeck: _cast<double>(row[9]) ?? 0,
+      targetShoulders: _cast<double>(row[10]) ?? 0,
+      targetChest: _cast<double>(row[11]) ?? 0,
+      targetAbdomen: _cast<double>(row[12]) ?? 0,
+      targetWaist: _cast<double>(row[13]) ?? 0,
+      targetGlutes: _cast<double>(row[14]) ?? 0,
+      targetThigh: _cast<double>(row[15]) ?? 0,
+      targetCalf: _cast<double>(row[16]) ?? 0,
+      targetArm: _cast<double>(row[17]) ?? 0,
+      targetForearm: _cast<double>(row[18]) ?? 0,
     );
   }
 

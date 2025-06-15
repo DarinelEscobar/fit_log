@@ -8,18 +8,29 @@ class MetricsChartScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final metricsAsync = ref.watch(bodyMetricsProvider);
+    final userAsync = ref.watch(userProfileProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Progreso corporal')),
       body: metricsAsync.when(
-        data: (metrics) => metrics.isEmpty
-            ? const Center(child: Text('Sin datos'))
-            : Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: CustomPaint(
-                  size: const Size(double.infinity, 200),
-                  painter: _WeightChartPainter(metrics),
-                ),
-              ),
+        data: (metrics) {
+          if (metrics.isEmpty) {
+            return const Center(child: Text('Sin datos'));
+          }
+          return userAsync.when(
+            data: (user) => user == null
+                ? const Center(child: Text('Sin perfil'))
+                : Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: CustomPaint(
+                      size: const Size(double.infinity, 200),
+                      painter:
+                          _WeightChartPainter(metrics, user.targetWeight),
+                    ),
+                  ),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, __) => Center(child: Text('Error: $e')),
+          );
+        },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, __) => Center(child: Text('Error: $e')),
       ),
@@ -29,7 +40,8 @@ class MetricsChartScreen extends ConsumerWidget {
 
 class _WeightChartPainter extends CustomPainter {
   final List<dynamic> metrics;
-  _WeightChartPainter(this.metrics);
+  final double targetWeight;
+  _WeightChartPainter(this.metrics, this.targetWeight);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -45,6 +57,8 @@ class _WeightChartPainter extends CustomPainter {
       if (m.weight < minWeight) minWeight = m.weight;
       if (m.weight > maxWeight) maxWeight = m.weight;
     }
+    if (targetWeight < minWeight) minWeight = targetWeight;
+    if (targetWeight > maxWeight) maxWeight = targetWeight;
     final weightRange = maxWeight - minWeight;
     final dxStep = size.width / (metrics.length - 1);
 
@@ -61,6 +75,17 @@ class _WeightChartPainter extends CustomPainter {
       }
     }
     canvas.drawPath(path, paint);
+
+    // target weight line
+    final targetPaint = Paint()
+      ..color = Colors.red
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    final ty = weightRange == 0
+        ? size.height
+        : size.height -
+            ((targetWeight - minWeight) / weightRange) * size.height;
+    canvas.drawLine(Offset(0, ty), Offset(size.width, ty), targetPaint);
   }
 
   @override
