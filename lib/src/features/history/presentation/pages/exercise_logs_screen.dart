@@ -3,29 +3,49 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../providers/history_providers.dart';
 import '../../../routines/domain/entities/workout_log_entry.dart';
+import '../../../routines/domain/entities/workout_session.dart';
 import 'package:intl/intl.dart';
 
 class ExerciseLogsScreen extends ConsumerWidget {
   final int exerciseId;
   final String exerciseName;
 
-  const ExerciseLogsScreen({super.key, required this.exerciseId, required this.exerciseName});
+  const ExerciseLogsScreen({
+    Key? key,
+    required this.exerciseId,
+    required this.exerciseName,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncLogs = ref.watch(logsByExerciseProvider(exerciseId));
+    final asyncSessions = ref.watch(workoutSessionsProvider);
 
     return Scaffold(
       appBar: AppBar(title: Text(exerciseName)),
       body: asyncLogs.when(
-        data: (logs) => _Chart(data: _summaries(logs)),
+        data: (logs) => asyncSessions.when(
+          data: (sessions) => _Chart(data: _summaries(logs, sessions)),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, __) => Center(child: Text('Error: $e')),
+        ),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, __) => Center(child: Text('Error: $e')),
       ),
     );
   }
 
-  List<_WeekSummary> _summaries(List<WorkoutLogEntry> logs) {
+  List<_WeekSummary> _summaries(
+    List<WorkoutLogEntry> logs,
+    List<WorkoutSession> sessions,
+  ) {
+    final sessionMap = <DateTime, WorkoutSession>{};
+    for (final s in sessions) {
+      final monday = s.date.subtract(Duration(days: s.date.weekday - 1));
+      final key = DateTime(monday.year, monday.month, monday.day);
+      sessionMap[key] = s;
+    }
+
     final map = <DateTime, List<WorkoutLogEntry>>{};
     for (final l in logs) {
       final monday = l.date.subtract(Duration(days: l.date.weekday - 1));
@@ -42,23 +62,30 @@ class ExerciseLogsScreen extends ConsumerWidget {
         if (cw != 0) return cw;
         return a.rir.compareTo(b.rir);
       });
-      result.add(_WeekSummary(k, volume, entries.first));
+      result.add(_WeekSummary(k, volume, entries.first, sessionMap[k]));
     }
     return result;
   }
 }
 
-// Summarizes a week's top lift and total volume
 class _WeekSummary {
   final DateTime week;
   final double volume;
   final WorkoutLogEntry top;
-  _WeekSummary(this.week, this.volume, this.top);
+  final WorkoutSession? session;
+
+  _WeekSummary(this.week, this.volume, this.top, this.session);
 }
 
 class _Chart extends StatelessWidget {
   final List<_WeekSummary> data;
+
   const _Chart({Key? key, required this.data}) : super(key: key);
+
+  double _interval(double max) {
+    if (max <= 0) return 1;
+    return (max / 5).ceilToDouble();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +94,8 @@ class _Chart extends StatelessWidget {
     final labels = data.map((w) => DateFormat('MM/dd').format(w.week)).toList();
     final spotsWeight = List.generate(data.length, (i) => FlSpot(i.toDouble(), data[i].top.weight));
     final spotsVolume = List.generate(data.length, (i) => FlSpot(i.toDouble(), data[i].volume));
+    final stepWeight = _interval(maxWeight);
+    final stepVolume = _interval(maxVolume);
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -74,50 +103,27 @@ class _Chart extends StatelessWidget {
         children: [
           Expanded(
             child: LineChart(
-  double _upperBound(double max, double step) {
-    if (max <= 0) return step;
-    return ((max / step).ceil() * step).toDouble();
-  }
-
-    final stepWeight = _interval(maxWeight);
-    final stepVolume = _interval(maxVolume);
               LineChartData(
                 minX: 0,
                 maxX: (data.length - 1).toDouble(),
-                lineTouchData: LineTouchData(
-                  touchTooltipData: LineTouchTooltipData(
-                    tooltipBgColor: Colors.black87,
-                      final item = touched.firstWhere(
-                        (e) => e.barIndex == 0,
-                        orElse: () => touched.first,
-                      );
-                      final w = data[item.spotIndex];
-                      final reps = w.top?.reps ?? 0;
-                      final rir = w.top?.rir ?? 0;
-                      final fatigue = w.session?.fatigueLevel ?? '';
-                      final mood = w.session?.mood ?? '';
-                      final dur = w.session?.durationMinutes ?? 0;
-                      final text =
-                          'R: $reps • RIR $rir\nFatiga: $fatigue • $dur min\nMood: $mood';
-                      return [
-                        LineTooltipItem(
-                        )
-                      ];
+                minY: 0,
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
                     axisNameWidget: const Text('Peso (kg)'),
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 40,
                       interval: stepWeight,
-                      getTitlesWidget: (v, __) => Text(v.toInt().toString()),
+                      getTitlesWidget: (v, meta) => Text(v.toInt().toString()),
+                      reservedSize: 40,
                     ),
                   ),
                   rightTitles: AxisTitles(
                     axisNameWidget: const Text('Volumen (kg·reps)'),
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 48,
                       interval: stepVolume,
-                      getTitlesWidget: (v, __) => Text(v.toInt().toString()),
+                      getTitlesWidget: (v, meta) => Text(v.toInt().toString()),
+                      reservedSize: 48,
                     ),
                   ),
                   bottomTitles: AxisTitles(
@@ -125,39 +131,56 @@ class _Chart extends StatelessWidget {
                     sideTitles: SideTitles(
                       showTitles: true,
                       interval: 1,
-                        if (w.top == null) {
-                          return _LabelDotPainter(
-                            label: '💤',
-                            color: Colors.grey,
-                          );
-                        }
-                        final label = 'R:${w.top!.reps}\nRIR:${w.top!.rir}';
-                        final i = value.toInt();
+                      getTitlesWidget: (v, meta) {
+                        final i = v.toInt();
                         if (i < 0 || i >= labels.length) return const SizedBox();
-                        return Text(labels[i]);
+                        final w = data[i];
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(labels[i]),
+                            Text('R:${w.top.reps} RIR:${w.top.rir}', style: const TextStyle(fontSize: 10)),
+                          ],
+                        );
                       },
                     ),
                   ),
                   topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    tooltipBgColor: Colors.black87,
+                    getTooltipItems: (touched) => touched.map((t) {
+                      final w = data[t.spotIndex];
+                      final reps = w.top.reps;
+                      final rir = w.top.rir;
+                      final fatigue = w.session?.fatigueLevel ?? '';
+                      final mood = w.session?.mood ?? '';
+                      final dur = w.session?.durationMinutes ?? 0;
+                      return LineTooltipItem(
+                        'R: $reps • RIR $rir\nFatiga: $fatigue • $dur min\nMood: $mood',
+                        const TextStyle(color: Colors.white),
+                      );
+                    }).toList(),
+                  ),
                 ),
                 lineBarsData: [
                   LineChartBarData(
                     spots: spotsWeight,
                     isCurved: false,
                     barWidth: 3,
-                    color: Colors.blue,
                     dotData: FlDotData(show: true),
+                    color: Colors.blue,
                   ),
                   LineChartBarData(
                     spots: spotsVolume,
                     isCurved: false,
                     barWidth: 3,
-                    color: Colors.green,
                     dashArray: [5, 5],
                     dotData: FlDotData(show: false),
+                    color: Colors.green,
                   ),
                 ],
-                minY: 0,
                 extraLinesData: ExtraLinesData(horizontalLines: []),
               ),
             ),
@@ -180,7 +203,8 @@ class _Chart extends StatelessWidget {
 class _Legend extends StatelessWidget {
   final Color color;
   final String text;
-  const _Legend({super.key, required this.color, required this.text});
+
+  const _Legend({Key? key, required this.color, required this.text}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
