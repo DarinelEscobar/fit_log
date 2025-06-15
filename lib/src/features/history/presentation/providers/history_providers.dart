@@ -6,8 +6,10 @@ import '../../../routines/domain/entities/workout_log_entry.dart';
 
 final _repoProvider = Provider((_) => WorkoutHistoryRepositoryImpl());
 
-final workoutSessionsProvider = FutureProvider((ref) async {
-  final usecase = GetWorkoutSessionsUseCase(ref.watch(_repoProvider));
+  final filtered = logs.where((l) => l.exerciseId == exerciseId).toList()
+    ..sort((a, b) => a.date.compareTo(b.date));
+  return filtered;
+});
   return usecase();
 });
 
