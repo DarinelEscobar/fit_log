@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../providers/history_providers.dart';
 import '../../../routines/domain/entities/workout_log_entry.dart';
+import 'package:intl/intl.dart';
 
 class ExerciseLogsScreen extends ConsumerWidget {
   final int exerciseId;
@@ -47,11 +48,28 @@ class ExerciseLogsScreen extends ConsumerWidget {
   }
 }
 
-    final maxWeight =
-        data.map((e) => e.top.weight).fold<double>(0, (p, c) => c > p ? c : p);
-    final maxVolume =
-        data.map((e) => e.volume).fold<double>(0, (p, c) => c > p ? c : p);
+// Summarizes a week's top lift and total volume
+class _WeekSummary {
+  final DateTime week;
+  final double volume;
+  final WorkoutLogEntry top;
+  _WeekSummary(this.week, this.volume, this.top);
+}
 
+class _Chart extends StatelessWidget {
+  final List<_WeekSummary> data;
+  const _Chart({Key? key, required this.data}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final maxWeight = data.map((e) => e.top.weight).fold<double>(0, (p, c) => c > p ? c : p);
+    final maxVolume = data.map((e) => e.volume).fold<double>(0, (p, c) => c > p ? c : p);
+    final labels = data.map((w) => DateFormat('MM/dd').format(w.week)).toList();
+    final spotsWeight = List.generate(data.length, (i) => FlSpot(i.toDouble(), data[i].top.weight));
+    final spotsVolume = List.generate(data.length, (i) => FlSpot(i.toDouble(), data[i].volume));
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           Expanded(
@@ -62,21 +80,16 @@ class ExerciseLogsScreen extends ConsumerWidget {
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(
                     tooltipBgColor: Colors.black87,
-                    getTooltipItems: (touched) {
-                      return touched.map((e) {
-                        final w = data[e.spotIndex];
-                        return LineTooltipItem(
-                          'R: ${w.top.reps} • RIR ${w.top.rir}',
-                          const TextStyle(color: Colors.white),
-                        );
-                      }).toList();
-                    },
+                    getTooltipItems: (touchedSpots) => touchedSpots.map((e) {
+                      final w = data[e.spotIndex];
+                      return LineTooltipItem(
+                        'R: ${w.top.reps} • RIR ${w.top.rir}',
+                        const TextStyle(color: Colors.white),
+                      );
+                    }).toList(),
                   ),
                 ),
-                gridData: FlGridData(
-                  drawVerticalLine: false,
-                  verticalInterval: 1,
-                ),
+                gridData: FlGridData(drawVerticalLine: false, verticalInterval: 1),
                 titlesData: FlTitlesData(
                   leftTitles: AxisTitles(
                     axisNameWidget: const Text('Peso (kg)'),
@@ -99,8 +112,8 @@ class ExerciseLogsScreen extends ConsumerWidget {
                     sideTitles: SideTitles(
                       showTitles: true,
                       interval: 1,
-                      getTitlesWidget: (v, __) {
-                        final i = v.toInt();
+                      getTitlesWidget: (value, _) {
+                        final i = value.toInt();
                         if (i < 0 || i >= labels.length) return const SizedBox();
                         return Text(labels[i]);
                       },
@@ -123,10 +136,13 @@ class ExerciseLogsScreen extends ConsumerWidget {
                     color: Colors.green,
                     dashArray: [5, 5],
                     dotData: FlDotData(show: false),
-                    yAxis: 1,
                   ),
                 ],
                 minY: 0,
+                extraLinesData: ExtraLinesData(horizontalLines: []),
+              ),
+            ),
+          ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -137,11 +153,15 @@ class ExerciseLogsScreen extends ConsumerWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
 
 class _Legend extends StatelessWidget {
   final Color color;
   final String text;
-  const _Legend({required this.color, required this.text});
+  const _Legend({super.key, required this.color, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -151,47 +171,6 @@ class _Legend extends StatelessWidget {
         const SizedBox(width: 4),
         Text(text),
       ],
-    );
-  }
-}
-              },
-            ),
-          ),
-          titlesData: FlTitlesData(
-            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true)),
-            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: true)),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (v, __) {
-                  final i = v.toInt();
-                  if (i < 0 || i >= labels.length) return const SizedBox();
-                  return Text(labels[i]);
-                },
-              ),
-            ),
-          ),
-          lineBarsData: [
-            LineChartBarData(
-              spots: spotsWeight,
-              isCurved: false,
-              barWidth: 3,
-              color: Colors.blue,
-              dotData: FlDotData(show: true),
-            ),
-            LineChartBarData(
-              spots: spotsVolume,
-              isCurved: false,
-              barWidth: 3,
-              color: Colors.green,
-              dashArray: [5, 5],
-              dotData: FlDotData(show: false),
-            ),
-          ],
-          minY: 0,
-          extraLinesData: ExtraLinesData(horizontalLines: []),
-        ),
-      ),
     );
   }
 }
