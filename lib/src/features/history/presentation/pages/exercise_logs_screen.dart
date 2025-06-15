@@ -74,29 +74,41 @@ class _Chart extends StatelessWidget {
         children: [
           Expanded(
             child: LineChart(
+  double _upperBound(double max, double step) {
+    if (max <= 0) return step;
+    return ((max / step).ceil() * step).toDouble();
+  }
+
+    final stepWeight = _interval(maxWeight);
+    final stepVolume = _interval(maxVolume);
               LineChartData(
                 minX: 0,
                 maxX: (data.length - 1).toDouble(),
                 lineTouchData: LineTouchData(
                   touchTooltipData: LineTouchTooltipData(
                     tooltipBgColor: Colors.black87,
-                    getTooltipItems: (touchedSpots) => touchedSpots.map((e) {
-                      final w = data[e.spotIndex];
-                      return LineTooltipItem(
-                        'R: ${w.top.reps} • RIR ${w.top.rir}',
-                        const TextStyle(color: Colors.white),
+                      final item = touched.firstWhere(
+                        (e) => e.barIndex == 0,
+                        orElse: () => touched.first,
                       );
-                    }).toList(),
-                  ),
-                ),
-                gridData: FlGridData(drawVerticalLine: false, verticalInterval: 1),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
+                      final w = data[item.spotIndex];
+                      final reps = w.top?.reps ?? 0;
+                      final rir = w.top?.rir ?? 0;
+                      final fatigue = w.session?.fatigueLevel ?? '';
+                      final mood = w.session?.mood ?? '';
+                      final dur = w.session?.durationMinutes ?? 0;
+                      final text =
+                          'R: $reps • RIR $rir\nFatiga: $fatigue • $dur min\nMood: $mood';
+                      return [
+                        LineTooltipItem(
+                        )
+                      ];
                     axisNameWidget: const Text('Peso (kg)'),
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 40,
-                      interval: maxWeight <= 0 ? 1 : (maxWeight / 4).ceilToDouble(),
+                      interval: stepWeight,
+                      getTitlesWidget: (v, __) => Text(v.toInt().toString()),
                     ),
                   ),
                   rightTitles: AxisTitles(
@@ -104,7 +116,8 @@ class _Chart extends StatelessWidget {
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 48,
-                      interval: maxVolume <= 0 ? 1 : (maxVolume / 4).ceilToDouble(),
+                      interval: stepVolume,
+                      getTitlesWidget: (v, __) => Text(v.toInt().toString()),
                     ),
                   ),
                   bottomTitles: AxisTitles(
@@ -112,7 +125,13 @@ class _Chart extends StatelessWidget {
                     sideTitles: SideTitles(
                       showTitles: true,
                       interval: 1,
-                      getTitlesWidget: (value, _) {
+                        if (w.top == null) {
+                          return _LabelDotPainter(
+                            label: '💤',
+                            color: Colors.grey,
+                          );
+                        }
+                        final label = 'R:${w.top!.reps}\nRIR:${w.top!.rir}';
                         final i = value.toInt();
                         if (i < 0 || i >= labels.length) return const SizedBox();
                         return Text(labels[i]);
