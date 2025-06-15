@@ -1,22 +1,50 @@
-# fit_log
+# Fit Log
 
-A new Flutter project.
+Fit Log is a Flutter application for tracking workout routines and logging your training sessions. All data is stored locally in Excel (`.xlsx`) files so you can easily back up or edit them with any spreadsheet program.
+
+## Features
+
+- Manage workout plans and exercises.
+- Start a routine and record sets with reps, weight and RIR.
+- Session timer with fatigue, mood and notes at the end of each workout.
+- History tab showing previous workout sessions and logs.
+- Bottom navigation with tabs for Home, Routines, Logs and more.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+1. Install [Flutter](https://flutter.dev/) (version `3.5` or newer).
+2. Fetch the dependencies:
 
-A few resources to get you started if this is your first Flutter project:
+   ```bash
+   flutter pub get
+   ```
+3. Launch the application on a device or emulator:
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+   ```bash
+   flutter run
+   ```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+On first launch, the app creates the Excel files defined in `kTableSchemas`. This is triggered by `XlsxInitializer.ensureXlsxFilesExist()` during startup.
 
+## Project Structure
 
+- `lib/main.dart` – entry point that ensures the Excel tables exist and runs the app.
+- `lib/src/` – source code organized by feature.
+  - `features/routines` – workout plans and routine screens.
+  - `features/history` – logs and session history screens.
+  - `navigation/main_scaffold.dart` – bottom navigation setup.
 
-flutter clean
-flutter pub get
-flutter run
+The main scaffold registers five tabs including Routines and Logs.
+
+## Running Tests
+
+A smoke test is provided under `test/`:
+
+```bash
+flutter test
+```
+
+## Notes
+
+- Statistics and profile sections are placeholders for future updates.
+- Data is stored in the application documents directory as `.xlsx` files, making it simple to export or edit externally.
