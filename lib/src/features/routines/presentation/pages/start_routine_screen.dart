@@ -22,7 +22,6 @@ class StartRoutineScreen extends ConsumerStatefulWidget {
 }
 
 class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
-  late final Stopwatch _sw;
   late final Timer _ticker;
   final Map<int, GlobalKey<_ExerciseTileState>> _keys = {};
   int? _expandedExerciseId;
@@ -34,13 +33,13 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   @override
   void initState() {
     super.initState();
-    _sw = Stopwatch()..start();
+    final notifier = ref.read(workoutLogProvider.notifier);
+    notifier.startSession();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
   }
 
   @override
   void dispose() {
-    _sw.stop();
     _ticker.cancel();
     super.dispose();
   }
@@ -74,7 +73,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
             },
           ),
           title: Text(
-            _fmt(_sw.elapsed),
+            _fmt(notifier.sessionDuration),
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
 
@@ -97,7 +96,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                     planId: widget.planId,
                     date: DateTime.now(),
                     fatigueLevel: _fatigue,
-                    durationMinutes: _sw.elapsed.inMinutes,
+                    durationMinutes: notifier.sessionDuration.inMinutes,
                     mood: _mood,
                     notes: _notesCtl.text,
                   ),
@@ -116,10 +115,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
           label: const Text('Registrar serie'),
           onPressed: () {
             if (_expandedExerciseId == null) return;
-            _keys[_expandedExerciseId]!.currentState!.logCurrentSet(
-              addOrUpdate: notifier.addOrUpdate,
-              planId: widget.planId,
-            );
+            _keys[_expandedExerciseId]!
+                .currentState!
+                .logCurrentSet(addOrUpdate: notifier.addOrUpdate);
             setState(() {});
           },
         ),
@@ -151,6 +149,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                         highlightDone: doneEx,
                         onChanged: () => setState(() {}),
                         removeLog: notifier.remove,
+                        update: notifier.update,
+                        planId: widget.planId,
                       );
                     }).toList(),
                   ),
@@ -224,7 +224,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            Text('${_sw.elapsed.inMinutes} min de sesión',
+            Text('${notifier.sessionDuration.inMinutes} min de sesión',
                 style: const TextStyle(color: Colors.white70)),
           ]),
           actions: [
@@ -315,6 +315,8 @@ class _ExerciseTile extends StatefulWidget {
     required this.highlightDone,
     required this.onChanged,
     required this.removeLog,
+    required this.update,
+    required this.planId,
   });
   final dynamic detail;
   final bool expanded;
@@ -323,6 +325,8 @@ class _ExerciseTile extends StatefulWidget {
   final bool highlightDone;
   final VoidCallback onChanged;
   final void Function(WorkoutLogEntry) removeLog;
+  final void Function(WorkoutLogEntry) update;
+  final int planId;
   @override
   State<_ExerciseTile> createState() => _ExerciseTileState();
 }
@@ -336,22 +340,50 @@ class _ExerciseTileState extends State<_ExerciseTile> {
   }
 
   void _build(int n) {
-    _repCtl = List.generate(n, (_) => TextEditingController(text: widget.detail.reps.toString()));
-    _kgCtl = List.generate(n, (_) => TextEditingController(text: widget.detail.weight.toStringAsFixed(0)));
-    _rirCtl = List.generate(n, (_) => TextEditingController(text: '2'));
+    _repCtl = List.generate(n, (i) {
+      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'];
+      return TextEditingController(
+          text: e?.reps.toString() ?? widget.detail.reps.toString());
+    });
+    _kgCtl = List.generate(n, (i) {
+      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'];
+      return TextEditingController(
+          text: e?.weight.toStringAsFixed(0) ??
+              widget.detail.weight.toStringAsFixed(0));
+    });
+    _rirCtl = List.generate(n, (i) {
+      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'];
+      return TextEditingController(text: e?.rir.toString() ?? '2');
+    });
+  }
+
+  void _persist(int index) {
+    widget.update(
+      WorkoutLogEntry(
+        date: DateTime.now(),
+        planId: widget.planId,
+        exerciseId: widget.detail.exerciseId,
+        setNumber: index + 1,
+        reps: int.tryParse(_repCtl[index].text) ?? widget.detail.reps,
+        weight: double.tryParse(_kgCtl[index].text) ?? widget.detail.weight,
+        rir: int.tryParse(_rirCtl[index].text) ?? 2,
+        completed:
+            widget.logsMap['${widget.detail.exerciseId}-${index + 1}']?.completed ?? false,
+      ),
+    );
   }
 
   bool isComplete(Map<String, WorkoutLogEntry> logs) => List.generate(_repCtl.length, (i) => i + 1)
       .every((s) => logs['${widget.detail.exerciseId}-$s']?.completed ?? false);
 
-  void logCurrentSet({required void Function(WorkoutLogEntry) addOrUpdate, required int planId}) {
+  void logCurrentSet({required void Function(WorkoutLogEntry) addOrUpdate}) {
     int current = List.generate(_repCtl.length, (i) => i + 1)
         .firstWhere((s) => !(widget.logsMap['${widget.detail.exerciseId}-$s']?.completed ?? false),
             orElse: () => _repCtl.length);
     addOrUpdate(
       WorkoutLogEntry(
         date: DateTime.now(),
-        planId: planId,
+        planId: widget.planId,
         exerciseId: widget.detail.exerciseId,
         setNumber: current,
         reps: int.tryParse(_repCtl[current - 1].text) ?? widget.detail.reps,
@@ -370,6 +402,7 @@ class _ExerciseTileState extends State<_ExerciseTile> {
       _kgCtl.add(TextEditingController(text: widget.detail.weight.toStringAsFixed(0)));
       _rirCtl.add(TextEditingController(text: '2'));
     });
+    _persist(_repCtl.length - 1);
     widget.onChanged();
   }
 
@@ -401,13 +434,17 @@ class _ExerciseTileState extends State<_ExerciseTile> {
         child: Icon(ic, size: 16),
       );
 
-    Widget _num(TextEditingController c, double w, String label) => SizedBox(
+    Widget _num(TextEditingController c, double w, String label, int idx) => SizedBox(
       width: w + 24,
       child: Row(
         children: [
           Expanded(
             child: TextField(
               controller: c,
+              onChanged: (_) {
+                _persist(idx);
+                widget.onChanged();
+              },
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 13, color: Colors.white),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -465,11 +502,11 @@ class _ExerciseTileState extends State<_ExerciseTile> {
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                     child: Row(children: [
-                      _num(_repCtl[i], 50, 'r'),
+                      _num(_repCtl[i], 50, 'r', i),
                       const SizedBox(width: 12),
-                      _num(_kgCtl[i], 66, 'kg'),
+                      _num(_kgCtl[i], 66, 'kg', i),
                       const SizedBox(width: 12),
-                      _num(_rirCtl[i], 54, 'R'),
+                      _num(_rirCtl[i], 54, 'R', i),
                       const Spacer(),
                       Icon(done ? Icons.check_circle : Icons.circle,
                           size: 18, color: done ? Colors.green : Colors.grey),

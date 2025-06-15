@@ -7,9 +7,20 @@ typedef _Key = String;
 class WorkoutLogNotifier extends StateNotifier<Map<_Key, WorkoutLogEntry>> {
   WorkoutLogNotifier() : super({});
 
+  DateTime? _start;
+
+  void startSession() {
+    _start ??= DateTime.now();
+  }
+
+  Duration get sessionDuration =>
+      _start == null ? Duration.zero : DateTime.now().difference(_start!);
+
   // ── CRUD ───────────────────────────────────────────────────────────
   void addOrUpdate(WorkoutLogEntry e) =>
       state = {...state, _k(e): e.copyWith(completed: true)};
+
+  void update(WorkoutLogEntry e) => state = {...state, _k(e): e};
 
   void toggleComplete(WorkoutLogEntry e) =>
       state = {
@@ -22,7 +33,10 @@ class WorkoutLogNotifier extends StateNotifier<Map<_Key, WorkoutLogEntry>> {
     state = map;
   }
 
-  void clear() => state = {};
+  void clear() {
+    state = {};
+    _start = null;
+  }
 
   /// Sólo los sets marcados como completados (para guardar).
   List<WorkoutLogEntry> get completedLogs =>
