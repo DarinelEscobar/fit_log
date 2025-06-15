@@ -33,12 +33,27 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   String _mood = '3';
   final TextEditingController _notesCtl = TextEditingController();
 
+  static const List<String> _scale10 = [
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8',
+    '9',
+    '10'
+  ];
+  static const List<String> _scale5 = ['1', '2', '3', '4', '5'];
+
   @override
   void initState() {
     super.initState();
     final notifier = ref.read(workoutLogProvider.notifier);
     notifier.startSession();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+    _ticker =
+        Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
   }
 
   @override
@@ -77,17 +92,17 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
           ),
           title: Text(
             _fmt(notifier.sessionDuration),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold),
           ),
-
           centerTitle: true,
           actions: [
             IconButton(
               icon: const Icon(Icons.flag),
               onPressed: () async {
                 if (notifier.completedLogs.isEmpty) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text('No has completado ninguna serie')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('No has completado ninguna serie')));
                   return;
                 }
                 if (!await _showFinishDialog(context)) return;
@@ -113,7 +128,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
         floatingActionButton: FloatingActionButton.extended(
           backgroundColor: cs.primary,
           foregroundColor: cs.onPrimary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           icon: const Icon(Icons.check),
           label: const Text('Registrar serie'),
           onPressed: () {
@@ -129,7 +145,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
           error: (e, _) => Center(child: Text('$e')),
           data: (dets) {
             final done = dets
-                .where((d) => _keys[d.exerciseId]?.currentState?.isComplete(logsMap) ?? false)
+                .where((d) =>
+                    _keys[d.exerciseId]?.currentState?.isComplete(logsMap) ??
+                    false)
                 .length;
             return Column(
               children: [
@@ -139,15 +157,18 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                     padding: const EdgeInsets.fromLTRB(12, 100, 12, 80),
                     children: dets.map((d) {
                       _keys[d.exerciseId] ??= GlobalKey<ExerciseTileState>();
-                      final doneEx =
-                          _keys[d.exerciseId]!.currentState?.isComplete(logsMap) ?? false;
+                      final doneEx = _keys[d.exerciseId]!
+                              .currentState
+                              ?.isComplete(logsMap) ??
+                          false;
                       return ExerciseTile(
                         key: _keys[d.exerciseId],
                         detail: d,
                         expanded: _expandedExerciseId == d.exerciseId,
-                        onToggle: () => setState(() =>
-                            _expandedExerciseId =
-                                _expandedExerciseId == d.exerciseId ? null : d.exerciseId),
+                        onToggle: () => setState(() => _expandedExerciseId =
+                            _expandedExerciseId == d.exerciseId
+                                ? null
+                                : d.exerciseId),
                         logsMap: logsMap,
                         highlightDone: doneEx,
                         onChanged: () => setState(() {}),
@@ -171,33 +192,37 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
 
   Future<bool> _confirmExit(BuildContext ctx) async =>
       await showModalBottomSheet<bool>(
-            context: ctx,
-            backgroundColor: const Color(0xFF1F1F1F),
-            shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-            builder: (_) => Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Text('¿Salir sin guardar?', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white38)),
-                const SizedBox(height: 8),
-                const Text('Perderás el progreso de esta sesión.', style: TextStyle(color: Colors.white38)),
-                const SizedBox(height: 20),
-                Row(children: [
-                  Expanded(
-                      child: OutlinedButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Cancelar'))),
-                  const SizedBox(width: 12),
-                  Expanded(
-                      child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text('Salir'))),
-                ]),
-              ]),
-            ),
-          ) ??
-          false;
+        context: ctx,
+        backgroundColor: const Color(0xFF1F1F1F),
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (_) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('¿Salir sin guardar?',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: Colors.white38)),
+            const SizedBox(height: 8),
+            const Text('Perderás el progreso de esta sesión.',
+                style: TextStyle(color: Colors.white38)),
+            const SizedBox(height: 20),
+            Row(children: [
+              Expanded(
+                  child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancelar'))),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Salir'))),
+            ]),
+          ]),
+        ),
+      ) ??
+      false;
 
   Future<bool> _showFinishDialog(BuildContext ctx) async {
     String lf = _fatigue, lm = _mood;
@@ -205,54 +230,58 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     final ok = await showDialog<bool>(
       context: ctx,
       builder: (dCtx) => StatefulBuilder(
-        builder: (dCtx, setD) => AlertDialog(
+        builder: (dCtx, setState) => AlertDialog(
           backgroundColor: const Color(0xFF1F1F1F),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           title: const Text('Finalizar sesión'),
-          titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            ScaleDropdown(icon: Icons.bolt, val: lf, list: _scale10, onC: (v) => setD(() => lf = v)),
-            const SizedBox(height: 8),
-            ScaleDropdown(icon: Icons.mood, val: lm, list: _scale5, onC: (v) => setD(() => lm = v)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: noteCtl,
-              maxLines: 3,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Notas',
-                labelStyle: TextStyle(color: Colors.white70),
-                border: OutlineInputBorder(),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+          titleTextStyle: const TextStyle(
+              fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ScaleDropdown(
+                  icon: Icons.bolt,
+                  val: lf,
+                  list: _scale10,
+                  onC: (v) => setState(() => lf = v)),
+              const SizedBox(height: 8),
+              ScaleDropdown(
+                  icon: Icons.mood,
+                  val: lm,
+                  list: _scale5,
+                  onC: (v) => setState(() => lm = v)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: noteCtl,
+                maxLines: 3,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Notas',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  border: OutlineInputBorder(),
+                  focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white)),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-                  const SizedBox(width: 8),
-                  _actionBtn(Icons.add, _add),
-                ]),
-              ),
-              Column(
-                children: List.generate(_repCtl.length, (i) {
-                  final done =
-                      widget.logsMap['${widget.detail.exerciseId}-${i + 1}']?.completed ?? false;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                    child: Row(children: [
-                      _num(_repCtl[i], 50, 'r', i),
-                      const SizedBox(width: 12),
-                      _num(_kgCtl[i], 66, 'kg', i),
-                      const SizedBox(width: 12),
-                      _num(_rirCtl[i], 54, 'R', i),
-                      const Spacer(),
-                      Icon(done ? Icons.check_circle : Icons.circle,
-                          size: 18, color: done ? Colors.green : Colors.grey),
-                    ]),
-                  );
-                }),
-              ),
-              const SizedBox(height: 10),
             ],
-          ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(dCtx).pop(false),
+                child: const Text('Cancelar')),
+            ElevatedButton(
+                onPressed: () => Navigator.of(dCtx).pop(true),
+                child: const Text('Finalizar')),
+          ],
         ),
-      );
+      ),
+    );
+    if (ok == true) {
+      _fatigue = lf;
+      _mood = lm;
+      _notesCtl.text = noteCtl.text;
+    }
+    return ok ?? false;
+  }
 }
