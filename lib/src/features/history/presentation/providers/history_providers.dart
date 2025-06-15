@@ -6,12 +6,12 @@ import '../../../routines/domain/entities/workout_log_entry.dart';
 
 final _repoProvider = Provider((_) => WorkoutHistoryRepositoryImpl());
 
-final workoutSessionsProvider = FutureProvider((ref) {
+final workoutSessionsProvider = FutureProvider((ref) async {
   final usecase = GetWorkoutSessionsUseCase(ref.watch(_repoProvider));
   return usecase();
 });
 
-final workoutLogsProvider = FutureProvider((ref) {
+final workoutLogsProvider = FutureProvider((ref) async {
   final usecase = GetWorkoutLogsUseCase(ref.watch(_repoProvider));
   return usecase();
 });
