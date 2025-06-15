@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/profile_providers.dart';
+import '../../domain/entities/body_metric.dart';
+import '../../domain/entities/user_profile.dart';
 
 class MetricsChartScreen extends ConsumerWidget {
   const MetricsChartScreen({super.key});
