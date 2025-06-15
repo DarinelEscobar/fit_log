@@ -47,51 +47,113 @@ class ExerciseLogsScreen extends ConsumerWidget {
   }
 }
 
-class _WeekSummary {
-  final DateTime weekStart;
-  final double volume;
-  final WorkoutLogEntry top;
+    final maxWeight =
+        data.map((e) => e.top.weight).fold<double>(0, (p, c) => c > p ? c : p);
+    final maxVolume =
+        data.map((e) => e.volume).fold<double>(0, (p, c) => c > p ? c : p);
 
-  _WeekSummary(this.weekStart, this.volume, this.top);
-}
+      child: Column(
+        children: [
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                minX: 0,
+                maxX: (data.length - 1).toDouble(),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    tooltipBgColor: Colors.black87,
+                    getTooltipItems: (touched) {
+                      return touched.map((e) {
+                        final w = data[e.spotIndex];
+                        return LineTooltipItem(
+                          'R: ${w.top.reps} • RIR ${w.top.rir}',
+                          const TextStyle(color: Colors.white),
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
+                gridData: FlGridData(
+                  drawVerticalLine: false,
+                  verticalInterval: 1,
+                ),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    axisNameWidget: const Text('Peso (kg)'),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      interval: maxWeight <= 0 ? 1 : (maxWeight / 4).ceilToDouble(),
+                    ),
+                  ),
+                  rightTitles: AxisTitles(
+                    axisNameWidget: const Text('Volumen (kg·reps)'),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 48,
+                      interval: maxVolume <= 0 ? 1 : (maxVolume / 4).ceilToDouble(),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    axisNameWidget: const Text('Semana'),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 1,
+                      getTitlesWidget: (v, __) {
+                        final i = v.toInt();
+                        if (i < 0 || i >= labels.length) return const SizedBox();
+                        return Text(labels[i]);
+                      },
+                    ),
+                  ),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spotsWeight,
+                    isCurved: false,
+                    barWidth: 3,
+                    color: Colors.blue,
+                    dotData: FlDotData(show: true),
+                  ),
+                  LineChartBarData(
+                    spots: spotsVolume,
+                    isCurved: false,
+                    barWidth: 3,
+                    color: Colors.green,
+                    dashArray: [5, 5],
+                    dotData: FlDotData(show: false),
+                    yAxis: 1,
+                  ),
+                ],
+                minY: 0,
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              _Legend(color: Colors.blue, text: 'Peso'),
+              SizedBox(width: 16),
+              _Legend(color: Colors.green, text: 'Volumen'),
+            ],
+          ),
+        ],
 
-class _Chart extends StatelessWidget {
-  final List<_WeekSummary> data;
-
-  const _Chart({required this.data});
+class _Legend extends StatelessWidget {
+  final Color color;
+  final String text;
+  const _Legend({required this.color, required this.text});
 
   @override
   Widget build(BuildContext context) {
-    if (data.isEmpty) {
-      return const Center(child: Text('Sin datos'));
-    }
-
-    final spotsWeight = <FlSpot>[];
-    final spotsVolume = <FlSpot>[];
-    final labels = <String>[];
-
-    for (var i = 0; i < data.length; i++) {
-      spotsWeight.add(FlSpot(i.toDouble(), data[i].top.weight));
-      spotsVolume.add(FlSpot(i.toDouble(), data[i].volume));
-      labels.add('W${i + 1}');
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: LineChart(
-        LineChartData(
-          lineTouchData: LineTouchData(
-            enabled: true,
-            touchTooltipData: LineTouchTooltipData(
-              tooltipBgColor: Colors.grey,
-              getTooltipItems: (touchedSpots) {
-                return touchedSpots.map((e) {
-                  final w = data[e.spotIndex];
-                  return LineTooltipItem(
-                    '${w.top.reps} reps\nRIR ${w.top.rir}',
-                    const TextStyle(color: Colors.white),
-                  );
-                }).toList();
+    return Row(
+      children: [
+        Container(width: 12, height: 12, color: color),
+        const SizedBox(width: 4),
+        Text(text),
+      ],
+    );
+  }
+}
               },
             ),
           ),
