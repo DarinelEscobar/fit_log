@@ -1,123 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../../routines/domain/entities/workout_session.dart';
-    final asyncSessions = ref.watch(workoutSessionsProvider);
-        data: (logs) => asyncSessions.when(
-          data: (sessions) => _Chart(data: _summaries(logs, sessions)),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, __) => Center(child: Text('Error: $e')),
-        ),
-  List<_WeekSummary> _summaries(
-    List<WorkoutLogEntry> logs,
-    List<WorkoutSession> sessions,
-  ) {
-    if (logs.isEmpty) return [];
+import '../providers/history_providers.dart';
+import '../../../routines/domain/entities/workout_log_entry.dart';
+import 'package:intl/intl.dart';
 
-    DateTime start = map.keys.reduce((a, b) => a.isBefore(b) ? a : b);
-    DateTime end = map.keys.reduce((a, b) => a.isAfter(b) ? a : b);
+class ExerciseLogsScreen extends ConsumerWidget {
+  final int exerciseId;
+  final String exerciseName;
 
-    for (DateTime week = start;
-        !week.isAfter(end);
-        week = week.add(const Duration(days: 7))) {
-      final entries = map[week] ?? [];
-      if (entries.isEmpty) {
-        result.add(_WeekSummary(week, 0, null, null));
-        continue;
-      }
-      final top = entries.first;
-      final session = sessions.firstWhere(
-        (s) =>
-            s.planId == top.planId &&
-            s.date.year == top.date.year &&
-            s.date.month == top.date.month &&
-            s.date.day == top.date.day,
-        orElse: () => WorkoutSession(
-            planId: top.planId,
-            date: top.date,
-            fatigueLevel: '',
-            durationMinutes: 0,
-            mood: '',
-            notes: ''),
-      );
-      result.add(_WeekSummary(week, volume, top, session));
-  final WorkoutLogEntry? top;
-  final WorkoutSession? session;
-  _WeekSummary(this.weekStart, this.volume, this.top, this.session);
-  double _interval(double max) {
-    if (max <= 0) return 5;
-    final raw = max / 5;
-    final rounded = ((raw / 5).ceil() * 5).toDouble();
-    return rounded < 5 ? 5 : rounded;
-  }
-
-      spotsWeight.add(FlSpot(i.toDouble(), data[i].top?.weight ?? 0));
-
-    final maxWeight = data
-        .map((e) => e.top?.weight ?? 0)
-        .fold<double>(0, (p, c) => c > p ? c : p);
-    final avgVolume = data.isEmpty
-        ? 0
-        : data.map((e) => e.volume).reduce((a, b) => a + b) / data.length;
-                        final reps = w.top?.reps ?? 0;
-                        final rir = w.top?.rir ?? 0;
-                        final fatigue = w.session?.fatigueLevel ?? '';
-                        final mood = w.session?.mood ?? '';
-                        final dur = w.session?.durationMinutes ?? 0;
-                        final text = 'R: $reps • RIR $rir\n'
-                            'Fatiga: $fatigue • $dur min\nMood: $mood';
-                          text,
-                          const TextStyle(color: Colors.white, fontSize: 12),
-                      interval: _interval(maxWeight),
-                      interval: _interval(maxVolume),
-                    dotData: FlDotData(
-                      show: true,
-                      getDotPainter: (s, p, bar, i) {
-                        final w = data[i];
-                        final label = 'R:${w.top?.reps ?? 0}\nRIR:${w.top?.rir ?? 0}';
-                        return _LabelDotPainter(label: label, color: Colors.blue);
-                      },
-                    ),
-                extraLinesData: ExtraLinesData(horizontalLines: [
-                  HorizontalLine(
-                    y: avgVolume,
-                    color: Colors.green.withOpacity(0.3),
-                    dashArray: [4, 4],
-                    yAxis: 1,
-                  ),
-                ]),
-class _LabelDotPainter extends FlDotPainter {
-  final String label;
-  final Color color;
-  _LabelDotPainter({required this.label, required this.color});
+  const ExerciseLogsScreen({super.key, required this.exerciseId, required this.exerciseName});
 
   @override
-  void draw(Canvas canvas, FlSpot spot, Offset offsetInCanvas, Color barColor,
-      {required CanvasHolder holder}) {
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: const TextStyle(color: Colors.white, fontSize: 10),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    textPainter.paint(
-      canvas,
-      offsetInCanvas - Offset(textPainter.width / 2, textPainter.height + 4),
-    );
-    final circle = FlDotCirclePainter(
-      radius: 3,
-      color: color,
-      strokeWidth: 1,
-      strokeColor: Colors.black,
-    );
-    circle.draw(canvas, spot, offsetInCanvas, barColor, holder: holder);
-  }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncLogs = ref.watch(logsByExerciseProvider(exerciseId));
 
-  @override
-  Size getSize(FlSpot spot) => const Size(6, 6);
-}
-
+    return Scaffold(
+      appBar: AppBar(title: Text(exerciseName)),
+      body: asyncLogs.when(
         data: (logs) => _Chart(data: _summaries(logs)),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, __) => Center(child: Text('Error: $e')),
