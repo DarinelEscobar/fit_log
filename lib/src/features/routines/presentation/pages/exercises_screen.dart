@@ -20,8 +20,20 @@ class ExercisesScreen extends ConsumerWidget {
             final exercise = exercises[i];
             return ListTile(
               title: Text(exercise.name),
-              subtitle:
-                  Text('${exercise.category} • ${exercise.mainMuscleGroup}'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (exercise.description.isNotEmpty)
+                    Text(
+                      exercise.description,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  Text(
+                    '${exercise.category} • ${exercise.mainMuscleGroup}',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ],
+              ),
             );
           },
         ),

@@ -211,6 +211,12 @@ class ExerciseTileState extends State<ExerciseTile> {
                   color: Colors.white70,
                 ),
               ),
+              subtitle: widget.detail.description.isNotEmpty
+                  ? Text(
+                      widget.detail.description,
+                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    )
+                  : null,
               trailing: Icon(widget.expanded ? Icons.expand_less : Icons.expand_more),
             ),
             if (widget.expanded) ...[
