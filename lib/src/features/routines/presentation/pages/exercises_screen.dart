@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/exercises_provider.dart';
-// TODO: adjust the import path for StartRoutineScreen as needed
 import 'start_routine_screen.dart';
 
 class ExercisesScreen extends ConsumerWidget {
