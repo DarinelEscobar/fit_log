@@ -3,46 +3,151 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/profile_providers.dart';
 import '../../domain/entities/body_metric.dart';
 import '../../domain/entities/user_profile.dart';
-
-class MetricsChartScreen extends ConsumerWidget {
-  const MetricsChartScreen({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final metricsAsync = ref.watch(bodyMetricsProvider);
-    final userAsync = ref.watch(userProfileProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Comparación de medidas')),
-      body: metricsAsync.when(
-        data: (metrics) {
-          if (metrics.isEmpty) {
-            return const Center(child: Text('Sin datos'));
-          }
-          metrics.sort((a, b) => a.date.compareTo(b.date));
-          final latest = metrics.last;
-          return userAsync.when(
-            data: (user) => user == null
-                ? const Center(child: Text('Sin perfil'))
-                : Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: CustomPaint(
-                      size: const Size(double.infinity, 220),
-                      painter: _ComparisonChartPainter(latest, user),
-                    ),
-                  ),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, __) => Center(child: Text('Error: $e')),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, __) => Center(child: Text('Error: $e')),
-      ),
-    );
-  }
+class MetricsChartScreen extends ConsumerStatefulWidget {
+  ConsumerState<MetricsChartScreen> createState() => _MetricsChartScreenState();
 }
 
-class _MetricData {
-  final String label;
+class _MetricsChartScreenState extends ConsumerState<MetricsChartScreen> {
+  int? _selectedIndex;
+
+  List<_MetricData> _buildMetricData(BodyMetric current, UserProfile user) {
+    return [
+      _MetricData('Weight', current.weight, user.targetWeight),
+      _MetricData('BF', current.bodyFat, user.targetBodyFat),
+      _MetricData('Neck', current.neck, user.targetNeck),
+      _MetricData('Shoulders', current.shoulders, user.targetShoulders),
+      _MetricData('Chest', current.chest, user.targetChest),
+      _MetricData('Abdomen', current.abdomen, user.targetAbdomen),
+      _MetricData('Waist', current.waist, user.targetWaist),
+      _MetricData('Glutes', current.glutes, user.targetGlutes),
+      _MetricData('Thigh', current.thigh, user.targetThigh),
+      _MetricData('Calf', current.calf, user.targetCalf),
+      _MetricData('Arm', current.arm, user.targetArm),
+      _MetricData('Forearm', current.forearm, user.targetForearm),
+    ];
+  }
+
+  int? _hitTestMetric(
+      Offset pos, double width, List<_MetricData> metrics) {
+    const axisWidth = _ComparisonChartPainter.axisWidth;
+    if (pos.dx < axisWidth || pos.dx > width) return null;
+    final chartWidth = width - axisWidth;
+    final groupWidth = chartWidth / metrics.length;
+    final index = ((pos.dx - axisWidth) / groupWidth).floor();
+    if (index < 0 || index >= metrics.length) return null;
+    return index;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+            data: (user) {
+              if (user == null) {
+                return const Center(child: Text('Sin perfil'));
+              }
+              final metricData = _buildMetricData(latest, user);
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: OrientationBuilder(
+                  builder: (context, orientation) {
+                    final height =
+                        orientation == Orientation.portrait ? 260.0 : 180.0;
+                    return LayoutBuilder(
+                      builder: (context, constraints) {
+                        return GestureDetector(
+                          onTapDown: (d) {
+                            final box = context.findRenderObject() as RenderBox;
+                            final local = box.globalToLocal(d.globalPosition);
+                            final index = _hitTestMetric(
+                                local, constraints.maxWidth, metricData);
+                            setState(() => _selectedIndex = index);
+                          },
+                          child: CustomPaint(
+                            size: Size(constraints.maxWidth, height),
+                            painter: _ComparisonChartPainter(
+                              metricData,
+                              selectedIndex: _selectedIndex,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              );
+            },
+  static const double axisWidth = 28.0;
+
+  final List<_MetricData> metrics;
+  final int? selectedIndex;
+  _ComparisonChartPainter(this.metrics, {this.selectedIndex});
+    const top = 20.0;
+    const bottom = 28.0;
+    final chartHeight = size.height - top - bottom;
+    final chartWidth = size.width - axisWidth;
+    final groupWidth = chartWidth / metrics.length;
+    final barWidth = groupWidth / 3;
+    final axisPaint = Paint()
+      ..color = Colors.black
+      ..strokeWidth = 1;
+    );
+    canvas.drawLine(
+      Offset(axisWidth, top),
+      Offset(axisWidth, top + chartHeight),
+      axisPaint,
+    );
+    canvas.drawLine(
+      Offset(axisWidth, top + chartHeight),
+      Offset(size.width, top + chartHeight),
+      axisPaint,
+    );
+
+    const tickCount = 5;
+    for (int i = 0; i <= tickCount; i++) {
+      final val = maxVal / tickCount * i;
+      final y = top + chartHeight - (chartHeight / tickCount * i);
+      textPainter.text = TextSpan(
+        text: val.toStringAsFixed(0),
+        style: const TextStyle(fontSize: 8, color: Colors.black),
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(axisWidth - textPainter.width - 2, y - textPainter.height / 2),
+      );
+      canvas.drawLine(
+        Offset(axisWidth - 3, y),
+        Offset(axisWidth, y),
+        axisPaint,
+      );
+    }
+
+      final groupX = axisWidth + i * groupWidth;
+        Rect.fromLTWH(groupX, top + chartHeight - currentH, barWidth, currentH),
+        Rect.fromLTWH(
+            groupX + barWidth * 2, top + chartHeight - targetH, barWidth, targetH),
+        Offset(groupX, top + chartHeight + 2),
+
+      if (selectedIndex != null && selectedIndex == i) {
+        final label = '${m.current.toStringAsFixed(1)} / ${m.target.toStringAsFixed(1)}';
+        textPainter.text = TextSpan(
+          text: label,
+          style: const TextStyle(fontSize: 10, color: Colors.black),
+        );
+        textPainter.layout();
+        final lx = groupX + groupWidth / 2 - textPainter.width / 2;
+        final ly = top - textPainter.height - 2;
+        final rect = Rect.fromLTWH(lx - 4, ly - 2, textPainter.width + 8, textPainter.height + 4);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+          Paint()..color = Colors.white.withOpacity(0.8),
+        );
+        canvas.drawRect(rect, axisPaint);
+        textPainter.paint(canvas, Offset(lx, ly));
+      }
+  bool shouldRepaint(covariant _ComparisonChartPainter oldDelegate) {
+    return oldDelegate.selectedIndex != selectedIndex ||
+        oldDelegate.metrics != metrics;
+  }
   final double current;
   final double target;
   const _MetricData(this.label, this.current, this.target);
