@@ -35,6 +35,49 @@ const Map<String, TableSchema> kTableSchemas = {
     sample: [1, 21, 'Male', 68.0, 170.0, 'Intermediate', 'Hypertrophy'],
   ),
 
+  'body_metrics.xlsx': TableSchema(
+    sheetName: 'BodyMetrics',
+    headers: [
+      // PK autoincrement
+      'metric_id',
+      // Date of the measurement
+      'date',
+      // Weight (kg)
+      'weight',
+      // Body Fat %
+      'body_fat',
+      // Neck circumference (cm)
+      'neck',
+      // Shoulder circumference (cm)
+      'shoulders',
+      // Chest circumference (cm)
+      'chest',
+      // Abdomen circumference (cm)
+      'abdomen',
+      // Waist circumference (cm)
+      'waist',
+      // Glutes circumference (cm)
+      'glutes',
+      // Thigh circumference (cm)
+      'thigh',
+      // Calf circumference (cm)
+      'calf',
+      // Arm circumference (cm)
+      'arm',
+      // Forearm circumference (cm)
+      'forearm',
+      // Age (years)
+      'age',
+    ],
+    sample: [
+      [1, '2024-01-01', 68.0, 15.0, 36.0, 110.0, 98.0, 88.0, 80.0, 95.0, 55.0, 37.0, 34.0, 30.0, 26],
+      [2, '2024-01-22', 67.5, 14.8, 35.8, 109.0, 97.5, 87.5, 79.5, 94.0, 54.5, 36.5, 33.8, 29.5, 26],
+      [3, '2024-02-12', 67.0, 14.5, 35.6, 108.5, 97.0, 87.0, 79.0, 93.5, 54.0, 36.0, 33.5, 29.2, 26],
+      [4, '2024-03-04', 66.8, 14.3, 35.4, 108.0, 96.5, 86.5, 78.5, 93.0, 53.7, 35.8, 33.0, 29.0, 26],
+      [5, '2024-03-25', 66.5, 14.1, 35.2, 107.5, 96.0, 86.0, 78.0, 92.5, 53.5, 35.5, 32.8, 28.8, 26],
+    ],
+  ),
+
   'workout_plan.xlsx': TableSchema(
     sheetName: 'WorkoutPlan',
     headers: [
