@@ -224,8 +224,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            Text('${notifier.sessionDuration.inMinutes} min de sesión',
-                style: const TextStyle(color: Colors.white70)),
+            Text('${ref.read(workoutLogProvider.notifier).sessionDuration.inMinutes} min de sesión',
+            style: const TextStyle(color: Colors.white70)),
+
           ]),
           actions: [
             TextButton(
