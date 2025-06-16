@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/exercises_provider.dart';
-// TODO: adjust the import path for StartRoutineScreen as needed
 import 'start_routine_screen.dart';
 
 class ExercisesScreen extends ConsumerWidget {
@@ -21,8 +20,20 @@ class ExercisesScreen extends ConsumerWidget {
             final exercise = exercises[i];
             return ListTile(
               title: Text(exercise.name),
-              subtitle:
-                  Text('${exercise.category} • ${exercise.mainMuscleGroup}'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (exercise.description.isNotEmpty)
+                    Text(
+                      exercise.description,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  Text(
+                    '${exercise.category} • ${exercise.mainMuscleGroup}',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ],
+              ),
             );
           },
         ),

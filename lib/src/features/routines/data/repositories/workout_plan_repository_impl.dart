@@ -134,6 +134,10 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
       for (var r in exSheet.rows.skip(1))
         if (r.isNotEmpty) _cast<int>(r[0])!: r[1]?.value.toString() ?? '',
     };
+    final mapIdDescription = {
+      for (var r in exSheet.rows.skip(1))
+        if (r.isNotEmpty) _cast<int>(r[0])!: r[2]?.value.toString() ?? '',
+    };
 
     return peSheet.rows
         .skip(1)
@@ -145,6 +149,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
           return PlanExerciseDetail(
             exerciseId: id,
             name: mapIdName[id] ?? 'Unknown',
+            description: mapIdDescription[id] ?? '',
             sets: _cast<int>(r[2]) ?? 0,
             reps: _cast<int>(r[3]) ?? 0,
             weight: _cast<double>(r[4]) ?? 0,

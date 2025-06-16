@@ -31,8 +31,89 @@ const Map<String, TableSchema> kTableSchemas = {
       'experience_level',
       // Hypertrophy | Strength | …
       'goal',
+      // Desired body-weight (kg)
+      'target_weight',
+      // Desired body fat %
+      'target_body_fat',
+      'target_neck',
+      'target_shoulders',
+      'target_chest',
+      'target_abdomen',
+      'target_waist',
+      'target_glutes',
+      'target_thigh',
+      'target_calf',
+      'target_arm',
+      'target_forearm',
     ],
-    sample: [1, 21, 'Male', 68.0, 170.0, 'Intermediate', 'Hypertrophy'],
+    sample: [
+      1,
+      21,
+      'Male',
+      70.0,
+      170.0,
+      'Intermediate',
+      'Hypertrophy',
+      73.9,
+      10.0,
+      42.5,
+      121.0,
+      121.0,
+      78.2,
+      74.8,
+      83.0,
+      69.8,
+      40.0,
+      42.5,
+      34.0,
+    ],
+  ),
+
+  'body_metrics.xlsx': TableSchema(
+    sheetName: 'BodyMetrics',
+    headers: [
+      // PK autoincrement
+      'metric_id',
+      // Date of the measurement
+      'date',
+      // Weight (kg)
+      'weight',
+      // Body Fat %
+      'body_fat',
+      // Neck circumference (cm)
+      'neck',
+      // Shoulder circumference (cm)
+      'shoulders',
+      // Chest circumference (cm)
+      'chest',
+      // Abdomen circumference (cm)
+      'abdomen',
+      // Waist circumference (cm)
+      'waist',
+      // Glutes circumference (cm)
+      'glutes',
+      // Thigh circumference (cm)
+      'thigh',
+      // Calf circumference (cm)
+      'calf',
+      // Arm circumference (cm)
+      'arm',
+      // Forearm circumference (cm)
+      'forearm',
+      // Age (years)
+      'age',
+    ],
+    sample: [
+      [1, '2024-07-13', 70.0, null, 37.0, 122.0, 100.0, 80.0, 80.0, 96.0, 57.0, 35.0, 35.0, 28.0, 20],
+      [2, '2024-07-30', 70.0, null, 39.0, 120.0, 100.0, 81.0, 80.0, 96.0, 57.0, 34.0, 34.0, 28.0, 20],
+      [3, '2024-08-21', 68.0, null, 40.0, 119.0, 95.0, 80.0, 80.0, 94.0, 55.0, 34.0, 37.0, 28.0, 20],
+      [4, '2024-10-07', 68.0, null, 36.0, 118.0, 98.0, 76.0, 81.0, 92.0, 55.0, 33.0, 35.0, 29.0, 20],
+      [5, '2024-11-10', 67.0, null, 37.0, 119.0, 98.0, 78.0, 78.0, 93.0, 57.0, 35.0, 33.0, 28.0, 20],
+      [6, '2024-11-25', 66.0, null, 37.0, 119.0, 91.0, 79.0, 78.0, 96.0, 57.0, 34.0, 33.0, 28.0, 20],
+      [7, '2025-01-14', 66.0, null, 38.0, 120.0, 98.0, 79.0, 81.0, 92.0, 57.0, 33.5, 32.0, 27.0, 21],
+      [8, '2025-04-06', 68.0, null, 38.0, 116.0, 99.0, 77.0, 81.0, 93.0, 57.0, 34.0, 34.0, 27.0, 21],
+      [9, '2025-06-14', 70.0, 20.0, 38.0, 123.0, 99.0, 80.0, 82.0, 97.0, 59.0, 36.0, 33.0, 28.0, 21],
+    ],
   ),
 
   'workout_plan.xlsx': TableSchema(
