@@ -9,6 +9,7 @@ Fit Log is a Flutter application for tracking workout routines and logging your 
 - Session timer with fatigue, mood and notes at the end of each workout.
 - History tab showing previous workout sessions and logs.
 - Bottom navigation with tabs for Home, Routines, Logs and more.
+- New **Data** screen to export or import all tables as a backup.
 
 ## Getting Started
 
