@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../providers/app_data_providers.dart';
 
 class DataScreen extends ConsumerWidget {
@@ -24,6 +25,14 @@ class DataScreen extends ConsumerWidget {
                 );
               },
               child: const Text('Exportar Datos'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                final file = await ref.read(exportDataProvider.future);
+                await Share.shareXFiles([XFile(file.path)], text: 'Backup Fit Log');
+              },
+              child: const Text('Compartir Backup'),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
