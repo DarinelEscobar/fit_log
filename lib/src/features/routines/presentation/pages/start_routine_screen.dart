@@ -174,7 +174,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                           return asyncLogs.when(
                             data: (logs) {
                               final last = _lastLogs(logs);
-                              final best = _bestLog(logs);
+                              final best = _bestLogs(logs);
                               return ExerciseTile(
                                 key: _keys[d.exerciseId],
                                 detail: d,
@@ -193,7 +193,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                                 update: notifier.update,
                                 planId: widget.planId,
                                 lastLogs: last,
-                                bestLog: best,
+                                bestLogs: best,
                                 showBest: _showBest,
                               );
                             },
@@ -262,15 +262,19 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
       ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
   }
 
-  WorkoutLogEntry? _bestLog(List<WorkoutLogEntry> logs) {
+  List<WorkoutLogEntry> _bestLogs(List<WorkoutLogEntry> logs) {
     final filtered = logs.where((l) => l.reps >= 5).toList();
-    if (filtered.isEmpty) return null;
+    if (filtered.isEmpty) return [];
     filtered.sort((a, b) {
       final c = b.weight.compareTo(a.weight);
       if (c != 0) return c;
       return b.reps.compareTo(a.reps);
     });
-    return filtered.first;
+    final best = filtered.first;
+    return logs
+        .where((l) => l.date.isAtSameMomentAs(best.date))
+        .toList()
+      ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
   }
 
   Future<bool> _confirmExit(BuildContext ctx) async =>

@@ -17,7 +17,7 @@ class ExerciseTile extends StatefulWidget {
     required this.update,
     required this.planId,
     this.lastLogs,
-    this.bestLog,
+    this.bestLogs,
     required this.showBest,
   });
 
@@ -31,7 +31,7 @@ class ExerciseTile extends StatefulWidget {
   final void Function(WorkoutLogEntry) update;
   final int planId;
   final List<WorkoutLogEntry>? lastLogs;
-  final WorkoutLogEntry? bestLog;
+  final List<WorkoutLogEntry>? bestLogs;
   final bool showBest;
 
   @override
@@ -51,20 +51,41 @@ class ExerciseTileState extends State<ExerciseTile>
     _build(widget.detail.sets);
   }
 
+  @override
+  void didUpdateWidget(covariant ExerciseTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detail.sets != widget.detail.sets ||
+        oldWidget.lastLogs != widget.lastLogs) {
+      _build(widget.detail.sets);
+    }
+  }
+
   void _build(int n) {
-    _repCtl = List.generate(n, (i) {
-      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'];
+    final count = [n, widget.lastLogs?.length ?? 0].reduce((a, b) => a > b ? a : b);
+    WorkoutLogEntry? _lastFor(int set) {
+      if (widget.lastLogs == null) return null;
+      for (final l in widget.lastLogs!) {
+        if (l.setNumber == set) return l;
+      }
+      return null;
+    }
+
+    _repCtl = List.generate(count, (i) {
+      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'] ??
+          _lastFor(i + 1);
       return TextEditingController(
           text: e?.reps.toString() ?? widget.detail.reps.toString());
     });
-    _kgCtl = List.generate(n, (i) {
-      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'];
+    _kgCtl = List.generate(count, (i) {
+      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'] ??
+          _lastFor(i + 1);
       return TextEditingController(
           text: e?.weight.toStringAsFixed(0) ??
               widget.detail.weight.toStringAsFixed(0));
     });
-    _rirCtl = List.generate(n, (i) {
-      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'];
+    _rirCtl = List.generate(count, (i) {
+      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'] ??
+          _lastFor(i + 1);
       return TextEditingController(text: e?.rir.toString() ?? '2');
     });
   }
@@ -279,11 +300,14 @@ class ExerciseTileState extends State<ExerciseTile>
                   ),
                   if (widget.showBest)
                     Expanded(
-                      child: widget.bestLog == null
+                      child: widget.bestLogs == null || widget.bestLogs!.isEmpty
                           ? _info('Mejor', '-')
                           : _info(
                               'Mejor',
-                              '${widget.bestLog!.reps}r ${widget.bestLog!.weight.toStringAsFixed(0)}kg',
+                              widget.bestLogs!
+                                  .map((l) =>
+                                      '${l.setNumber}: ${l.reps}r ${l.weight.toStringAsFixed(0)}kg R${l.rir}')
+                                  .join('\n'),
                               highlight: true,
                             ),
                     ),
