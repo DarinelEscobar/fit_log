@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../features/routines/presentation/pages/routines_screen.dart';
 import '../features/history/presentation/pages/logs_screen.dart';
+import '../features/profile/presentation/pages/profile_screen.dart';
 
 class MainScaffold extends StatefulWidget {
   const MainScaffold({super.key});
@@ -17,7 +18,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     RoutinesScreen(),
     LogsScreen(),
     _StatsTab(),
-    _ProfileTab(),
+    ProfileScreen(),
   ];
 
   @override
@@ -52,8 +53,3 @@ class _StatsTab extends StatelessWidget {
   Widget build(BuildContext context) => const Center(child: Text('Próximamente: Estadísticas'));
 }
 
-class _ProfileTab extends StatelessWidget {
-  const _ProfileTab();
-  @override
-  Widget build(BuildContext context) => const Center(child: Text('Próximamente: Perfil'));
-}
