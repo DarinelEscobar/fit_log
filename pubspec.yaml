@@ -21,6 +21,7 @@ dependencies:
   file_picker: ^10.1.2
   permission_handler: ^11.3.0
   archive: ^3.4.9
+  share_plus: ^7.2.1
 
   # 🧊 Code Generation / Model Helpers
   freezed_annotation: ^2.4.1

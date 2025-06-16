@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../../data/schema/schemas.dart';
 import '../../domain/repositories/app_data_repository.dart';
 
@@ -21,6 +22,21 @@ class AppDataRepositoryImpl implements AppDataRepository {
     final data = encoder.encode(archive);
     final outFile = File(p.join(dir.path, 'fitlog_backup.zip'));
     if (data != null) await outFile.writeAsBytes(data, flush: true);
+
+    // Try to also copy the backup to external storage so the user can access it
+    try {
+      if (await Permission.storage.request().isGranted) {
+        final downloads = await getExternalStorageDirectories(type: StorageDirectory.downloads);
+        if (downloads != null && downloads.isNotEmpty) {
+          final extFile = File(p.join(downloads.first.path, 'fitlog_backup.zip'));
+          await outFile.copy(extFile.path);
+          return extFile;
+        }
+      }
+    } catch (_) {
+      // Ignore issues and return the internal file path
+    }
+
     return outFile;
   }
 
