@@ -16,6 +16,9 @@ class ExerciseTile extends StatefulWidget {
     required this.removeLog,
     required this.update,
     required this.planId,
+    this.lastLogs,
+    this.bestLog,
+    required this.showBest,
   });
 
   final dynamic detail;
@@ -27,6 +30,9 @@ class ExerciseTile extends StatefulWidget {
   final void Function(WorkoutLogEntry) removeLog;
   final void Function(WorkoutLogEntry) update;
   final int planId;
+  final List<WorkoutLogEntry>? lastLogs;
+  final WorkoutLogEntry? bestLog;
+  final bool showBest;
 
   @override
   ExerciseTileState createState() => ExerciseTileState();
@@ -185,6 +191,32 @@ class ExerciseTileState extends State<ExerciseTile>
         ),
       );
 
+  Widget _info(String label, String value, {bool highlight = false}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(label,
+                    style:
+                        const TextStyle(fontSize: 11, color: Colors.white54)),
+                if (highlight)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 2),
+                    child: Icon(Icons.star, size: 12, color: Colors.amber),
+                  ),
+              ],
+            ),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: highlight ? Colors.amber : Colors.white70)),
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -223,6 +255,40 @@ class ExerciseTileState extends State<ExerciseTile>
                     )
                   : null,
               trailing: Icon(widget.expanded ? Icons.expand_less : Icons.expand_more),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _info(
+                        'Plan',
+                        '${widget.detail.sets}x${widget.detail.reps} @${widget.detail.weight.toStringAsFixed(0)}kg'),
+                  ),
+                  Expanded(
+                    child: widget.lastLogs == null || widget.lastLogs!.isEmpty
+                        ? _info('Último', '-')
+                        : _info(
+                            'Último',
+                            widget.lastLogs!
+                                .map((l) =>
+                                    '${l.setNumber}: ${l.reps}r ${l.weight.toStringAsFixed(0)}kg R${l.rir}')
+                                .join('\n'),
+                          ),
+                  ),
+                  if (widget.showBest)
+                    Expanded(
+                      child: widget.bestLog == null
+                          ? _info('Mejor', '-')
+                          : _info(
+                              'Mejor',
+                              '${widget.bestLog!.reps}r ${widget.bestLog!.weight.toStringAsFixed(0)}kg',
+                              highlight: true,
+                            ),
+                    ),
+                ],
+              ),
             ),
             if (widget.expanded) ...[
               Padding(
