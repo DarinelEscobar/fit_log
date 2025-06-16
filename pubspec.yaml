@@ -20,6 +20,7 @@ dependencies:
   excel: ^4.0.6 # To read/write .xlsx files
   file_picker: ^10.1.2
   permission_handler: ^11.3.0
+  archive: ^3.4.9
 
   # 🧊 Code Generation / Model Helpers
   freezed_annotation: ^2.4.1
