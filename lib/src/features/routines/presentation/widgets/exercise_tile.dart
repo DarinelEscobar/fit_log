@@ -32,8 +32,12 @@ class ExerciseTile extends StatefulWidget {
   ExerciseTileState createState() => ExerciseTileState();
 }
 
-class ExerciseTileState extends State<ExerciseTile> {
+class ExerciseTileState extends State<ExerciseTile>
+    with AutomaticKeepAliveClientMixin {
   late List<TextEditingController> _repCtl, _kgCtl, _rirCtl;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -183,6 +187,7 @@ class ExerciseTileState extends State<ExerciseTile> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return GestureDetector(
       onTap: widget.onToggle,
       child: AnimatedContainer(
@@ -211,6 +216,12 @@ class ExerciseTileState extends State<ExerciseTile> {
                   color: Colors.white70,
                 ),
               ),
+              subtitle: widget.detail.description.isNotEmpty
+                  ? Text(
+                      widget.detail.description,
+                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    )
+                  : null,
               trailing: Icon(widget.expanded ? Icons.expand_less : Icons.expand_more),
             ),
             if (widget.expanded) ...[
