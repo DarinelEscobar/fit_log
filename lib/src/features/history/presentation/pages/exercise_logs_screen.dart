@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:math' as math;
 import '../providers/history_providers.dart';
 import '../../../routines/domain/entities/workout_log_entry.dart';
 import '../../../routines/domain/entities/workout_session.dart';
@@ -84,7 +85,20 @@ class _Chart extends StatelessWidget {
 
   double _interval(double max) {
     if (max <= 0) return 1;
-    return (max / 5).ceilToDouble();
+    final raw = max / 4; // aim for ~4 intervals
+    final magnitude = math.pow(10, (math.log(raw) / math.ln10).floor()).toDouble();
+    final residual = raw / magnitude;
+    double nice;
+    if (residual <= 1) {
+      nice = 1;
+    } else if (residual <= 2) {
+      nice = 2;
+    } else if (residual <= 5) {
+      nice = 5;
+    } else {
+      nice = 10;
+    }
+    return nice * magnitude;
   }
 
   @override
