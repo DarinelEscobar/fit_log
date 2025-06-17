@@ -184,7 +184,7 @@ class ExerciseTileState extends State<ExerciseTile>
     _persist(setNum - 1);
     widget.onChanged();
   }
-
+  
   void _remove() {
     if (_visibleSets <= 1) return;
     final removed = _visibleSets;
@@ -196,11 +196,12 @@ class ExerciseTileState extends State<ExerciseTile>
       WorkoutLogEntry(
         date: DateTime.now(),
         planId: -1,
-        exerciseId: widget.detail.exerciseId,D
+        exerciseId: widget.detail.exerciseId,
         setNumber: removed,
         reps: 0,
         weight: 0,
         rir: 0,
+        completed: false,
       ),
     );
     setState(widget.onChanged);
