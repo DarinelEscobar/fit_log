@@ -6,6 +6,7 @@ class PlanExerciseDetail {
   final int sets;
   final int reps;
   final double weight;
+  final int restSeconds;
 
   PlanExerciseDetail({
     required this.exerciseId,
@@ -14,5 +15,6 @@ class PlanExerciseDetail {
     required this.sets,
     required this.reps,
     required this.weight,
+    required this.restSeconds,
   });
 }
