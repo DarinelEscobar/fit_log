@@ -89,21 +89,24 @@ class _Chart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxWeight = data.map((e) => e.top.weight).fold<double>(0, (p, c) => c > p ? c : p);
-    final maxVolume = data.map((e) => e.volume).fold<double>(0, (p, c) => c > p ? c : p);
-    final labels = data.map((w) => DateFormat('MM/dd').format(w.week)).toList();
-    final spotsWeight = List.generate(data.length, (i) => FlSpot(i.toDouble(), data[i].top.weight));
-    final spotsVolume = List.generate(data.length, (i) => FlSpot(i.toDouble(), data[i].volume));
-    final stepWeight = _interval(maxWeight);
-    final stepVolume = _interval(maxVolume);
+    return OrientationBuilder(
+      builder: (context, orientation) {
+        final maxWeight =
+            data.map((e) => e.top.weight).fold<double>(0, (p, c) => c > p ? c : p);
+        final maxVolume =
+            data.map((e) => e.volume).fold<double>(0, (p, c) => c > p ? c : p);
+        final labels =
+            data.map((w) => DateFormat('MM/dd').format(w.week)).toList();
+        final spotsWeight = List.generate(
+            data.length, (i) => FlSpot(i.toDouble(), data[i].top.weight));
+        final spotsVolume = List.generate(
+            data.length, (i) => FlSpot(i.toDouble(), data[i].volume));
+        final stepWeight = _interval(maxWeight);
+        // Increase the interval so volume labels don't crowd the axis
+        final stepVolume = _interval(maxVolume) * 2;
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Expanded(
-            child: LineChart(
-              LineChartData(
+        final chart = LineChart(
+          LineChartData(
                 minX: 0,
                 maxX: (data.length - 1).toDouble(),
                 minY: 0,
@@ -185,17 +188,30 @@ class _Chart extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              _Legend(color: Colors.blue, text: 'Peso'),
-              SizedBox(width: 16),
-              _Legend(color: Colors.green, text: 'Volumen'),
+        );
+
+        final chartWidget = orientation == Orientation.portrait
+            ? Expanded(child: chart)
+            : SizedBox(height: 200, child: chart);
+
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              chartWidget,
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  _Legend(color: Colors.blue, text: 'Peso'),
+                  SizedBox(width: 16),
+                  _Legend(color: Colors.green, text: 'Volumen'),
+                ],
+              ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
