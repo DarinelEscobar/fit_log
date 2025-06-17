@@ -153,6 +153,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
             sets: _cast<int>(r[2]) ?? 0,
             reps: _cast<int>(r[3]) ?? 0,
             weight: _cast<double>(r[4]) ?? 0,
+            restSeconds: _cast<int>(r[5]) ?? 0,
           );
         })
         .toList();
