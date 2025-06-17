@@ -257,6 +257,20 @@ class ExerciseTileState extends State<ExerciseTile>
       );
 
   @override
+  void dispose() {
+    for (final c in _repCtl) {
+      c.dispose();
+    }
+    for (final c in _kgCtl) {
+      c.dispose();
+    }
+    for (final c in _rirCtl) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     super.build(context);
     return GestureDetector(
