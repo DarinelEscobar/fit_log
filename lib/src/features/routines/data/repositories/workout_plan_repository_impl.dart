@@ -139,13 +139,20 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
         if (r.isNotEmpty) _cast<int>(r[0])!: r[2]?.value.toString() ?? '',
     };
 
+    final headers = peSheet.rows.first
+        .map((c) => c?.value.toString())
+        .whereType<String>()
+        .toList();
+    final hasRest = headers.contains('rest_seconds');
+
     return peSheet.rows
         .skip(1)
-        .where((r) =>
-            r.isNotEmpty &&
-            _cast<int>(r[0]) == planId)
+        .where((r) => r.isNotEmpty && _cast<int>(r[0]) == planId)
         .map((r) {
           final id = _cast<int>(r[1]) ?? 0;
+          final rest = hasRest
+              ? _cast<int>(r[5]) ?? 120
+              : 120;
           return PlanExerciseDetail(
             exerciseId: id,
             name: mapIdName[id] ?? 'Unknown',
@@ -153,6 +160,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
             sets: _cast<int>(r[2]) ?? 0,
             reps: _cast<int>(r[3]) ?? 0,
             weight: _cast<double>(r[4]) ?? 0,
+            restSeconds: rest,
           );
         })
         .toList();
