@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:collection/collection.dart';
 import 'dart:async';
 import 'package:vibration/vibration.dart';
+    this.onRestStart,
+  final void Function(int seconds)? onRestStart;
 import '../../../../utils/notification_service.dart';
 
 
@@ -107,6 +109,7 @@ class ExerciseTileState extends State<ExerciseTile>
     _logsLoaded = widget.lastLogs != null;
   }
 
+    widget.onRestStart?.call(widget.detail.restSeconds);
   void _persist(int index) {
     widget.update(
       WorkoutLogEntry(

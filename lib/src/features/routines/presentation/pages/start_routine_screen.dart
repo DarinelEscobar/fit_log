@@ -30,6 +30,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   final Map<int, GlobalKey<ExerciseTileState>> _keys = {};
   int? _expandedExerciseId;
 
+  Timer? _restTimer;
+  int _restRemaining = 0;
+
   String _fatigue = '5';
   String _mood = '3';
   final TextEditingController _notesCtl = TextEditingController();
@@ -61,7 +64,21 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   @override
   void dispose() {
     _ticker.cancel();
+    _restTimer?.cancel();
     super.dispose();
+  }
+
+  void _onRestStart(int seconds) {
+    _restTimer?.cancel();
+    setState(() => _restRemaining = seconds);
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_restRemaining <= 1) {
+        t.cancel();
+        setState(() => _restRemaining = 0);
+      } else {
+        setState(() => _restRemaining--);
+      }
+    });
   }
 
   @override
@@ -146,10 +163,12 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
             setState(() {});
           },
         ),
-        body: asyncDets.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('$e')),
-          data: (dets) {
+        body: Stack(
+          children: [
+            asyncDets.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('$e')),
+              data: (dets) {
             final done = dets
                 .where((d) =>
                     _keys[d.exerciseId]?.currentState?.isComplete(logsMap) ??
@@ -195,6 +214,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                                 lastLogs: last,
                                 bestLogs: best,
                                 showBest: _showBest,
+                                onRestStart: _onRestStart,
                               );
                             },
                             loading: () => ExerciseTile(
@@ -215,6 +235,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                               update: notifier.update,
                               planId: widget.planId,
                               showBest: _showBest,
+                              onRestStart: _onRestStart,
                             ),
                             error: (e, _) => ExerciseTile(
                               key: _keys[d.exerciseId],
@@ -234,6 +255,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                               update: notifier.update,
                               planId: widget.planId,
                               showBest: _showBest,
+                              onRestStart: _onRestStart,
                             ),
                           );
                         },
@@ -244,6 +266,27 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
               ],
             );
           },
+        ),
+            if (_restRemaining > 0)
+              Positioned(
+                bottom: 80,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'Descanso: \$_restRemaining s',
+                      style: const TextStyle(color: Colors.amber),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
