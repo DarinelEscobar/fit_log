@@ -33,8 +33,8 @@ class AppDataRepositoryImpl implements AppDataRepository {
           return extFile;
         }
       }
-    } catch (_) {
-      // Ignore issues and return the internal file path
+    } catch (e) {
+      debugPrint('Failed to copy backup to external storage: $e');
     }
 
     return outFile;
