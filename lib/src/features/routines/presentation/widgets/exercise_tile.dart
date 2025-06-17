@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:collection/collection.dart';
 
 import '../state/workout_log_state.dart';
 import '../../domain/entities/workout_log_entry.dart';
+
 
 class ExerciseTile extends StatefulWidget {
   const ExerciseTile({
@@ -16,6 +18,9 @@ class ExerciseTile extends StatefulWidget {
     required this.removeLog,
     required this.update,
     required this.planId,
+    this.lastLogs,
+    this.bestLogs,
+    required this.showBest,
   });
 
   final dynamic detail;
@@ -27,6 +32,9 @@ class ExerciseTile extends StatefulWidget {
   final void Function(WorkoutLogEntry) removeLog;
   final void Function(WorkoutLogEntry) update;
   final int planId;
+  final List<WorkoutLogEntry>? lastLogs;
+  final List<WorkoutLogEntry>? bestLogs;
+  final bool showBest;
 
   @override
   ExerciseTileState createState() => ExerciseTileState();
@@ -35,6 +43,9 @@ class ExerciseTile extends StatefulWidget {
 class ExerciseTileState extends State<ExerciseTile>
     with AutomaticKeepAliveClientMixin {
   late List<TextEditingController> _repCtl, _kgCtl, _rirCtl;
+  int _visibleSets = 0;
+  bool _logsLoaded = false;
+  final Map<int, WorkoutLogEntry> _extraLast = {};
 
   @override
   bool get wantKeepAlive => true;
@@ -42,25 +53,51 @@ class ExerciseTileState extends State<ExerciseTile>
   @override
   void initState() {
     super.initState();
+    _logsLoaded = widget.lastLogs != null;
     _build(widget.detail.sets);
   }
 
-  void _build(int n) {
-    _repCtl = List.generate(n, (i) {
-      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'];
-      return TextEditingController(
-          text: e?.reps.toString() ?? widget.detail.reps.toString());
-    });
-    _kgCtl = List.generate(n, (i) {
-      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'];
-      return TextEditingController(
+  @override
+  void didUpdateWidget(covariant ExerciseTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detail.sets != widget.detail.sets) {
+      _build(widget.detail.sets);
+    } else if (!_logsLoaded && widget.lastLogs != null) {
+      _build(widget.detail.sets);
+    }
+  }
+
+  void _build(int sets) {
+    _visibleSets = sets;
+    _repCtl = [];
+    _kgCtl = [];
+    _rirCtl = [];
+    _extraLast.clear();
+
+    WorkoutLogEntry? _lastFor(int set) =>
+    widget.lastLogs?.firstWhereOrNull((l) => l.setNumber == set);
+
+
+    for (var i = 0; i < _visibleSets; i++) {
+      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'] ??
+          _lastFor(i + 1);
+      _repCtl.add(TextEditingController(
+          text: e?.reps.toString() ?? widget.detail.reps.toString()));
+      _kgCtl.add(TextEditingController(
           text: e?.weight.toStringAsFixed(0) ??
-              widget.detail.weight.toStringAsFixed(0));
-    });
-    _rirCtl = List.generate(n, (i) {
-      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'];
-      return TextEditingController(text: e?.rir.toString() ?? '2');
-    });
+              widget.detail.weight.toStringAsFixed(0)));
+      _rirCtl.add(TextEditingController(text: e?.rir.toString() ?? '2'));
+    }
+
+    if (widget.lastLogs != null) {
+      for (final l in widget.lastLogs!) {
+        if (l.setNumber > _visibleSets) {
+          _extraLast[l.setNumber] = l;
+        }
+      }
+    }
+
+    _logsLoaded = widget.lastLogs != null;
   }
 
   void _persist(int index) {
@@ -80,13 +117,13 @@ class ExerciseTileState extends State<ExerciseTile>
   }
 
   bool isComplete(Map<String, WorkoutLogEntry> logs) =>
-      List.generate(_repCtl.length, (i) => i + 1)
+      List.generate(_visibleSets, (i) => i + 1)
           .every((s) => logs['${widget.detail.exerciseId}-$s']?.completed ?? false);
 
   void logCurrentSet({required void Function(WorkoutLogEntry) addOrUpdate}) {
-    final current = List.generate(_repCtl.length, (i) => i + 1).firstWhere(
+    final current = List.generate(_visibleSets, (i) => i + 1).firstWhere(
       (s) => !(widget.logsMap['${widget.detail.exerciseId}-$s']?.completed ?? false),
-      orElse: () => _repCtl.length,
+      orElse: () => _visibleSets,
     );
     addOrUpdate(
       WorkoutLogEntry(
@@ -107,21 +144,29 @@ class ExerciseTileState extends State<ExerciseTile>
   }
 
   void _add() {
+    final setNum = _visibleSets + 1;
+    final last = widget.logsMap['${widget.detail.exerciseId}-$setNum'] ??
+        _extraLast[setNum];
     setState(() {
-      _repCtl.add(TextEditingController(text: widget.detail.reps.toString()));
-      _kgCtl.add(TextEditingController(text: widget.detail.weight.toStringAsFixed(0)));
-      _rirCtl.add(TextEditingController(text: '2'));
+      _repCtl.add(TextEditingController(
+          text: last?.reps.toString() ?? widget.detail.reps.toString()));
+      _kgCtl.add(TextEditingController(
+          text: last?.weight.toStringAsFixed(0) ??
+              widget.detail.weight.toStringAsFixed(0)));
+      _rirCtl.add(TextEditingController(text: last?.rir.toString() ?? '2'));
+      _visibleSets++;
     });
-    _persist(_repCtl.length - 1);
+    _persist(setNum - 1);
     widget.onChanged();
   }
 
   void _remove() {
-    if (_repCtl.length <= 1) return;
-    final removed = _repCtl.length;
+    if (_visibleSets <= 1) return;
+    final removed = _visibleSets;
     _repCtl.removeLast();
     _kgCtl.removeLast();
     _rirCtl.removeLast();
+    _visibleSets--;
     widget.removeLog(
       WorkoutLogEntry(
         date: DateTime.now(),
@@ -185,6 +230,32 @@ class ExerciseTileState extends State<ExerciseTile>
         ),
       );
 
+  Widget _info(String label, String value, {bool highlight = false}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(label,
+                    style:
+                        const TextStyle(fontSize: 11, color: Colors.white54)),
+                if (highlight)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 2),
+                    child: Icon(Icons.star, size: 12, color: Colors.amber),
+                  ),
+              ],
+            ),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: highlight ? Colors.amber : Colors.white70)),
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -224,6 +295,43 @@ class ExerciseTileState extends State<ExerciseTile>
                   : null,
               trailing: Icon(widget.expanded ? Icons.expand_less : Icons.expand_more),
             ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _info(
+                        'Plan',
+                        '${widget.detail.sets}x${widget.detail.reps} @${widget.detail.weight.toStringAsFixed(0)}kg'),
+                  ),
+                  Expanded(
+                    child: widget.lastLogs == null || widget.lastLogs!.isEmpty
+                        ? _info('Último', '-')
+                        : _info(
+                            'Último',
+                            widget.lastLogs!
+                                .map((l) =>
+                                    '${l.setNumber}: ${l.reps}r ${l.weight.toStringAsFixed(0)}kg R${l.rir}')
+                                .join('\n'),
+                          ),
+                  ),
+                  if (widget.showBest)
+                    Expanded(
+                      child: widget.bestLogs == null || widget.bestLogs!.isEmpty
+                          ? _info('Mejor', '-')
+                          : _info(
+                              'Mejor',
+                              widget.bestLogs!
+                                  .map((l) =>
+                                      '${l.setNumber}: ${l.reps}r ${l.weight.toStringAsFixed(0)}kg R${l.rir}')
+                                  .join('\n'),
+                              highlight: true,
+                            ),
+                    ),
+                ],
+              ),
+            ),
             if (widget.expanded) ...[
               Padding(
                 padding: const EdgeInsets.only(right: 12, bottom: 4),
@@ -237,7 +345,7 @@ class ExerciseTileState extends State<ExerciseTile>
                 ),
               ),
               Column(
-                children: List.generate(_repCtl.length, (i) {
+                children: List.generate(_visibleSets, (i) {
                   final done =
                       widget.logsMap['${widget.detail.exerciseId}-${i + 1}']?.completed ?? false;
                   return Padding(
