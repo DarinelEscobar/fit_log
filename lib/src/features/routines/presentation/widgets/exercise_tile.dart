@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:collection/collection.dart';
 import 'dart:async';
 import 'package:vibration/vibration.dart';
+import '../../../utils/notification_service.dart';
 
 import '../state/workout_log_state.dart';
 import '../../domain/entities/workout_log_entry.dart';
@@ -127,11 +128,14 @@ class ExerciseTileState extends State<ExerciseTile>
 
   void _startRestTimer() {
     _restTimer?.cancel();
+    NotificationService.cancelRest();
+    NotificationService.scheduleRestDone(widget.detail.restSeconds);
     setState(() => _restRemaining = widget.detail.restSeconds);
     _restTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (_restRemaining <= 1) {
         t.cancel();
-        Vibration.vibrate();
+        NotificationService.cancelRest();
+        Vibration.vibrate(duration: 1500, amplitude: 255);
         setState(() => _restRemaining = 0);
       } else {
         setState(() => _restRemaining--);
@@ -288,6 +292,7 @@ class ExerciseTileState extends State<ExerciseTile>
       c.dispose();
     }
     _restTimer?.cancel();
+    NotificationService.cancelRest();
     super.dispose();
   }
 
