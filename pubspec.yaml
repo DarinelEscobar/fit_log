@@ -35,6 +35,9 @@ dependencies:
   table_calendar: ^3.0.9
   fl_chart: ^0.64.0
 
+  # 🔔 Feedback
+  vibration: ^1.7.4
+
   # 📷 Image Picker (for guide images)
   image_picker: ^1.0.7
 
