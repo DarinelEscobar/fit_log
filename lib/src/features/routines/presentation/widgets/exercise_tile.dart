@@ -3,7 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:collection/collection.dart';
 import 'dart:async';
 import 'package:vibration/vibration.dart';
-import '../../../utils/notification_service.dart';
+import '../../../../utils/notification_service.dart';
+
 
 import '../state/workout_log_state.dart';
 import '../../domain/entities/workout_log_entry.dart';
@@ -126,16 +127,18 @@ class ExerciseTileState extends State<ExerciseTile>
       List.generate(_visibleSets, (i) => i + 1)
           .every((s) => logs['${widget.detail.exerciseId}-$s']?.completed ?? false);
 
-  void _startRestTimer() {
+
+  Future<void> _startRestTimer() async {
     _restTimer?.cancel();
     NotificationService.cancelRest();
-    NotificationService.scheduleRestDone(widget.detail.restSeconds);
+    await NotificationService.scheduleRestDone(widget.detail.restSeconds);
     setState(() => _restRemaining = widget.detail.restSeconds);
     _restTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (_restRemaining <= 1) {
         t.cancel();
         NotificationService.cancelRest();
         Vibration.vibrate(duration: 2000, amplitude: 255);
+
         setState(() => _restRemaining = 0);
       } else {
         setState(() => _restRemaining--);
@@ -183,7 +186,7 @@ class ExerciseTileState extends State<ExerciseTile>
     _persist(setNum - 1);
     widget.onChanged();
   }
-
+  
   void _remove() {
     if (_visibleSets <= 1) return;
     final removed = _visibleSets;
@@ -200,6 +203,7 @@ class ExerciseTileState extends State<ExerciseTile>
         reps: 0,
         weight: 0,
         rir: 0,
+        completed: false,
       ),
     );
     setState(widget.onChanged);
@@ -282,13 +286,7 @@ class ExerciseTileState extends State<ExerciseTile>
 
   @override
   void dispose() {
-    for (final c in _repCtl) {
-      c.dispose();
-    }
-    for (final c in _kgCtl) {
-      c.dispose();
-    }
-    for (final c in _rirCtl) {
+    for (final c in [..._repCtl, ..._kgCtl, ..._rirCtl]) {
       c.dispose();
     }
     _restTimer?.cancel();

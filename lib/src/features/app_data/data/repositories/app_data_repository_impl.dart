@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -33,8 +34,8 @@ class AppDataRepositoryImpl implements AppDataRepository {
           return extFile;
         }
       }
-    } catch (_) {
-      // Ignore issues and return the internal file path
+    } catch (e) {
+      debugPrint('Failed to copy backup to external storage: $e');
     }
 
     return outFile;

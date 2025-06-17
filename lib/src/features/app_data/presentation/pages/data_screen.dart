@@ -40,10 +40,16 @@ class DataScreen extends ConsumerWidget {
                 final res = await FilePicker.platform.pickFiles();
                 if (res == null || res.files.single.path == null) return;
                 final f = File(res.files.single.path!);
-                await ref.read(importDataProvider(f).future);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Datos importados')),
-                );
+                try {
+                  await ref.read(importDataProvider(f).future);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Datos importados')),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error al importar datos: $e')),
+                  );
+                }
               },
               child: const Text('Importar Datos'),
             ),

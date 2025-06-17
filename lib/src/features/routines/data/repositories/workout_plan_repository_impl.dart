@@ -162,6 +162,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
             weight: _cast<double>(r[4]) ?? 0,
             restSeconds: rest,
           );
+
         })
         .toList();
   }
