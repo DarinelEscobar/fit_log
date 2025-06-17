@@ -196,7 +196,7 @@ class ExerciseTileState extends State<ExerciseTile>
       WorkoutLogEntry(
         date: DateTime.now(),
         planId: -1,
-        exerciseId: widget.detail.exerciseId,
+        exerciseId: widget.detail.exerciseId,D
         setNumber: removed,
         reps: 0,
         weight: 0,
@@ -281,21 +281,16 @@ class ExerciseTileState extends State<ExerciseTile>
         ),
       );
 
-  @override
-  void dispose() {
-    for (final c in _repCtl) {
-      c.dispose();
-    }
-    for (final c in _kgCtl) {
-      c.dispose();
-    }
-    for (final c in _rirCtl) {
-      c.dispose();
-    }
-    _restTimer?.cancel();
-    NotificationService.cancelRest();
-    super.dispose();
+@override
+void dispose() {
+  for (final c in [..._repCtl, ..._kgCtl, ..._rirCtl]) {
+    c.dispose();
   }
+  _restTimer?.cancel();
+  NotificationService.cancelRest();
+  super.dispose();
+}
+
 
   @override
   Widget build(BuildContext context) {

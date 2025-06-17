@@ -44,6 +44,7 @@ dependencies:
 
   # 🧭 Navigation (optional but clean)
   go_router: ^13.0.0
+  collection: ^1.19.1
 
 dev_dependencies:
   flutter_test:
