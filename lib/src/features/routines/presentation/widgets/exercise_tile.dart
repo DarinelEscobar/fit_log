@@ -41,6 +41,9 @@ class ExerciseTile extends StatefulWidget {
 class ExerciseTileState extends State<ExerciseTile>
     with AutomaticKeepAliveClientMixin {
   late List<TextEditingController> _repCtl, _kgCtl, _rirCtl;
+  int _visibleSets = 0;
+  bool _logsLoaded = false;
+  final Map<int, WorkoutLogEntry> _extraLast = {};
 
   @override
   bool get wantKeepAlive => true;
@@ -48,46 +51,53 @@ class ExerciseTileState extends State<ExerciseTile>
   @override
   void initState() {
     super.initState();
+    _logsLoaded = widget.lastLogs != null;
     _build(widget.detail.sets);
   }
 
   @override
   void didUpdateWidget(covariant ExerciseTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.detail.sets != widget.detail.sets ||
-        oldWidget.lastLogs != widget.lastLogs) {
+    if (oldWidget.detail.sets != widget.detail.sets) {
+      _build(widget.detail.sets);
+    } else if (!_logsLoaded && widget.lastLogs != null) {
       _build(widget.detail.sets);
     }
   }
 
-  void _build(int n) {
-    final count = [n, widget.lastLogs?.length ?? 0].reduce((a, b) => a > b ? a : b);
+  void _build(int sets) {
+    _visibleSets = sets;
+    _repCtl = [];
+    _kgCtl = [];
+    _rirCtl = [];
+    _extraLast.clear();
+
     WorkoutLogEntry? _lastFor(int set) {
       if (widget.lastLogs == null) return null;
-      for (final l in widget.lastLogs!) {
-        if (l.setNumber == set) return l;
-      }
-      return null;
+      return widget.lastLogs!
+          .firstWhere((l) => l.setNumber == set, orElse: () => null);
     }
 
-    _repCtl = List.generate(count, (i) {
+    for (var i = 0; i < _visibleSets; i++) {
       final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'] ??
           _lastFor(i + 1);
-      return TextEditingController(
-          text: e?.reps.toString() ?? widget.detail.reps.toString());
-    });
-    _kgCtl = List.generate(count, (i) {
-      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'] ??
-          _lastFor(i + 1);
-      return TextEditingController(
+      _repCtl.add(TextEditingController(
+          text: e?.reps.toString() ?? widget.detail.reps.toString()));
+      _kgCtl.add(TextEditingController(
           text: e?.weight.toStringAsFixed(0) ??
-              widget.detail.weight.toStringAsFixed(0));
-    });
-    _rirCtl = List.generate(count, (i) {
-      final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'] ??
-          _lastFor(i + 1);
-      return TextEditingController(text: e?.rir.toString() ?? '2');
-    });
+              widget.detail.weight.toStringAsFixed(0)));
+      _rirCtl.add(TextEditingController(text: e?.rir.toString() ?? '2'));
+    }
+
+    if (widget.lastLogs != null) {
+      for (final l in widget.lastLogs!) {
+        if (l.setNumber > _visibleSets) {
+          _extraLast[l.setNumber] = l;
+        }
+      }
+    }
+
+    _logsLoaded = widget.lastLogs != null;
   }
 
   void _persist(int index) {
@@ -107,13 +117,13 @@ class ExerciseTileState extends State<ExerciseTile>
   }
 
   bool isComplete(Map<String, WorkoutLogEntry> logs) =>
-      List.generate(_repCtl.length, (i) => i + 1)
+      List.generate(_visibleSets, (i) => i + 1)
           .every((s) => logs['${widget.detail.exerciseId}-$s']?.completed ?? false);
 
   void logCurrentSet({required void Function(WorkoutLogEntry) addOrUpdate}) {
-    final current = List.generate(_repCtl.length, (i) => i + 1).firstWhere(
+    final current = List.generate(_visibleSets, (i) => i + 1).firstWhere(
       (s) => !(widget.logsMap['${widget.detail.exerciseId}-$s']?.completed ?? false),
-      orElse: () => _repCtl.length,
+      orElse: () => _visibleSets,
     );
     addOrUpdate(
       WorkoutLogEntry(
@@ -134,21 +144,29 @@ class ExerciseTileState extends State<ExerciseTile>
   }
 
   void _add() {
+    final setNum = _visibleSets + 1;
+    final last = widget.logsMap['${widget.detail.exerciseId}-$setNum'] ??
+        _extraLast[setNum];
     setState(() {
-      _repCtl.add(TextEditingController(text: widget.detail.reps.toString()));
-      _kgCtl.add(TextEditingController(text: widget.detail.weight.toStringAsFixed(0)));
-      _rirCtl.add(TextEditingController(text: '2'));
+      _repCtl.add(TextEditingController(
+          text: last?.reps.toString() ?? widget.detail.reps.toString()));
+      _kgCtl.add(TextEditingController(
+          text: last?.weight.toStringAsFixed(0) ??
+              widget.detail.weight.toStringAsFixed(0)));
+      _rirCtl.add(TextEditingController(text: last?.rir.toString() ?? '2'));
+      _visibleSets++;
     });
-    _persist(_repCtl.length - 1);
+    _persist(setNum - 1);
     widget.onChanged();
   }
 
   void _remove() {
-    if (_repCtl.length <= 1) return;
-    final removed = _repCtl.length;
+    if (_visibleSets <= 1) return;
+    final removed = _visibleSets;
     _repCtl.removeLast();
     _kgCtl.removeLast();
     _rirCtl.removeLast();
+    _visibleSets--;
     widget.removeLog(
       WorkoutLogEntry(
         date: DateTime.now(),
@@ -327,7 +345,7 @@ class ExerciseTileState extends State<ExerciseTile>
                 ),
               ),
               Column(
-                children: List.generate(_repCtl.length, (i) {
+                children: List.generate(_visibleSets, (i) {
                   final done =
                       widget.logsMap['${widget.detail.exerciseId}-${i + 1}']?.completed ?? false;
                   return Padding(
