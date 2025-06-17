@@ -16,6 +16,7 @@ import '../../domain/usecases/save_workout_session_usecase.dart';
 import '../widgets/exercise_tile.dart';
 import '../widgets/progress_header.dart';
 import '../widgets/scale_dropdown.dart';
+import '../../../history/presentation/providers/history_providers.dart';
 
 class StartRoutineScreen extends ConsumerStatefulWidget {
   final int planId;
@@ -32,6 +33,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   String _fatigue = '5';
   String _mood = '3';
   final TextEditingController _notesCtl = TextEditingController();
+  bool _showBest = true;
 
   static const List<String> _scale10 = [
     '1',
@@ -98,6 +100,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
           centerTitle: true,
           actions: [
             IconButton(
+              icon: Icon(_showBest ? Icons.star : Icons.star_border),
+              onPressed: () => setState(() => _showBest = !_showBest),
+            ),
+            IconButton(
               icon: const Icon(Icons.flag),
               onPressed: () async {
                 if (notifier.completedLogs.isEmpty) {
@@ -161,20 +167,76 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                               .currentState
                               ?.isComplete(logsMap) ??
                           false;
-                      return ExerciseTile(
-                        key: _keys[d.exerciseId],
-                        detail: d,
-                        expanded: _expandedExerciseId == d.exerciseId,
-                        onToggle: () => setState(() => _expandedExerciseId =
-                            _expandedExerciseId == d.exerciseId
-                                ? null
-                                : d.exerciseId),
-                        logsMap: logsMap,
-                        highlightDone: doneEx,
-                        onChanged: () => setState(() {}),
-                        removeLog: notifier.remove,
-                        update: notifier.update,
-                        planId: widget.planId,
+                      return Consumer(
+                        builder: (context, ref, _) {
+                          final asyncLogs = ref.watch(
+                              logsByExerciseProvider(d.exerciseId));
+                          return asyncLogs.when(
+                            data: (logs) {
+                              final last = _lastLogs(logs);
+                              final best = _bestLogs(logs);
+                              return ExerciseTile(
+                                key: _keys[d.exerciseId],
+                                detail: d,
+                                expanded:
+                                    _expandedExerciseId == d.exerciseId,
+                                onToggle: () => setState(() {
+                                      _expandedExerciseId =
+                                          _expandedExerciseId == d.exerciseId
+                                              ? null
+                                              : d.exerciseId;
+                                    }),
+                                logsMap: logsMap,
+                                highlightDone: doneEx,
+                                onChanged: () => setState(() {}),
+                                removeLog: notifier.remove,
+                                update: notifier.update,
+                                planId: widget.planId,
+                                lastLogs: last,
+                                bestLogs: best,
+                                showBest: _showBest,
+                              );
+                            },
+                            loading: () => ExerciseTile(
+                              key: _keys[d.exerciseId],
+                              detail: d,
+                              expanded:
+                                  _expandedExerciseId == d.exerciseId,
+                              onToggle: () => setState(() {
+                                    _expandedExerciseId =
+                                        _expandedExerciseId == d.exerciseId
+                                            ? null
+                                            : d.exerciseId;
+                                  }),
+                              logsMap: logsMap,
+                              highlightDone: doneEx,
+                              onChanged: () => setState(() {}),
+                              removeLog: notifier.remove,
+                              update: notifier.update,
+                              planId: widget.planId,
+                              showBest: _showBest,
+                            ),
+                            error: (e, _) => ExerciseTile(
+                              key: _keys[d.exerciseId],
+                              detail: d,
+                              expanded:
+                                  _expandedExerciseId == d.exerciseId,
+                              onToggle: () => setState(() {
+                                    _expandedExerciseId =
+                                        _expandedExerciseId == d.exerciseId
+                                            ? null
+                                            : d.exerciseId;
+                                  }),
+                              logsMap: logsMap,
+                              highlightDone: doneEx,
+                              onChanged: () => setState(() {}),
+                              removeLog: notifier.remove,
+                              update: notifier.update,
+                              planId: widget.planId,
+                              showBest: _showBest,
+                            ),
+                          );
+                        },
                       );
                     }).toList(),
                   ),
@@ -189,6 +251,31 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
 
   String _fmt(Duration d) =>
       '${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+
+  List<WorkoutLogEntry> _lastLogs(List<WorkoutLogEntry> logs) {
+    if (logs.isEmpty) return [];
+    logs.sort((a, b) => a.date.compareTo(b.date));
+    final lastDate = logs.last.date;
+    return logs
+        .where((l) => l.date.isAtSameMomentAs(lastDate))
+        .toList()
+      ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
+  }
+
+  List<WorkoutLogEntry> _bestLogs(List<WorkoutLogEntry> logs) {
+    final filtered = logs.where((l) => l.reps >= 5).toList();
+    if (filtered.isEmpty) return [];
+    filtered.sort((a, b) {
+      final c = b.weight.compareTo(a.weight);
+      if (c != 0) return c;
+      return b.reps.compareTo(a.reps);
+    });
+    final best = filtered.first;
+    return logs
+        .where((l) => l.date.isAtSameMomentAs(best.date))
+        .toList()
+      ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
+  }
 
   Future<bool> _confirmExit(BuildContext ctx) async =>
       await showModalBottomSheet<bool>(
