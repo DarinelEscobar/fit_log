@@ -51,3 +51,4 @@ flutter test
 - Statistics and profile sections are placeholders for future updates.
 - Data is stored in the application documents directory as `.xlsx` files, making it simple to export or edit externally.
 - When exporting from the Data screen a ZIP file is also copied to your Downloads directory for easy access.
+- The Data screen can import either a full `fitlog_backup.zip` or an individual `.xlsx` table to replace existing data.
