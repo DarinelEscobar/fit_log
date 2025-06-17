@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:collection/collection.dart';
 
 import '../state/workout_log_state.dart';
 import '../../domain/entities/workout_log_entry.dart';
+
 
 class ExerciseTile extends StatefulWidget {
   const ExerciseTile({
@@ -72,11 +74,9 @@ class ExerciseTileState extends State<ExerciseTile>
     _rirCtl = [];
     _extraLast.clear();
 
-    WorkoutLogEntry? _lastFor(int set) {
-      if (widget.lastLogs == null) return null;
-      return widget.lastLogs!
-          .firstWhere((l) => l.setNumber == set, orElse: () => null);
-    }
+    WorkoutLogEntry? _lastFor(int set) =>
+    widget.lastLogs?.firstWhereOrNull((l) => l.setNumber == set);
+
 
     for (var i = 0; i < _visibleSets; i++) {
       final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'] ??
