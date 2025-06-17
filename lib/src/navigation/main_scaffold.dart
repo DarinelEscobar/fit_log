@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../features/routines/presentation/pages/routines_screen.dart';
 import '../features/history/presentation/pages/logs_screen.dart';
+import '../features/app_data/presentation/pages/data_screen.dart';
 import '../features/profile/presentation/pages/profile_screen.dart';
 
 class MainScaffold extends StatefulWidget {
@@ -43,8 +44,28 @@ class _MainScaffoldState extends State<MainScaffold> {
 
 class _HomeTab extends StatelessWidget {
   const _HomeTab();
+
   @override
-  Widget build(BuildContext context) => const Center(child: Text('Bienvenido a Fit Log'));
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Bienvenido a Fit Log'),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DataScreen()),
+              );
+            },
+            child: const Text('Data'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _StatsTab extends StatelessWidget {
