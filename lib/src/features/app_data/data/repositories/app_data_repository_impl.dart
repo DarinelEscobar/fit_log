@@ -43,11 +43,19 @@ class AppDataRepositoryImpl implements AppDataRepository {
   @override
   Future<void> importData(File file) async {
     final dir = await getApplicationDocumentsDirectory();
+    final ext = p.extension(file.path).toLowerCase();
+    if (ext == '.xlsx') {
+      final outFile = File(p.join(dir.path, p.basename(file.path)));
+      await outFile.writeAsBytes(await file.readAsBytes(), flush: true);
+      return;
+    }
+
     final bytes = await file.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
     for (final archived in archive.files) {
       if (!archived.isFile) continue;
-      final outPath = p.join(dir.path, archived.name);
+      final name = p.basename(archived.name);
+      final outPath = p.join(dir.path, name);
       final outFile = File(outPath);
       await outFile.writeAsBytes(archived.content as List<int>, flush: true);
     }
