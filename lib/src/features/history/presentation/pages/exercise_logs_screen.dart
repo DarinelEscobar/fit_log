@@ -1,3 +1,4 @@
+// lib/src/features/history/presentation/pages/exercise_logs_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -91,104 +92,102 @@ class _Chart extends StatelessWidget {
   Widget build(BuildContext context) {
     return OrientationBuilder(
       builder: (context, orientation) {
-        final maxWeight =
-            data.map((e) => e.top.weight).fold<double>(0, (p, c) => c > p ? c : p);
-        final maxVolume =
-            data.map((e) => e.volume).fold<double>(0, (p, c) => c > p ? c : p);
-        final labels =
-            data.map((w) => DateFormat('MM/dd').format(w.week)).toList();
-        final spotsWeight = List.generate(
-            data.length, (i) => FlSpot(i.toDouble(), data[i].top.weight));
-        final spotsVolume = List.generate(
-            data.length, (i) => FlSpot(i.toDouble(), data[i].volume));
+        final maxWeight = data.map((e) => e.top.weight).fold<double>(0, (p, c) => c > p ? c : p);
+        final maxVolume = data.map((e) => e.volume).fold<double>(0, (p, c) => c > p ? c : p);
+        final labels = data.map((w) => DateFormat('MM/dd').format(w.week)).toList();
+        final spotsWeight = List.generate(data.length, (i) => FlSpot(i.toDouble(), data[i].top.weight));
+        final spotsVolume = List.generate(data.length, (i) => FlSpot(i.toDouble(), data[i].volume));
         final stepWeight = _interval(maxWeight);
-        // Increase the interval so volume labels don't crowd the axis
         final stepVolume = _interval(maxVolume) * 2;
 
         final chart = LineChart(
-          LineChartData(
-                minX: 0,
-                maxX: (data.length - 1).toDouble(),
-                minY: 0,
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    axisNameWidget: const Text('Peso (kg)'),
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: stepWeight,
-                      getTitlesWidget: (v, meta) => Text(v.toInt().toString()),
-                      reservedSize: 40,
-                    ),
-                  ),
-                  rightTitles: AxisTitles(
-                    axisNameWidget: const Text('Volumen (kg·reps)'),
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: stepVolume,
-                      getTitlesWidget: (v, meta) => Text(v.toInt().toString()),
-                      reservedSize: 48,
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    axisNameWidget: const Text('Semana'),
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 1,
-                      getTitlesWidget: (v, meta) {
-                        final i = v.toInt();
-                        if (i < 0 || i >= labels.length) return const SizedBox();
-                        final w = data[i];
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(labels[i]),
-                            Text('R:${w.top.reps} RIR:${w.top.rir}', style: const TextStyle(fontSize: 10)),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                lineTouchData: LineTouchData(
-                  touchTooltipData: LineTouchTooltipData(
-                    tooltipBgColor: Colors.black87,
-                    getTooltipItems: (touched) => touched.map((t) {
-                      final w = data[t.spotIndex];
-                      final reps = w.top.reps;
-                      final rir = w.top.rir;
-                      final fatigue = w.session?.fatigueLevel ?? '';
-                      final mood = w.session?.mood ?? '';
-                      final dur = w.session?.durationMinutes ?? 0;
-                      return LineTooltipItem(
-                        'R: $reps • RIR $rir\nFatiga: $fatigue • $dur min\nMood: $mood',
-                        const TextStyle(color: Colors.white),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: spotsWeight,
-                    isCurved: false,
-                    barWidth: 3,
-                    dotData: FlDotData(show: true),
-                    color: Colors.blue,
-                  ),
-                  LineChartBarData(
-                    spots: spotsVolume,
-                    isCurved: false,
-                    barWidth: 3,
-                    dashArray: [5, 5],
-                    dotData: FlDotData(show: false),
-                    color: Colors.green,
-                  ),
-                ],
-                extraLinesData: ExtraLinesData(horizontalLines: []),
+        LineChartData(
+          minX: 0,
+          maxX: (data.length - 1).toDouble(),
+          minY: 0,
+          maxY: maxWeight,
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              axisNameWidget: const Text('Peso (kg)'),
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: (maxWeight / 4).ceilToDouble(),
+                getTitlesWidget: (value, meta) {
+                  if (value % ((maxWeight / 4).ceilToDouble()) != 0) {
+                    return const SizedBox.shrink();
+                  }
+                  return Text(value.toInt().toString());
+                },
+                reservedSize: 40,
               ),
             ),
+            rightTitles: AxisTitles(
+              axisNameWidget: const Text('Volumen (kg·reps)'),
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: stepVolume,
+                getTitlesWidget: (v, meta) => Text(v.toInt().toString()),
+                reservedSize: 48,
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              axisNameWidget: const Text('Semana'),
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: 1,
+                getTitlesWidget: (v, meta) {
+                  final i = v.toInt();
+                  if (i < 0 || i >= labels.length) return const SizedBox();
+                  final w = data[i];
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(labels[i]),
+                      Text('R:${w.top.reps} RIR:${w.top.rir}', style: const TextStyle(fontSize: 10)),
+                    ],
+                  );
+                },
+              ),
+            ),
+            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
-        );
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              tooltipBgColor: Colors.black87,
+              getTooltipItems: (touched) => touched.map((t) {
+                final w = data[t.spotIndex];
+                final reps = w.top.reps;
+                final rir = w.top.rir;
+                final fatigue = w.session?.fatigueLevel ?? '';
+                final mood = w.session?.mood ?? '';
+                final dur = w.session?.durationMinutes ?? 0;
+                return LineTooltipItem(
+                  'R: $reps • RIR $rir\nFatiga: $fatigue • $dur min\nMood: $mood',
+                  const TextStyle(color: Colors.white),
+                );
+              }).toList(),
+            ),
+          ),
+          lineBarsData: [
+            LineChartBarData(
+              spots: spotsWeight,
+              isCurved: false,
+              barWidth: 3,
+              dotData: FlDotData(show: true),
+              color: Colors.blue,
+            ),
+            LineChartBarData(
+              spots: spotsVolume,
+              isCurved: false,
+              barWidth: 3,
+              dashArray: [5, 5],
+              dotData: FlDotData(show: false),
+              color: Colors.green,
+            ),
+          ],
+          extraLinesData: ExtraLinesData(horizontalLines: []),
+        ),
+      );
 
         final chartWidget = orientation == Orientation.portrait
             ? Expanded(child: chart)
