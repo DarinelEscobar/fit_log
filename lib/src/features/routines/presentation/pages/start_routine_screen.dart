@@ -256,15 +256,72 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                                     }),
                                     logsMap: logsMap,
                                     highlightDone: doneEx,
-                                    onChanged: () => setState(() {}),
-                                    removeLog: notifier.remove,
-                                    update: notifier.update,
-                                    planId: widget.planId,
-                                    showBest: _showBest,
-                                    onSwap: () => _swapExercise(idx),
-                                  ),
-                                );
-                              },
+    final groups = ['Todos', ...{
+      for (final e in alternatives) if (e.mainMuscleGroup.isNotEmpty) e.mainMuscleGroup
+    }];
+      isScrollControlled: true,
+      builder: (ctx) {
+        String query = '';
+        String group = 'Todos';
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            final filtered = alternatives.where((e) {
+              final byGroup = group == 'Todos' || e.mainMuscleGroup == group;
+              final byName = e.name.toLowerCase().contains(query.toLowerCase());
+              return byGroup && byName;
+            }).toList();
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                top: 12,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Buscar',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (v) => setState(() => query = v),
+                    ),
+                  ),
+                  if (groups.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: group,
+                        onChanged: (v) => setState(() => group = v!),
+                        items: groups
+                            .map((g) => DropdownMenuItem(
+                                  value: g,
+                                  child: Text(g),
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: filtered
+                          .map((e) => ListTile(
+                                title: Text(e.name),
+                                subtitle:
+                                    Text('${e.category} • ${e.mainMuscleGroup}'),
+                                onTap: () => Navigator.pop(ctx, e),
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
                             ),
                         ],
                       ),
