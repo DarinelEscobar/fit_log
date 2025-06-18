@@ -256,9 +256,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                                     }),
                                     logsMap: logsMap,
                                     highlightDone: doneEx,
-    final groups = ['Todos', ...{
-      for (final e in alternatives) if (e.mainMuscleGroup.isNotEmpty) e.mainMuscleGroup
-    }];
+    final groupsSet = <String>{};
+    for (final e in alternatives) {
+      if (e.mainMuscleGroup.isNotEmpty) groupsSet.add(e.mainMuscleGroup);
+    }
+    final groups = ['Todos', ...groupsSet];
       isScrollControlled: true,
       builder: (ctx) {
         String query = '';
