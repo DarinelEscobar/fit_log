@@ -119,6 +119,34 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   @override
+  Future<List<Exercise>> getAllExercises() async {
+    final exFile = await _getOrCreateFile('exercise.xlsx');
+    final exSheet = Excel.decodeBytes(await exFile.readAsBytes())[kTableSchemas['exercise.xlsx']!.sheetName];
+    if (exSheet == null) return [];
+    return exSheet.rows
+        .skip(1)
+        .where((row) => row.isNotEmpty)
+        .map((row) => Exercise(
+              id: _cast<int>(row[0]) ?? 0,
+              name: _cast<String>(row[1]) ?? '',
+              description: _cast<String>(row[2]) ?? '',
+              category: _cast<String>(row[3]) ?? '',
+              mainMuscleGroup: _cast<String>(row[4]) ?? '',
+            ))
+        .toList();
+  }
+
+  @override
+  Future<List<Exercise>> getSimilarExercises(int exerciseId) async {
+    final all = await getAllExercises();
+    final base = all.firstWhere((e) => e.id == exerciseId, orElse: () => Exercise(id: 0, name: '', description: '', category: '', mainMuscleGroup: ''));
+    if (base.id == 0) return [];
+    return all
+        .where((e) => e.id != exerciseId && (e.category == base.category || e.mainMuscleGroup == base.mainMuscleGroup))
+        .toList();
+  }
+
+  @override
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) async {
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
     final exFile = await _getOrCreateFile('exercise.xlsx');
