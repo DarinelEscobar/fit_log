@@ -10,6 +10,8 @@ import '../providers/plan_exercise_details_provider.dart';
 import '../state/workout_log_state.dart';
 import '../../domain/entities/workout_log_entry.dart';
 import '../../domain/entities/workout_session.dart';
+import '../../domain/entities/exercise.dart';
+import '../../domain/entities/plan_exercise_detail.dart';
 import '../../data/repositories/workout_plan_repository_impl.dart';
 import '../../domain/usecases/save_workout_logs_usecase.dart';
 import '../../domain/usecases/save_workout_session_usecase.dart';
@@ -17,6 +19,8 @@ import '../widgets/exercise_tile.dart';
 import '../widgets/progress_header.dart';
 import '../widgets/scale_dropdown.dart';
 import '../../../history/presentation/providers/history_providers.dart';
+import '../providers/exercises_provider.dart';
+import 'select_exercise_screen.dart';
 
 class StartRoutineScreen extends ConsumerStatefulWidget {
   final int planId;
@@ -29,6 +33,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   late final Timer _ticker;
   final Map<int, GlobalKey<ExerciseTileState>> _keys = {};
   int? _expandedExerciseId;
+  List<PlanExerciseDetail>? _sessionDetails;
+  Map<int, Exercise>? _exerciseMap;
 
   String _fatigue = '5';
   String _mood = '3';
@@ -67,6 +73,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   @override
   Widget build(BuildContext context) {
     final asyncDets = ref.watch(planExerciseDetailsProvider(widget.planId));
+    final asyncAll = ref.watch(allExercisesProvider);
     final logsMap = ref.watch(workoutLogProvider);
     final notifier = ref.read(workoutLogProvider.notifier);
     final cs = Theme.of(context).colorScheme;
@@ -102,6 +109,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
             IconButton(
               icon: Icon(_showBest ? Icons.star : Icons.star_border),
               onPressed: () => setState(() => _showBest = !_showBest),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: _addExercise,
             ),
             IconButton(
               icon: const Icon(Icons.flag),
@@ -146,32 +157,41 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
             setState(() {});
           },
         ),
-        body: asyncDets.when(
+        body: asyncAll.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('$e')),
-          data: (dets) {
-            final done = dets
-                .where((d) =>
-                    _keys[d.exerciseId]?.currentState?.isComplete(logsMap) ??
-                    false)
-                .length;
-            return Column(
-              children: [
-                ProgressHeader(completed: done, total: dets.length),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(12, 100, 12, 80),
-                    children: dets.map((d) {
-                      _keys[d.exerciseId] ??= GlobalKey<ExerciseTileState>();
-                      final doneEx = _keys[d.exerciseId]!
-                              .currentState
-                              ?.isComplete(logsMap) ??
-                          false;
-                      return Consumer(
-                        builder: (context, ref, _) {
-                          final asyncLogs = ref.watch(
-                              logsByExerciseProvider(d.exerciseId));
-                          return asyncLogs.when(
+          data: (allEx) {
+            _exerciseMap ??= {for (var e in allEx) e.id: e};
+            return asyncDets.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('$e')),
+              data: (dets) {
+                _sessionDetails ??= List.of(dets);
+                final list = _sessionDetails!;
+                final done = list
+                    .where((d) =>
+                        _keys[d.exerciseId]?.currentState?.isComplete(logsMap) ??
+                        false)
+                    .length;
+                return Column(
+                  children: [
+                    ProgressHeader(completed: done, total: list.length),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(12, 100, 12, 80),
+                        children: list.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final d = entry.value;
+                          _keys[d.exerciseId] ??= GlobalKey<ExerciseTileState>();
+                          final doneEx = _keys[d.exerciseId]!
+                                  .currentState
+                                  ?.isComplete(logsMap) ??
+                              false;
+                          return Consumer(
+                            builder: (context, ref, _) {
+                              final asyncLogs = ref.watch(
+                                  logsByExerciseProvider(d.exerciseId));
+                              return asyncLogs.when(
                             data: (logs) {
                               final last = _lastLogs(logs);
                               final best = _bestLogs(logs);
@@ -195,6 +215,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                                 lastLogs: last,
                                 bestLogs: best,
                                 showBest: _showBest,
+                                onSwap: () => _swapExercise(idx),
                               );
                             },
                             loading: () => ExerciseTile(
@@ -215,6 +236,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                               update: notifier.update,
                               planId: widget.planId,
                               showBest: _showBest,
+                              onSwap: () => _swapExercise(idx),
                             ),
                             error: (e, _) => ExerciseTile(
                               key: _keys[d.exerciseId],
@@ -234,6 +256,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                               update: notifier.update,
                               planId: widget.planId,
                               showBest: _showBest,
+                              onSwap: () => _swapExercise(idx),
                             ),
                           );
                         },
@@ -251,6 +274,84 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
 
   String _fmt(Duration d) =>
       '${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+
+  Future<void> _swapExercise(int index) async {
+    if (_sessionDetails == null) return;
+    final detail = _sessionDetails![index];
+    final alternatives = await ref
+        .read(similarExercisesProvider(detail.exerciseId).future);
+    if (alternatives.isEmpty) return;
+    final picked = await showModalBottomSheet<Exercise>(
+      context: context,
+      builder: (_) => ListView(
+        children: alternatives
+            .map((e) => ListTile(
+                  title: Text(e.name),
+                  subtitle: Text('${e.category} • ${e.mainMuscleGroup}'),
+                  onTap: () => Navigator.pop(context, e),
+                ))
+            .toList(),
+      ),
+    );
+    if (picked != null) {
+      final notifier = ref.read(workoutLogProvider.notifier);
+      for (var i = 1; i <= detail.sets; i++) {
+        notifier.remove(WorkoutLogEntry(
+            date: DateTime.now(),
+            planId: widget.planId,
+            exerciseId: detail.exerciseId,
+            setNumber: i,
+            reps: 0,
+            weight: 0,
+            rir: 0));
+      }
+      setState(() {
+        _keys.remove(detail.exerciseId);
+        final newDetail = detail.copyWith(
+            exerciseId: picked.id,
+            name: picked.name,
+            description: picked.description);
+        _sessionDetails![index] = newDetail;
+        _keys[newDetail.exerciseId] = GlobalKey<ExerciseTileState>();
+        if (_expandedExerciseId == detail.exerciseId) {
+          _expandedExerciseId = newDetail.exerciseId;
+        }
+      });
+    }
+  }
+
+  Future<void> _addExercise() async {
+    if (_exerciseMap == null) return;
+    final groups = <String>{};
+    for (final d in _sessionDetails ?? []) {
+      final g = _exerciseMap![d.exerciseId]?.mainMuscleGroup;
+      if (g != null) groups.add(g);
+    }
+    final exercise = await Navigator.push<Exercise>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SelectExerciseScreen(
+          groups: groups,
+        ),
+      ),
+    );
+    if (exercise != null) {
+      setState(() {
+        final newDetail = PlanExerciseDetail(
+          exerciseId: exercise.id,
+          name: exercise.name,
+          description: exercise.description,
+          sets: 3,
+          reps: 10,
+          weight: 0,
+          restSeconds: 90,
+        );
+        _sessionDetails ??= [];
+        _sessionDetails!.add(newDetail);
+        _keys[newDetail.exerciseId] = GlobalKey<ExerciseTileState>();
+      });
+    }
+  }
 
   List<WorkoutLogEntry> _lastLogs(List<WorkoutLogEntry> logs) {
     if (logs.isEmpty) return [];
