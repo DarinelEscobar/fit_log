@@ -179,92 +179,99 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                     Expanded(
                       child: ListView(
                         padding: const EdgeInsets.fromLTRB(12, 100, 12, 80),
-                        children: list.asMap().entries.map((entry) {
-                          final idx = entry.key;
-                          final d = entry.value;
-                          _keys[d.exerciseId] ??= GlobalKey<ExerciseTileState>();
-                          final doneEx = _keys[d.exerciseId]!
-                                  .currentState
-                                  ?.isComplete(logsMap) ??
-                              false;
-                          return Consumer(
-                            builder: (context, ref, _) {
-                              final asyncLogs = ref.watch(
-                                  logsByExerciseProvider(d.exerciseId));
-                              return asyncLogs.when(
-                            data: (logs) {
-                              final last = _lastLogs(logs);
-                              final best = _bestLogs(logs);
-                              return ExerciseTile(
-                                key: _keys[d.exerciseId],
-                                detail: d,
-                                expanded:
-                                    _expandedExerciseId == d.exerciseId,
-                                onToggle: () => setState(() {
+                        children: [
+                          for (var entry in list.asMap().entries)
+                            Consumer(
+                              builder: (context, ref, _) {
+                                final d = entry.value;
+                                final idx = entry.key;
+                                _keys[d.exerciseId] ??=
+                                    GlobalKey<ExerciseTileState>();
+                                final doneEx = _keys[d.exerciseId]
+                                        ?.currentState
+                                        ?.isComplete(logsMap) ??
+                                    false;
+                                final asyncLogs = ref.watch(
+                                    logsByExerciseProvider(d.exerciseId));
+                                return asyncLogs.when(
+                                  data: (logs) {
+                                    final last = _lastLogs(logs);
+                                    final best = _bestLogs(logs);
+                                    return ExerciseTile(
+                                      key: _keys[d.exerciseId],
+                                      detail: d,
+                                      expanded: _expandedExerciseId ==
+                                          d.exerciseId,
+                                      onToggle: () => setState(() {
+                                        _expandedExerciseId =
+                                            _expandedExerciseId ==
+                                                    d.exerciseId
+                                                ? null
+                                                : d.exerciseId;
+                                      }),
+                                      logsMap: logsMap,
+                                      highlightDone: doneEx,
+                                      onChanged: () => setState(() {}),
+                                      removeLog: notifier.remove,
+                                      update: notifier.update,
+                                      planId: widget.planId,
+                                      lastLogs: last,
+                                      bestLogs: best,
+                                      showBest: _showBest,
+                                      onSwap: () => _swapExercise(idx),
+                                    );
+                                  },
+                                  loading: () => ExerciseTile(
+                                    key: _keys[d.exerciseId],
+                                    detail: d,
+                                    expanded: _expandedExerciseId ==
+                                        d.exerciseId,
+                                    onToggle: () => setState(() {
                                       _expandedExerciseId =
-                                          _expandedExerciseId == d.exerciseId
+                                          _expandedExerciseId ==
+                                                  d.exerciseId
                                               ? null
                                               : d.exerciseId;
                                     }),
-                                logsMap: logsMap,
-                                highlightDone: doneEx,
-                                onChanged: () => setState(() {}),
-                                removeLog: notifier.remove,
-                                update: notifier.update,
-                                planId: widget.planId,
-                                lastLogs: last,
-                                bestLogs: best,
-                                showBest: _showBest,
-                                onSwap: () => _swapExercise(idx),
-                              );
-                            },
-                            loading: () => ExerciseTile(
-                              key: _keys[d.exerciseId],
-                              detail: d,
-                              expanded:
-                                  _expandedExerciseId == d.exerciseId,
-                              onToggle: () => setState(() {
-                                    _expandedExerciseId =
-                                        _expandedExerciseId == d.exerciseId
-                                            ? null
-                                            : d.exerciseId;
-                                  }),
-                              logsMap: logsMap,
-                              highlightDone: doneEx,
-                              onChanged: () => setState(() {}),
-                              removeLog: notifier.remove,
-                              update: notifier.update,
-                              planId: widget.planId,
-                              showBest: _showBest,
-                              onSwap: () => _swapExercise(idx),
+                                    logsMap: logsMap,
+                                    highlightDone: doneEx,
+                                    onChanged: () => setState(() {}),
+                                    removeLog: notifier.remove,
+                                    update: notifier.update,
+                                    planId: widget.planId,
+                                    showBest: _showBest,
+                                    onSwap: () => _swapExercise(idx),
+                                  ),
+                                  error: (e, _) => ExerciseTile(
+                                    key: _keys[d.exerciseId],
+                                    detail: d,
+                                    expanded: _expandedExerciseId ==
+                                        d.exerciseId,
+                                    onToggle: () => setState(() {
+                                      _expandedExerciseId =
+                                          _expandedExerciseId ==
+                                                  d.exerciseId
+                                              ? null
+                                              : d.exerciseId;
+                                    }),
+                                    logsMap: logsMap,
+                                    highlightDone: doneEx,
+                                    onChanged: () => setState(() {}),
+                                    removeLog: notifier.remove,
+                                    update: notifier.update,
+                                    planId: widget.planId,
+                                    showBest: _showBest,
+                                    onSwap: () => _swapExercise(idx),
+                                  ),
+                                );
+                              },
                             ),
-                            error: (e, _) => ExerciseTile(
-                              key: _keys[d.exerciseId],
-                              detail: d,
-                              expanded:
-                                  _expandedExerciseId == d.exerciseId,
-                              onToggle: () => setState(() {
-                                    _expandedExerciseId =
-                                        _expandedExerciseId == d.exerciseId
-                                            ? null
-                                            : d.exerciseId;
-                                  }),
-                              logsMap: logsMap,
-                              highlightDone: doneEx,
-                              onChanged: () => setState(() {}),
-                              removeLog: notifier.remove,
-                              update: notifier.update,
-                              planId: widget.planId,
-                              showBest: _showBest,
-                              onSwap: () => _swapExercise(idx),
-                            ),
-                          );
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             );
           },
         ),
