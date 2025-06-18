@@ -11,7 +11,10 @@ class XlsxInitializer {
 
     for (final entry in kTableSchemas.entries) {
       final file = File('${dir.path}/${entry.key}');
-      if (await file.exists()) continue;
+      if (await file.exists()) {
+        await _upgradeTableIfNeeded(file, entry.value);
+        continue;
+      }
 
       final excel = Excel.createExcel();
       final defaultSheet = excel.getDefaultSheet();
@@ -24,6 +27,40 @@ class XlsxInitializer {
       final bytes = excel.save();
       if (bytes != null) await file.writeAsBytes(bytes);
     }
+  }
+
+  static Future<void> _upgradeTableIfNeeded(
+      File file, TableSchema schema) async {
+    final bytes = await file.readAsBytes();
+    final excel = Excel.decodeBytes(bytes);
+    final sheet = excel[schema.sheetName];
+    if (sheet == null || sheet.rows.isEmpty) return;
+
+    final currentHeaders = sheet.rows.first
+        .map((e) => e?.value.toString() ?? '')
+        .toList();
+    if (currentHeaders.length >= schema.headers.length) return;
+
+    for (var i = currentHeaders.length; i < schema.headers.length; i++) {
+      sheet.rows.first.add(TextCellValue(schema.headers[i]));
+      final defaultValue = _defaultFor(schema, i);
+      for (var r = 1; r < sheet.rows.length; r++) {
+        sheet.rows[r].add(_toCellValue(defaultValue));
+      }
+    }
+
+    final updated = excel.save();
+    if (updated != null) await file.writeAsBytes(updated);
+  }
+
+  static dynamic _defaultFor(TableSchema schema, int index) {
+    if (schema.sample.isNotEmpty && schema.sample.first is List) {
+      final row = schema.sample.first as List;
+      if (index < row.length) return row[index];
+    } else if (index < schema.sample.length) {
+      return schema.sample[index];
+    }
+    return '';
   }
 
   static void _writeTable(Excel excel, TableSchema schema) {

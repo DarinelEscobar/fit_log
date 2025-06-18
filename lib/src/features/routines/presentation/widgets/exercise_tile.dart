@@ -135,8 +135,7 @@ class ExerciseTileState extends State<ExerciseTile>
     _restTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (_restRemaining <= 1) {
         t.cancel();
-        NotificationService.cancelRest();
-        Vibration.vibrate(duration: 1500, amplitude: 255);
+        Vibration.vibrate(duration: 2000, amplitude: 255);
         setState(() => _restRemaining = 0);
       } else {
         setState(() => _restRemaining--);
