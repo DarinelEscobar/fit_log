@@ -202,53 +202,55 @@ const Map<String, TableSchema> kTableSchemas = {
     'suggested_reps',
     // Recommended kg (sample values)
     'estimated_weight',
+    // Rest time after each set (seconds)
+    'rest_seconds',
     // Optional local image
     'image_path',
   ],
   sample: [
     // ── Day 1 ─ Upper Push (plan_id 1) ────────────────────────────────────────
-    [1, 1, 4,  8, 25.0, ''], // Barbell Overhead Press
-    [1, 2, 4, 10, 45.0, ''], // Incline Dumbbell Press
-    [1, 3, 3, 10, 40.0, ''], // Flat Barbell Press
-    [1, 4, 3, 15, 15.0, ''], // Cable / Machine Fly
-    [1, 5, 3, 12, 45.0, ''], // V-Bar Push-down
-    [1, 6, 2, 15, 20.0, ''], // Overhead Rope Extension
+    [1, 1, 4,  8, 25.0, 180, ''], // Barbell Overhead Press
+    [1, 2, 4, 10, 45.0, 180, ''], // Incline Dumbbell Press
+    [1, 3, 3, 10, 40.0, 180, ''], // Flat Barbell Press
+    [1, 4, 3, 15, 15.0, 120, ''], // Cable / Machine Fly
+    [1, 5, 3, 12, 45.0, 120, ''], // V-Bar Push-down
+    [1, 6, 2, 15, 20.0,  60, ''], // Overhead Rope Extension
 
     // ── Day 2 ─ Lower A (plan_id 2) ───────────────────────────────────────────
-    [2, 7, 4,  8, 55.0, ''], // Back Squat
-    [2, 8, 4, 12, 30.0, ''], // Leg Press
-    [2, 9, 3, 15, 20.0, ''], // Leg Extension (1½ reps)
-    [2,10, 4, 20, 25.0, ''], // Seated Calf Raise
-    [2,11, 3, 20, 10.0, ''], // Tibialis Raise (opt.)
+    [2, 7, 4,  8, 55.0, 180, ''], // Back Squat
+    [2, 8, 4, 12, 30.0, 180, ''], // Leg Press
+    [2, 9, 3, 15, 20.0, 120, ''], // Leg Extension (1½ reps)
+    [2,10, 4, 20, 25.0, 120, ''], // Seated Calf Raise
+    [2,11, 3, 20, 10.0,  60, ''], // Tibialis Raise (opt.)
 
     // ── Day 3 ─ Upper Pull (plan_id 3) ────────────────────────────────────────
-    [3, 12, 4, 12, 55.0, ''], // Wide-grip Lat Pulldown
-    [3, 13, 4, 15, 30.0, ''], // Seated Cable Row (close)
-    [3, 14, 4, 15, 30.0, ''], // Straight-arm Pulldown
-    [3, 15, 3, 20, 25.0, ''], // Face Pull
-    [3, 16, 4, 10, 40.0, ''], // Barbell Curl
-    [3, 17, 3, 12, 10.0, ''], // Incline DB Curl
-    [3, 18, 3, 15, 10.0, ''], // Wrist / Reverse Curl superset
-    [3, 34, 3, 15, 20.0, ''], // Wrist Curl
-    [3, 19, 3, 20, 25.0, ''], // Cable Crunch
+    [3, 12, 4, 12, 55.0, 180, ''], // Wide-grip Lat Pulldown
+    [3, 13, 4, 15, 30.0, 180, ''], // Seated Cable Row (close)
+    [3, 14, 4, 15, 30.0, 120, ''], // Straight-arm Pulldown
+    [3, 15, 3, 20, 25.0, 120, ''], // Face Pull
+    [3, 16, 4, 10, 40.0, 120, ''], // Barbell Curl
+    [3, 17, 3, 12, 10.0, 120, ''], // Incline DB Curl
+    [3, 18, 3, 15, 10.0,  60, ''], // Wrist / Reverse Curl superset
+    [3, 34, 3, 15, 20.0,  60, ''], // Wrist Curl
+    [3, 19, 3, 20, 25.0,  60, ''], // Cable Crunch
 
     // ── Day 5 ─ Push-Pull Hybrid (plan_id 4) ─────────────────────────────────
-    [4,20, 3, 12,  0.0, ''], // Decline Barbell Press
-    [4,21, 3, 15,  0.0, ''], // Chest-Supported Row (light)
-    [4,22, 4, 15,  0.0, ''], // Cable Lateral Raise
-    [4,23, 3, 15,  0.0, ''], // Reverse Cable Fly
-    [4,24, 3, 12,  0.0, ''], // Hammer Curl
-    [4,25, 3, 12,  0.0, ''], // Parallel-bar Dips
-    [4,26, 2, 15,  0.0, ''], // Concentration Curl
-    [4,27, 3, 15,  0.0, ''], // Hanging Leg Raise
+    [4,20, 3, 12,  0.0, 180, ''], // Decline Barbell Press
+    [4,21, 3, 15,  0.0, 180, ''], // Chest-Supported Row (light)
+    [4,22, 4, 15,  0.0, 120, ''], // Cable Lateral Raise
+    [4,23, 3, 15,  0.0, 120, ''], // Reverse Cable Fly
+    [4,24, 3, 12,  0.0, 120, ''], // Hammer Curl
+    [4,25, 3, 12,  0.0, 120, ''], // Parallel-bar Dips
+    [4,26, 2, 15,  0.0, 120, ''], // Concentration Curl
+    [4,27, 3, 15,  0.0,  60, ''], // Hanging Leg Raise
 
     // ── Day 6 ─ Lower B (plan_id 5) ───────────────────────────────────────────
-    [5,28, 4, 10,  0.0, ''], // Romanian Deadlift
-    [5,29, 4, 12,  0.0, ''], // Seated Leg Curl
-    [5,30, 3, 15,  0.0, ''], // Glute Kick-back Machine
-    [5,31, 3, 20,  0.0, ''], // Hip Abduction
-    [5,32, 4, 15,  0.0, ''], // Standing Calf Raise
-    [5,33, 3, 20,  0.0, ''], // Side-plank Hip Dips
+    [5,28, 4, 10,  0.0, 180, ''], // Romanian Deadlift
+    [5,29, 4, 12,  0.0, 120, ''], // Seated Leg Curl
+    [5,30, 3, 15,  0.0,  60, ''], // Glute Kick-back Machine
+    [5,31, 3, 20,  0.0,  60, ''], // Hip Abduction
+    [5,32, 4, 15,  0.0,  60, ''], // Standing Calf Raise
+    [5,33, 3, 20,  0.0,  60, ''], // Side-plank Hip Dips
   ],
   ),
 
@@ -370,6 +372,37 @@ const Map<String, TableSchema> kTableSchemas = {
 
     [72, '2025-04-30', 3, 19, 1, 10, 25.0, 2], // Cable Crunch
     [73, '2025-04-30', 3, 19, 2,  9, 25.0, 3],
+
+
+    //samples // Incline DB Press
+    [77, '2025-05-05', 1, 2, 1, 9, 45.0, 2],
+    [78, '2025-05-05', 1, 2, 2, 7, 45.0, 2],
+    [79, '2025-05-05', 1, 2, 3, 6, 42.5, 2],
+    [80, '2025-05-05', 1, 2, 4, 6, 37.5, 2],
+    [81, '2025-05-12', 1, 2, 1, 10, 45.0, 1],
+    [82, '2025-05-12', 1, 2, 2, 8, 45.0, 1],
+    [83, '2025-05-12', 1, 2, 3, 7, 45.0, 1],
+    [84, '2025-05-12', 1, 2, 4, 6, 40.0, 1],
+    [85, '2025-05-19', 1, 2, 1, 10, 47.5, 1],
+    [86, '2025-05-19', 1, 2, 2, 8, 47.5, 1],
+    [87, '2025-05-19', 1, 2, 3, 7, 45.0, 1],
+    [88, '2025-05-19', 1, 2, 4, 6, 42.5, 1],
+    [89, '2025-05-26', 1, 2, 1, 10, 50.0, 1],
+    [90, '2025-05-26', 1, 2, 2, 9, 47.5, 1],
+    [91, '2025-05-26', 1, 2, 3, 7, 45.0, 1],
+    [92, '2025-05-26', 1, 2, 4, 6, 45.0, 1],
+    [93, '2025-06-02', 1, 2, 1, 10, 50.0, 0],
+    [94, '2025-06-02', 1, 2, 2, 10, 50.0, 0],
+    [95, '2025-06-02', 1, 2, 3, 8, 47.5, 0],
+    [96, '2025-06-02', 1, 2, 4, 6, 47.5, 0],
+    [97, '2025-06-09', 1, 2, 1, 10, 52.5, 0],
+    [98, '2025-06-09', 1, 2, 2, 10, 50.0, 0],
+    [99, '2025-06-09', 1, 2, 3, 9, 50.0, 0],
+    [100,'2025-06-09', 1, 2, 4, 6, 50.0, 0],
+    [101,'2025-06-16', 1, 2, 1, 10, 55.0, 0],
+    [102,'2025-06-16', 1, 2, 2, 10, 52.5, 0],
+    [103,'2025-06-16', 1, 2, 3, 10, 50.0, 0],
+    [104,'2025-06-16', 1, 2, 4, 8, 50.0, 0]
   ],
   ),
 
