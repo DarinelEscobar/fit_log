@@ -185,6 +185,16 @@ const Map<String, TableSchema> kTableSchemas = {
       [32, 'Standing Calf Raise', 'Calf raise while standing with weight', 'Isolation', 'Calves'],
       [33, 'Side-plank Hip Dips', 'Oblique dips from side plank position', 'Mobility', 'Obliques'],
       [34, 'Wrist Curl', 'Seated dumbbell wrist flexion', 'Isolation', 'Forearms'],
+      [36, 'Glute bridge bar', 'Barbell glute bridge focusing on hip extension', 'Compound', 'Glutes'],
+      [38, 'Peacher Curl', 'Seated biceps curl on preacher bench', 'Isolation', 'Biceps'],
+      [39, 'Cable Fly (lower chest)', 'Cable fly targeting lower chest by pulling cables downward', 'Isolation', 'Chest'],
+      [40, 'Cable Fly (inner chest)', 'Cable fly emphasizing inner chest contraction with crossover technique', 'Isolation', 'Chest'],
+      [41, 'Sulek curl', 'Standing cable curl focusing on biceps peak', 'Isolation', 'Biceps'],
+      [42, 'Triceps rope pushdwon', 'Triceps extension using rope attachment on cable machine', 'Isolation', 'Triceps'],
+      [43, 'Romanian Deadlift straight bar', 'Hamstring-focused hip hinge with straight barbell', 'Compound', 'Hamstrings'],
+      [43, 'Hip Adduction', 'Hip adduction using machine to target inner thigh', 'Isolation', 'Adductors'],
+
+
     ],
   ),
 
@@ -486,86 +496,104 @@ const Map<String, TableSchema> kTableSchemas = {
   ),
 
   'exercise_target.xlsx': TableSchema(
-  sheetName: 'ExerciseTarget',
-  headers: [
-    // FK → Exercise.exercise_id
-    'exercise_id',
-    // FK → Muscle.muscle_id
-    'muscle_id',
-    // 0.0 – 1.0 emphasis
-    'emphasis_percentage',
-  ],
-  sample: [
-    // Barbell Overhead Press
-    [1, 1, 0.5], [1, 2, 0.3], [1, 6, 0.2],
-    // Incline Dumbbell Press
-    [2, 4, 0.6], [2, 5, 0.2], [2, 1, 0.2],
-    // Flat Barbell Press
-    [3, 5, 0.6], [3, 4, 0.25], [3, 6, 0.15],
-    // Cable / Machine Fly
-    [4, 5, 0.7], [4, 4, 0.2], [4, 1, 0.1],
-    // V-Bar Push-down
-    [5, 7, 0.5], [5, 8, 0.3], [5, 6, 0.2],
-    // Overhead Rope Extension
-    [6, 6, 0.55], [6, 8, 0.25], [6, 7, 0.2],
-    // Back Squat
-    [7, 27, 0.4], [7, 28, 0.3], [7, 29, 0.3],
-    // Leg Press
-    [8, 27, 0.35], [8, 28, 0.3], [8, 29, 0.25], [8, 24, 0.1],
-    // Leg Extension (1½ reps)
-    [9, 27, 0.4], [9, 28, 0.3], [9, 29, 0.3],
-    // Seated Calf Raise
-    [10, 35, 0.7], [10, 34, 0.3],
-    // Tibialis Raise
-    [11, 36, 1.0],
-    // Wide-grip Lat Pulldown
-    [12, 14, 0.5], [12, 15, 0.15], [12, 10, 0.2], [12, 16, 0.15],
-    // Seated Cable Row (close)
-    [13, 14, 0.3], [13, 16, 0.3], [13, 18, 0.2], [13, 9, 0.2],
-    // Straight-arm Pulldown
-    [14, 14, 0.7], [14, 15, 0.2], [14, 3, 0.1],
-    // Face Pull
-    [15, 3, 0.4], [15, 17, 0.35], [15, 16, 0.25],
-    // Barbell Curl
-    [16, 9, 0.5], [16, 10, 0.35], [16, 11, 0.15],
-    // Incline DB Curl
-    [17, 10, 0.55], [17, 9, 0.25], [17, 11, 0.2],
-    // Wrist / Reverse Curl superset
-    [18, 12, 0.5], [18, 13, 0.5],
-    // Cable Crunch
-    [19, 21, 0.7], [19, 22, 0.15], [19, 23, 0.15],
-    // Decline Barbell Press
-    [20, 5, 0.65], [20, 4, 0.15], [20, 6, 0.2],
-    // Chest-Supported Row (light)
-    [21, 14, 0.35], [21, 16, 0.35], [21, 18, 0.3],
-    // Cable Lateral Raise
-    [22, 2, 0.8], [22, 1, 0.1], [22, 3, 0.1],
-    // Reverse Cable Fly
-    [23, 3, 0.6], [23, 16, 0.2], [23, 18, 0.2],
-    // Hammer Curl
-    [24, 11, 0.4], [24, 9, 0.3], [24, 10, 0.3],
-    // Parallel-bar Dips
-    [25, 6, 0.35], [25, 5, 0.35], [25, 1, 0.3],
-    // Concentration Curl
-    [26, 9, 0.6], [26, 10, 0.3], [26, 11, 0.1],
-    // Hanging Leg Raise
-    [27, 21, 0.6], [27, 23, 0.4],
-    // Romanian Deadlift
-    [28, 31, 0.4], [28, 32, 0.3], [28, 24, 0.3],
-    // Seated Leg Curl
-    [29, 31, 0.35], [29, 32, 0.35], [29, 33, 0.3],
-    // Glute Kick-back Machine
-    [30, 24, 0.6], [30, 25, 0.3], [30, 31, 0.1],
-    // Hip Abduction
-    [31, 25, 0.5], [31, 26, 0.3], [31, 38, 0.2],
-    // Standing Calf Raise
-    [32, 34, 0.7], [32, 35, 0.3],
-    // Side-plank Hip Dips
-    [33, 23, 0.4], [33, 22, 0.4], [33, 25, 0.2],
-    // Wrist Curl'
-    [34, 12, 0.7], // Forearm Flexors
-    [34, 13, 0.3], // Forearm Extensors
-  ],
+    sheetName: 'ExerciseTarget',
+    headers: [
+      // FK → Exercise.exercise_id
+      'exercise_id',
+      // FK → Muscle.muscle_id
+      'muscle_id',
+      // 0.0 – 1.0 emphasis
+      'emphasis_percentage',
+    ],
+    sample: [
+      // Barbell Overhead Press
+      [1, 1, 0.5], [1, 2, 0.3], [1, 6, 0.2],
+      // Incline Dumbbell Press
+      [2, 4, 0.6], [2, 5, 0.2], [2, 1, 0.2],
+      // Flat Barbell Press
+      [3, 5, 0.6], [3, 4, 0.25], [3, 6, 0.15],
+      // Cable / Machine Fly
+      [4, 5, 0.7], [4, 4, 0.2], [4, 1, 0.1],
+      // V-Bar Push-down
+      [5, 7, 0.5], [5, 8, 0.3], [5, 6, 0.2],
+      // Overhead Rope Extension
+      [6, 6, 0.55], [6, 8, 0.25], [6, 7, 0.2],
+      // Back Squat
+      [7, 27, 0.4], [7, 28, 0.3], [7, 29, 0.3],
+      // Leg Press
+      [8, 27, 0.35], [8, 28, 0.3], [8, 29, 0.25], [8, 24, 0.1],
+      // Leg Extension (1½ reps)
+      [9, 27, 0.4], [9, 28, 0.3], [9, 29, 0.3],
+      // Seated Calf Raise
+      [10, 35, 0.7], [10, 34, 0.3],
+      // Tibialis Raise
+      [11, 36, 1.0],
+      // Wide-grip Lat Pulldown
+      [12, 14, 0.5], [12, 15, 0.15], [12, 10, 0.2], [12, 16, 0.15],
+      // Seated Cable Row (close)
+      [13, 14, 0.3], [13, 16, 0.3], [13, 18, 0.2], [13, 9, 0.2],
+      // Straight-arm Pulldown
+      [14, 14, 0.7], [14, 15, 0.2], [14, 3, 0.1],
+      // Face Pull
+      [15, 3, 0.4], [15, 17, 0.35], [15, 16, 0.25],
+      // Barbell Curl
+      [16, 9, 0.5], [16, 10, 0.35], [16, 11, 0.15],
+      // Incline DB Curl
+      [17, 10, 0.55], [17, 9, 0.25], [17, 11, 0.2],
+      // Wrist / Reverse Curl superset
+      [18, 12, 0.5], [18, 13, 0.5],
+      // Cable Crunch
+      [19, 21, 0.7], [19, 22, 0.15], [19, 23, 0.15],
+      // Decline Barbell Press
+      [20, 5, 0.65], [20, 4, 0.15], [20, 6, 0.2],
+      // Chest-Supported Row (light)
+      [21, 14, 0.35], [21, 16, 0.35], [21, 18, 0.3],
+      // Cable Lateral Raise
+      [22, 2, 0.8], [22, 1, 0.1], [22, 3, 0.1],
+      // Reverse Cable Fly
+      [23, 3, 0.6], [23, 16, 0.2], [23, 18, 0.2],
+      // Hammer Curl
+      [24, 11, 0.4], [24, 9, 0.3], [24, 10, 0.3],
+      // Parallel-bar Dips
+      [25, 6, 0.35], [25, 5, 0.35], [25, 1, 0.3],
+      // Concentration Curl
+      [26, 9, 0.6], [26, 10, 0.3], [26, 11, 0.1],
+      // Hanging Leg Raise
+      [27, 21, 0.6], [27, 23, 0.4],
+      // Romanian Deadlift
+      [28, 31, 0.4], [28, 32, 0.3], [28, 24, 0.3],
+      // Seated Leg Curl
+      [29, 31, 0.35], [29, 32, 0.35], [29, 33, 0.3],
+      // Glute Kick-back Machine
+      [30, 24, 0.6], [30, 25, 0.3], [30, 31, 0.1],
+      // Hip Abduction
+      [31, 25, 0.5], [31, 26, 0.3], [31, 38, 0.2],
+      // Standing Calf Raise
+      [32, 34, 0.7], [32, 35, 0.3],
+      // Side-plank Hip Dips
+      [33, 23, 0.4], [33, 22, 0.4], [33, 25, 0.2],
+      // Wrist Curl
+      [34, 12, 0.7], // Forearm Flexors
+      [34, 13, 0.3], // Forearm Extensors
+
+      // Glute bridge bar
+      [36, 24, 0.7], [36, 31, 0.3],
+      // Peacher Curl
+      [38, 9, 0.6], [38, 10, 0.3], [38, 11, 0.1],
+      // Cable Fly (lower chest)
+      [39, 5, 0.8], [39, 4, 0.1], [39, 1, 0.1],
+      // Cable Fly (inner chest)
+      [40, 5, 0.8], [40, 4, 0.1], [40, 1, 0.1],
+      // Sulek curl
+      [41, 11, 0.4], [41, 9, 0.3], [41, 10, 0.3],
+      // Triceps rope pushdwon
+      [42, 6, 0.4], [42, 7, 0.3], [42, 8, 0.3],
+      // Romanian Deadlift straight bar
+      [43, 31, 0.4], [43, 32, 0.3], [43, 24, 0.3],
+      // Hip Adduction
+      [43, 37, 0.8], [43, 25, 0.1], [43, 26, 0.1],
+    ],
   ),
+
 
 };
