@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/profile_providers.dart';
 import 'metrics_chart_screen.dart';
+import '../widgets/edit_profile_dialog.dart';
+import '../../data/repositories/profile_repository_impl.dart';
+import '../../domain/usecases/update_user_profile_usecase.dart';
+import '../../domain/entities/user_profile.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -9,10 +13,27 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(userProfileProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Perfil')),
-      body: userAsync.when(
-        data: (user) => user == null
+    return userAsync.when(
+      data: (user) => Scaffold(
+        appBar: AppBar(title: const Text('Perfil')),
+        floatingActionButton: user == null
+            ? null
+            : FloatingActionButton(
+                onPressed: () async {
+                  final updated = await showDialog<UserProfile>(
+                    context: context,
+                    builder: (_) => EditProfileDialog(user: user),
+                  );
+                  if (updated != null) {
+                    final repo = ProfileRepositoryImpl();
+                    final usecase = UpdateUserProfileUseCase(repo);
+                    await usecase(updated);
+                    ref.invalidate(userProfileProvider);
+                  }
+                },
+                child: const Icon(Icons.edit),
+              ),
+        body: user == null
             ? const Center(child: Text('No user data'))
             : Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -53,9 +74,10 @@ class ProfileScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, __) => Center(child: Text('Error: $e')),
       ),
+      loading: () => const Scaffold(
+          body: Center(child: CircularProgressIndicator())),
+      error: (e, __) => Scaffold(body: Center(child: Text('Error: $e'))),
     );
   }
 }
