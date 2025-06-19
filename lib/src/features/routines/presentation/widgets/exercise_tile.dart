@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:collection/collection.dart';
+import 'dart:async';
+import 'package:vibration/vibration.dart';
+import '../../../../utils/notification_service.dart';
+
 
 import '../state/workout_log_state.dart';
 import '../../domain/entities/workout_log_entry.dart';
+import '../../domain/entities/plan_exercise_detail.dart';
 
 
 class ExerciseTile extends StatefulWidget {
@@ -21,9 +26,10 @@ class ExerciseTile extends StatefulWidget {
     this.lastLogs,
     this.bestLogs,
     required this.showBest,
+    this.onSwap,
   });
 
-  final dynamic detail;
+  final PlanExerciseDetail detail;
   final bool expanded;
   final VoidCallback onToggle;
   final Map<String, WorkoutLogEntry> logsMap;
@@ -35,6 +41,7 @@ class ExerciseTile extends StatefulWidget {
   final List<WorkoutLogEntry>? lastLogs;
   final List<WorkoutLogEntry>? bestLogs;
   final bool showBest;
+  final VoidCallback? onSwap;
 
   @override
   ExerciseTileState createState() => ExerciseTileState();
@@ -46,6 +53,8 @@ class ExerciseTileState extends State<ExerciseTile>
   int _visibleSets = 0;
   bool _logsLoaded = false;
   final Map<int, WorkoutLogEntry> _extraLast = {};
+  Timer? _restTimer;
+  int _restRemaining = 0;
 
   @override
   bool get wantKeepAlive => true;
@@ -120,6 +129,23 @@ class ExerciseTileState extends State<ExerciseTile>
       List.generate(_visibleSets, (i) => i + 1)
           .every((s) => logs['${widget.detail.exerciseId}-$s']?.completed ?? false);
 
+  void _startRestTimer() {
+    _restTimer?.cancel();
+    NotificationService.cancelRest();
+    NotificationService.scheduleRestDone(widget.detail.restSeconds);
+    setState(() => _restRemaining = widget.detail.restSeconds);
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_restRemaining <= 1) {
+        t.cancel();
+        NotificationService.cancelRest();
+        Vibration.vibrate(duration: 1500, amplitude: 255);
+        setState(() => _restRemaining = 0);
+      } else {
+        setState(() => _restRemaining--);
+      }
+    });
+  }
+
   void logCurrentSet({required void Function(WorkoutLogEntry) addOrUpdate}) {
     final current = List.generate(_visibleSets, (i) => i + 1).firstWhere(
       (s) => !(widget.logsMap['${widget.detail.exerciseId}-$s']?.completed ?? false),
@@ -141,6 +167,7 @@ class ExerciseTileState extends State<ExerciseTile>
       SnackBar(content: Text('Serie $current registrada')),
     );
     setState(widget.onChanged);
+    _startRestTimer();
   }
 
   void _add() {
@@ -261,8 +288,11 @@ class ExerciseTileState extends State<ExerciseTile>
     for (final c in [..._repCtl, ..._kgCtl, ..._rirCtl]) {
       c.dispose();
     }
+    _restTimer?.cancel();
+    NotificationService.cancelRest();
     super.dispose();
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -301,7 +331,17 @@ class ExerciseTileState extends State<ExerciseTile>
                       style: const TextStyle(color: Colors.white54, fontSize: 12),
                     )
                   : null,
-              trailing: Icon(widget.expanded ? Icons.expand_less : Icons.expand_more),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.onSwap != null)
+                    IconButton(
+                      icon: const Icon(Icons.swap_horiz),
+                      onPressed: widget.onSwap,
+                    ),
+                  Icon(widget.expanded ? Icons.expand_less : Icons.expand_more),
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -311,7 +351,7 @@ class ExerciseTileState extends State<ExerciseTile>
                   Expanded(
                     child: _info(
                         'Plan',
-                        '${widget.detail.sets}x${widget.detail.reps} @${widget.detail.weight.toStringAsFixed(0)}kg'),
+                        '${widget.detail.sets}x${widget.detail.reps} @${widget.detail.weight.toStringAsFixed(0)}kg • ${widget.detail.restSeconds}s'),
                   ),
                   Expanded(
                     child: widget.lastLogs == null || widget.lastLogs!.isEmpty
@@ -340,6 +380,14 @@ class ExerciseTileState extends State<ExerciseTile>
                 ],
               ),
             ),
+            if (_restRemaining > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Descanso: $_restRemaining s',
+                  style: const TextStyle(color: Colors.amber, fontSize: 12),
+                ),
+              ),
             if (widget.expanded) ...[
               Padding(
                 padding: const EdgeInsets.only(right: 12, bottom: 4),

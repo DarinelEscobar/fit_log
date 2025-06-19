@@ -8,6 +8,8 @@ import '../entities/workout_session.dart';
 abstract class WorkoutPlanRepository {
   Future<List<WorkoutPlan>> getAllPlans();
   Future<List<Exercise>> getExercisesForPlan(int planId);
+  Future<List<Exercise>> getAllExercises();
+  Future<List<Exercise>> getSimilarExercises(int exerciseId);
   Future<void> createWorkoutPlan(String name, String frequency);
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId);
 

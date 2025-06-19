@@ -11,6 +11,7 @@ import '../../domain/repositories/workout_plan_repository.dart';
 import '../../../../data/schema/schemas.dart';
 
 class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
+  List<Exercise>? _exerciseCache;
   Future<File> _getOrCreateFile(String filename) async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/$filename');
@@ -119,6 +120,41 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   @override
+  Future<List<Exercise>> getAllExercises() async {
+    if (_exerciseCache != null) return _exerciseCache!;
+
+    final exFile = await _getOrCreateFile('exercise.xlsx');
+    final exSheet =
+        Excel.decodeBytes(await exFile.readAsBytes())[kTableSchemas['exercise.xlsx']!.sheetName];
+    if (exSheet == null) return [];
+
+    _exerciseCache = exSheet.rows
+        .skip(1)
+        .where((row) => row.isNotEmpty)
+        .map(
+          (row) => Exercise(
+            id: _cast<int>(row[0]) ?? 0,
+            name: _cast<String>(row[1]) ?? '',
+            description: _cast<String>(row[2]) ?? '',
+            category: _cast<String>(row[3]) ?? '',
+            mainMuscleGroup: _cast<String>(row[4]) ?? '',
+          ),
+        )
+        .toList();
+    return _exerciseCache!;
+  }
+
+  @override
+  Future<List<Exercise>> getSimilarExercises(int exerciseId) async {
+    final all = await getAllExercises();
+    final base = all.firstWhere((e) => e.id == exerciseId, orElse: () => Exercise(id: 0, name: '', description: '', category: '', mainMuscleGroup: ''));
+    if (base.id == 0) return [];
+    return all
+        .where((e) => e.id != exerciseId && (e.category == base.category || e.mainMuscleGroup == base.mainMuscleGroup))
+        .toList();
+  }
+
+  @override
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) async {
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
     final exFile = await _getOrCreateFile('exercise.xlsx');
@@ -153,6 +189,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
             sets: _cast<int>(r[2]) ?? 0,
             reps: _cast<int>(r[3]) ?? 0,
             weight: _cast<double>(r[4]) ?? 0,
+            restSeconds: _cast<int>(r[5]) ?? 0,
           );
         })
         .toList();
