@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/profile_providers.dart';
 import 'metrics_chart_screen.dart';
 import '../widgets/edit_profile_dialog.dart';
 import '../widgets/add_body_metric_dialog.dart';
-import '../../data/repositories/profile_repository_impl.dart';
+import '../providers/profile_providers.dart';
 import '../../domain/usecases/update_user_profile_usecase.dart';
 import '../../domain/usecases/add_body_metric_usecase.dart';
 import '../../domain/entities/user_profile.dart';
@@ -42,7 +41,7 @@ class ProfileScreen extends ConsumerWidget {
                               builder: (_) => EditProfileDialog(user: user),
                             );
                             if (updated != null) {
-                              final repo = ProfileRepositoryImpl();
+                              final repo = ref.read(profileRepositoryProvider);
                               await UpdateUserProfileUseCase(repo)(updated);
                               ref.invalidate(userProfileProvider);
                             }
@@ -61,7 +60,7 @@ class ProfileScreen extends ConsumerWidget {
                               ),
                             );
                             if (metric != null) {
-                              final repo = ProfileRepositoryImpl();
+                              final repo = ref.read(profileRepositoryProvider);
                               await AddBodyMetricUseCase(repo)(metric);
                               ref.invalidate(bodyMetricsProvider);
                             }
