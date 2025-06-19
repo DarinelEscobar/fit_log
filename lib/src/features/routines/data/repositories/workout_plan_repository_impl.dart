@@ -11,6 +11,7 @@ import '../../domain/repositories/workout_plan_repository.dart';
 import '../../../../data/schema/schemas.dart';
 
 class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
+  List<Exercise>? _exerciseCache;
   Future<File> _getOrCreateFile(String filename) async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/$filename');
@@ -120,20 +121,27 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
   @override
   Future<List<Exercise>> getAllExercises() async {
+    if (_exerciseCache != null) return _exerciseCache!;
+
     final exFile = await _getOrCreateFile('exercise.xlsx');
-    final exSheet = Excel.decodeBytes(await exFile.readAsBytes())[kTableSchemas['exercise.xlsx']!.sheetName];
+    final exSheet =
+        Excel.decodeBytes(await exFile.readAsBytes())[kTableSchemas['exercise.xlsx']!.sheetName];
     if (exSheet == null) return [];
-    return exSheet.rows
+
+    _exerciseCache = exSheet.rows
         .skip(1)
         .where((row) => row.isNotEmpty)
-        .map((row) => Exercise(
-              id: _cast<int>(row[0]) ?? 0,
-              name: _cast<String>(row[1]) ?? '',
-              description: _cast<String>(row[2]) ?? '',
-              category: _cast<String>(row[3]) ?? '',
-              mainMuscleGroup: _cast<String>(row[4]) ?? '',
-            ))
+        .map(
+          (row) => Exercise(
+            id: _cast<int>(row[0]) ?? 0,
+            name: _cast<String>(row[1]) ?? '',
+            description: _cast<String>(row[2]) ?? '',
+            category: _cast<String>(row[3]) ?? '',
+            mainMuscleGroup: _cast<String>(row[4]) ?? '',
+          ),
+        )
         .toList();
+    return _exerciseCache!;
   }
 
   @override
