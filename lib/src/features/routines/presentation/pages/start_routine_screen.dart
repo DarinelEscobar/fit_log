@@ -25,6 +25,7 @@ import 'select_exercise_screen.dart';
 class StartRoutineScreen extends ConsumerStatefulWidget {
   final int planId;
   const StartRoutineScreen({required this.planId, super.key});
+
   @override
   ConsumerState<StartRoutineScreen> createState() => _StartRoutineScreenState();
 }
@@ -42,26 +43,15 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   bool _showBest = true;
 
   static const List<String> _scale10 = [
-    '1',
-    '2',
-    '3',
-    '4',
-    '5',
-    '6',
-    '7',
-    '8',
-    '9',
-    '10'
+    '1','2','3','4','5','6','7','8','9','10'
   ];
-  static const List<String> _scale5 = ['1', '2', '3', '4', '5'];
+  static const List<String> _scale5 = ['1','2','3','4','5'];
 
   @override
   void initState() {
     super.initState();
-    final notifier = ref.read(workoutLogProvider.notifier);
-    notifier.startSession();
-    _ticker =
-        Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+    ref.read(workoutLogProvider.notifier).startSession();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
   }
 
   @override
@@ -101,8 +91,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
           ),
           title: Text(
             _fmt(notifier.sessionDuration),
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold),
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           centerTitle: true,
           actions: [
@@ -118,12 +107,12 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
               icon: const Icon(Icons.flag),
               onPressed: () async {
                 if (notifier.completedLogs.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('No has completado ninguna serie')));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('No has completado ninguna serie'))
+                  );
                   return;
                 }
                 if (!await _showFinishDialog(context)) return;
-
                 final repo = WorkoutPlanRepositoryImpl();
                 await SaveWorkoutLogsUseCase(repo)(notifier.completedLogs);
                 await SaveWorkoutSessionUseCase(repo)(
@@ -145,8 +134,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
         floatingActionButton: FloatingActionButton.extended(
           backgroundColor: cs.primary,
           foregroundColor: cs.onPrimary,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           icon: const Icon(Icons.check),
           label: const Text('Registrar serie'),
           onPressed: () {
@@ -169,7 +157,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                 _sessionDetails ??= List.of(dets);
                 final list = _sessionDetails!;
                 final done = list.where((d) =>
-                        _keys[d.exerciseId]?.currentState?.isComplete(logsMap) ?? false).length;
+                  _keys[d.exerciseId]?.currentState?.isComplete(logsMap) ?? false
+                ).length;
                 return Column(
                   children: [
                     ProgressHeader(completed: done, total: list.length),
@@ -178,57 +167,26 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                         padding: const EdgeInsets.fromLTRB(12, 100, 12, 80),
                         children: [
                           for (var entry in list.asMap().entries)
-                            Consumer(
-                              builder: (context, ref, _) {
-                                final d = entry.value;
-                                final idx = entry.key;
-                                _keys[d.exerciseId] ??=
-                                    GlobalKey<ExerciseTileState>();
-                                final doneEx = _keys[d.exerciseId]
-                                        ?.currentState
-                                        ?.isComplete(logsMap) ??
-                                    false;
-                                final asyncLogs = ref.watch(
-                                    logsByExerciseProvider(d.exerciseId));
-                                return asyncLogs.when(
-                                  data: (logs) {
-                                    final last = _lastLogs(logs);
-                                    final best = _bestLogs(logs);
-                                    return ExerciseTile(
-                                      key: _keys[d.exerciseId],
-                                      detail: d,
-                                      expanded: _expandedExerciseId ==
-                                          d.exerciseId,
-                                      onToggle: () => setState(() {
-                                        _expandedExerciseId =
-                                            _expandedExerciseId ==
-                                                    d.exerciseId
-                                                ? null
-                                                : d.exerciseId;
-                                      }),
-                                      logsMap: logsMap,
-                                      highlightDone: doneEx,
-                                      onChanged: () => setState(() {}),
-                                      removeLog: notifier.remove,
-                                      update: notifier.update,
-                                      planId: widget.planId,
-                                      lastLogs: last,
-                                      bestLogs: best,
-                                      showBest: _showBest,
-                                      onSwap: () => _swapExercise(idx),
-                                    );
-                                  },
-                                  loading: () => ExerciseTile(
-                                    key: _keys[d.exerciseId],
-                                    detail: d,
-                                    expanded: _expandedExerciseId ==
-                                        d.exerciseId,
+                            Consumer(builder: (context, ref, _) {
+                              final detail = entry.value;
+                              final idx = entry.key;
+                              _keys[detail.exerciseId] ??= GlobalKey<ExerciseTileState>();
+                              final doneEx = _keys[detail.exerciseId]
+                                      ?.currentState
+                                      ?.isComplete(logsMap) ?? false;
+                              final asyncLogs = ref.watch(logsByExerciseProvider(detail.exerciseId));
+                              return asyncLogs.when(
+                                data: (logs) {
+                                  final last = _lastLogs(logs);
+                                  final best = _bestLogs(logs);
+                                  return ExerciseTile(
+                                    key: _keys[detail.exerciseId],
+                                    detail: detail,
+                                    expanded: _expandedExerciseId == detail.exerciseId,
                                     onToggle: () => setState(() {
-                                      _expandedExerciseId =
-                                          _expandedExerciseId ==
-                                                  d.exerciseId
-                                              ? null
-                                              : d.exerciseId;
+                                      _expandedExerciseId = _expandedExerciseId == detail.exerciseId
+                                          ? null
+                                          : detail.exerciseId;
                                     }),
                                     logsMap: logsMap,
                                     highlightDone: doneEx,
@@ -236,92 +194,50 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                                     removeLog: notifier.remove,
                                     update: notifier.update,
                                     planId: widget.planId,
+                                    lastLogs: last,
+                                    bestLogs: best,
                                     showBest: _showBest,
                                     onSwap: () => _swapExercise(idx),
-                                  ),
-                                  error: (e, _) => ExerciseTile(
-                                    key: _keys[d.exerciseId],
-                                    detail: d,
-                                    expanded: _expandedExerciseId ==
-                                        d.exerciseId,
-                                    onToggle: () => setState(() {
-                                      _expandedExerciseId =
-                                          _expandedExerciseId ==
-                                                  d.exerciseId
-                                              ? null
-                                              : d.exerciseId;
-                                    }),
-                                    logsMap: logsMap,
-                                    highlightDone: doneEx,
-    final groupsSet = <String>{};
-    for (final e in alternatives) {
-      if (e.mainMuscleGroup.isNotEmpty) groupsSet.add(e.mainMuscleGroup);
-    }
-    final groups = ['Todos', ...groupsSet];
-      isScrollControlled: true,
-      builder: (ctx) {
-        String query = '';
-        String group = 'Todos';
-        return StatefulBuilder(
-          builder: (ctx, setState) {
-            final filtered = alternatives.where((e) {
-              final byGroup = group == 'Todos' || e.mainMuscleGroup == group;
-              final byName = e.name.toLowerCase().contains(query.toLowerCase());
-              return byGroup && byName;
-            }).toList();
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom,
-                top: 12,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Buscar',
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                      onChanged: (v) => setState(() => query = v),
-                    ),
-                  ),
-                  if (groups.length > 1)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: group,
-                        onChanged: (v) => setState(() => group = v!),
-                        items: groups
-                            .map((g) => DropdownMenuItem(
-                                  value: g,
-                                  child: Text(g),
-                                ))
-                            .toList(),
-                      ),
-                    ),
-                  Flexible(
-                    child: ListView(
-                      shrinkWrap: true,
-                      children: filtered
-                          .map((e) => ListTile(
-                                title: Text(e.name),
-                                subtitle:
-                                    Text('${e.category} • ${e.mainMuscleGroup}'),
-                                onTap: () => Navigator.pop(ctx, e),
-                              ))
-                          .toList(),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-                            ),
+                                  );
+                                },
+                                loading: () => ExerciseTile(
+                                  key: _keys[detail.exerciseId],
+                                  detail: detail,
+                                  expanded: _expandedExerciseId == detail.exerciseId,
+                                  onToggle: () => setState(() {
+                                    _expandedExerciseId = _expandedExerciseId == detail.exerciseId
+                                        ? null
+                                        : detail.exerciseId;
+                                  }),
+                                  logsMap: logsMap,
+                                  highlightDone: doneEx,
+                                  onChanged: () => setState(() {}),
+                                  removeLog: notifier.remove,
+                                  update: notifier.update,
+                                  planId: widget.planId,
+                                  showBest: _showBest,
+                                  onSwap: () => _swapExercise(idx),
+                                ),
+                                error: (e, _) => ExerciseTile(
+                                  key: _keys[detail.exerciseId],
+                                  detail: detail,
+                                  expanded: _expandedExerciseId == detail.exerciseId,
+                                  onToggle: () => setState(() {
+                                    _expandedExerciseId = _expandedExerciseId == detail.exerciseId
+                                        ? null
+                                        : detail.exerciseId;
+                                  }),
+                                  logsMap: logsMap,
+                                  highlightDone: doneEx,
+                                  onChanged: () => setState(() {}),
+                                  removeLog: notifier.remove,
+                                  update: notifier.update,
+                                  planId: widget.planId,
+                                  showBest: _showBest,
+                                  onSwap: () => _swapExercise(idx),
+                                ),
+                              );
+                            }),
                         ],
                       ),
                     ),
@@ -341,8 +257,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   Future<void> _swapExercise(int index) async {
     if (_sessionDetails == null) return;
     final detail = _sessionDetails![index];
-    final alternatives = await ref
-        .read(similarExercisesProvider(detail.exerciseId).future);
+    final alternatives = await ref.read(similarExercisesProvider(detail.exerciseId).future);
     if (alternatives.isEmpty) return;
     final picked = await showModalBottomSheet<Exercise>(
       context: context,
@@ -360,20 +275,22 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
       final notifier = ref.read(workoutLogProvider.notifier);
       for (var i = 1; i <= detail.sets; i++) {
         notifier.remove(WorkoutLogEntry(
-            date: DateTime.now(),
-            planId: widget.planId,
-            exerciseId: detail.exerciseId,
-            setNumber: i,
-            reps: 0,
-            weight: 0,
-            rir: 0));
+          date: DateTime.now(),
+          planId: widget.planId,
+          exerciseId: detail.exerciseId,
+          setNumber: i,
+          reps: 0,
+          weight: 0,
+          rir: 0,
+        ));
       }
       setState(() {
         _keys.remove(detail.exerciseId);
         final newDetail = detail.copyWith(
-            exerciseId: picked.id,
-            name: picked.name,
-            description: picked.description);
+          exerciseId: picked.id,
+          name: picked.name,
+          description: picked.description,
+        );
         _sessionDetails![index] = newDetail;
         _keys[newDetail.exerciseId] = GlobalKey<ExerciseTileState>();
         if (_expandedExerciseId == detail.exerciseId) {
@@ -393,9 +310,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     final exercise = await Navigator.push<Exercise>(
       context,
       MaterialPageRoute(
-        builder: (_) => SelectExerciseScreen(
-          groups: groups,
-        ),
+        builder: (_) => SelectExerciseScreen(groups: groups),
       ),
     );
     if (exercise != null) {
@@ -431,8 +346,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     if (filtered.isEmpty) return [];
     filtered.sort((a, b) {
       final c = b.weight.compareTo(a.weight);
-      if (c != 0) return c;
-      return b.reps.compareTo(a.reps);
+      return c != 0 ? c : b.reps.compareTo(a.reps);
     });
     final best = filtered.first;
     return logs
@@ -442,7 +356,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   }
 
   Future<bool> _confirmExit(BuildContext ctx) async =>
-      await showModalBottomSheet<bool>(
+      (await showModalBottomSheet<bool>(
         context: ctx,
         backgroundColor: const Color(0xFF1F1F1F),
         shape: const RoundedRectangleBorder(
@@ -472,8 +386,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
             ]),
           ]),
         ),
-      ) ??
-      false;
+      )) ?? false;
 
   Future<bool> _showFinishDialog(BuildContext ctx) async {
     String lf = _fatigue, lm = _mood;
@@ -483,8 +396,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
       builder: (dCtx) => StatefulBuilder(
         builder: (dCtx, setState) => AlertDialog(
           backgroundColor: const Color(0xFF1F1F1F),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           title: const Text('Finalizar sesión'),
           titleTextStyle: const TextStyle(
               fontSize: 18, fontWeight: FontWeight.w600, color: Colors.white),
@@ -492,16 +404,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ScaleDropdown(
-                  icon: Icons.bolt,
-                  val: lf,
-                  list: _scale10,
-                  onC: (v) => setState(() => lf = v)),
+                  icon: Icons.bolt, val: lf, list: _scale10, onC: (v) => setState(() => lf = v)),
               const SizedBox(height: 8),
               ScaleDropdown(
-                  icon: Icons.mood,
-                  val: lm,
-                  list: _scale5,
-                  onC: (v) => setState(() => lm = v)),
+                  icon: Icons.mood, val: lm, list: _scale5, onC: (v) => setState(() => lm = v)),
               const SizedBox(height: 8),
               TextField(
                 controller: noteCtl,
