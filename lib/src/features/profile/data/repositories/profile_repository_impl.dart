@@ -31,6 +31,14 @@ class ProfileRepositoryImpl implements ProfileRepository {
     }
     return file;
   }
+
+  int _getLastId(Sheet sheet) {
+    for (var i = sheet.rows.length - 1; i >= 1; i--) {
+      final val = sheet.rows[i][0]?.value;
+      if (val != null) return int.tryParse(val.toString()) ?? 0;
+    }
+    return 0;
+  }
   Future<Excel?> _openSheet(String filename) async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/$filename');
@@ -102,6 +110,32 @@ class ProfileRepositoryImpl implements ProfileRepository {
         age: _cast<int>(r[14]) ?? 0,
       );
     }).toList();
+  }
+
+  @override
+  Future<void> addBodyMetric(BodyMetric m) async {
+    final file = await _getOrCreateFile('body_metrics.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['body_metrics.xlsx']!.sheetName]!;
+
+    sheet.appendRow([
+      IntCellValue(_getLastId(sheet) + 1),
+      TextCellValue(m.date.toIso8601String().split('T').first),
+      DoubleCellValue(m.weight),
+      DoubleCellValue(m.bodyFat),
+      DoubleCellValue(m.neck),
+      DoubleCellValue(m.shoulders),
+      DoubleCellValue(m.chest),
+      DoubleCellValue(m.abdomen),
+      DoubleCellValue(m.waist),
+      DoubleCellValue(m.glutes),
+      DoubleCellValue(m.thigh),
+      DoubleCellValue(m.calf),
+      DoubleCellValue(m.arm),
+      DoubleCellValue(m.forearm),
+      IntCellValue(m.age),
+    ]);
+    await file.writeAsBytes(excel.save()!);
   }
 
   @override
