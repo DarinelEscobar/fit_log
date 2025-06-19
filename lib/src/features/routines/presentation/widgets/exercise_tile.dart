@@ -26,6 +26,7 @@ class ExerciseTile extends StatefulWidget {
     this.lastLogs,
     this.bestLogs,
     required this.showBest,
+    this.onSwap,
   });
 
   final PlanExerciseDetail detail;
@@ -40,6 +41,7 @@ class ExerciseTile extends StatefulWidget {
   final List<WorkoutLogEntry>? lastLogs;
   final List<WorkoutLogEntry>? bestLogs;
   final bool showBest;
+  final VoidCallback? onSwap;
 
   @override
   ExerciseTileState createState() => ExerciseTileState();
@@ -329,7 +331,17 @@ class ExerciseTileState extends State<ExerciseTile>
                       style: const TextStyle(color: Colors.white54, fontSize: 12),
                     )
                   : null,
-              trailing: Icon(widget.expanded ? Icons.expand_less : Icons.expand_more),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.onSwap != null)
+                    IconButton(
+                      icon: const Icon(Icons.swap_horiz),
+                      onPressed: widget.onSwap,
+                    ),
+                  Icon(widget.expanded ? Icons.expand_less : Icons.expand_more),
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

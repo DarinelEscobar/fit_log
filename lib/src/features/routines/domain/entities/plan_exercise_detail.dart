@@ -17,4 +17,23 @@ class PlanExerciseDetail {
     required this.weight,
     required this.restSeconds,
   });
+
+  PlanExerciseDetail copyWith({
+    int? exerciseId,
+    String? name,
+    String? description,
+    int? sets,
+    int? reps,
+    double? weight,
+    int? restSeconds,
+  }) =>
+      PlanExerciseDetail(
+        exerciseId: exerciseId ?? this.exerciseId,
+        name: name ?? this.name,
+        description: description ?? this.description,
+        sets: sets ?? this.sets,
+        reps: reps ?? this.reps,
+        weight: weight ?? this.weight,
+        restSeconds: restSeconds ?? this.restSeconds,
+      );
 }
