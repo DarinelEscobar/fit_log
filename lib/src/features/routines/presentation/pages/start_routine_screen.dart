@@ -46,6 +46,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     '1','2','3','4','5','6','7','8','9','10'
   ];
   static const List<String> _scale5 = ['1','2','3','4','5'];
+  static const int _defaultSets = 3;
 
   @override
   void initState() {
@@ -273,16 +274,12 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     );
     if (picked != null) {
       final notifier = ref.read(workoutLogProvider.notifier);
-      for (var i = 1; i <= detail.sets; i++) {
-        notifier.remove(WorkoutLogEntry(
-          date: DateTime.now(),
-          planId: widget.planId,
-          exerciseId: detail.exerciseId,
-          setNumber: i,
-          reps: 0,
-          weight: 0,
-          rir: 0,
-        ));
+      final existingEntries = notifier.state.values.where((entry) =>
+          entry.planId == widget.planId &&
+          entry.exerciseId == detail.exerciseId &&
+          entry.setNumber <= detail.sets);
+      for (var entry in existingEntries) {
+        notifier.remove(entry);
       }
       setState(() {
         _keys.remove(detail.exerciseId);
@@ -319,7 +316,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
           exerciseId: exercise.id,
           name: exercise.name,
           description: exercise.description,
-          sets: 3,
+          sets: _defaultSets,
           reps: 10,
           weight: 0,
           restSeconds: 90,
