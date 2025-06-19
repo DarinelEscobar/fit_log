@@ -72,44 +72,74 @@ class ProfileScreen extends ConsumerWidget {
                     ),
               body: user == null
                   ? const Center(child: Text('No user data'))
-                  : Padding(
+                  : ListView(
                       padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Edad: ${user.age}'),
-                          Text('Género: ${user.gender}'),
-                          Text('Peso: ${user.weight} kg'),
-                          Text('Altura: ${user.height} cm'),
-                          Text('Nivel: ${user.experienceLevel}'),
-                          Text('Meta: ${user.goal}'),
-                          const Divider(),
-                          Text('Peso deseado: ${user.targetWeight} kg'),
-                          Text('BF deseado: ${user.targetBodyFat}%'),
-                          Text('Cuello deseado: ${user.targetNeck} cm'),
-                          Text('Hombros deseados: ${user.targetShoulders} cm'),
-                          Text('Pecho deseado: ${user.targetChest} cm'),
-                          Text('Abdomen deseado: ${user.targetAbdomen} cm'),
-                          Text('Cintura deseada: ${user.targetWaist} cm'),
-                          Text('Glúteos deseados: ${user.targetGlutes} cm'),
-                          Text('Muslo deseado: ${user.targetThigh} cm'),
-                          Text('Pantorrilla deseada: ${user.targetCalf} cm'),
-                          Text('Brazo deseado: ${user.targetArm} cm'),
-                          Text('Antebrazo deseado: ${user.targetForearm} cm'),
-                          const SizedBox(height: 20),
-                          ElevatedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const MetricsChartScreen(),
-                                ),
-                              );
-                            },
-                            child: const Text('Ver gráfica'),
+                      children: [
+                        _section(
+                          context,
+                          'Información',
+                          [
+                            _infoRow('Edad', '${user.age}'),
+                            _infoRow('Género', user.gender),
+                            _infoRow('Peso', '${user.weight} kg'),
+                            _infoRow('Altura', '${user.height} cm'),
+                            _infoRow('Nivel', user.experienceLevel),
+                            _infoRow('Meta', user.goal),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _section(
+                          context,
+                          'Objetivos',
+                          [
+                            _infoRow('Peso', '${user.targetWeight} kg'),
+                            _infoRow('BF', '${user.targetBodyFat}%'),
+                            _infoRow('Cuello', '${user.targetNeck} cm'),
+                            _infoRow('Hombros', '${user.targetShoulders} cm'),
+                            _infoRow('Pecho', '${user.targetChest} cm'),
+                            _infoRow('Abdomen', '${user.targetAbdomen} cm'),
+                            _infoRow('Cintura', '${user.targetWaist} cm'),
+                            _infoRow('Glúteos', '${user.targetGlutes} cm'),
+                            _infoRow('Muslo', '${user.targetThigh} cm'),
+                            _infoRow('Pantorrilla', '${user.targetCalf} cm'),
+                            _infoRow('Brazo', '${user.targetArm} cm'),
+                            _infoRow('Antebrazo', '${user.targetForearm} cm'),
+                          ],
+                        ),
+                        if (last != null) ...[
+                          const SizedBox(height: 12),
+                          _section(
+                            context,
+                            'Últimas métricas (${last.date.toIso8601String().split('T').first})',
+                            [
+                              _infoRow('Peso', '${last.weight} kg'),
+                              _infoRow('BF', '${last.bodyFat}%'),
+                              _infoRow('Cuello', '${last.neck} cm'),
+                              _infoRow('Hombros', '${last.shoulders} cm'),
+                              _infoRow('Pecho', '${last.chest} cm'),
+                              _infoRow('Abdomen', '${last.abdomen} cm'),
+                              _infoRow('Cintura', '${last.waist} cm'),
+                              _infoRow('Glúteos', '${last.glutes} cm'),
+                              _infoRow('Muslo', '${last.thigh} cm'),
+                              _infoRow('Pantorrilla', '${last.calf} cm'),
+                              _infoRow('Brazo', '${last.arm} cm'),
+                              _infoRow('Antebrazo', '${last.forearm} cm'),
+                            ],
                           ),
                         ],
-                      ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const MetricsChartScreen(),
+                              ),
+                            );
+                          },
+                          child: const Text('Ver gráfica'),
+                        ),
+                      ],
                     ),
             );
           },
@@ -117,4 +147,33 @@ class ProfileScreen extends ConsumerWidget {
       },
     );
   }
+}
+
+Widget _infoRow(String label, String value) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ],
+    ),
+  );
+}
+
+Widget _section(BuildContext context, String title, List<Widget> children) {
+  return Card(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          ...children,
+        ],
+      ),
+    ),
+  );
 }
