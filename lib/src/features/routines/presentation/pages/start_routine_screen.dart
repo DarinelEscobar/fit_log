@@ -168,11 +168,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
               data: (dets) {
                 _sessionDetails ??= List.of(dets);
                 final list = _sessionDetails!;
-                final done = list
-                    .where((d) =>
-                        _keys[d.exerciseId]?.currentState?.isComplete(logsMap) ??
-                        false)
-                    .length;
+                final done = list.where((d) =>
+                        _keys[d.exerciseId]?.currentState?.isComplete(logsMap) ?? false).length;
                 return Column(
                   children: [
                     ProgressHeader(completed: done, total: list.length),
