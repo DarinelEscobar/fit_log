@@ -28,7 +28,11 @@ class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
       appBar: AppBar(title: const Text('Elegir ejercicio')),
       body: asyncExercises.when(
         data: (ex) {
-          final exercises = ex.where((e) => widget.groups.contains(e.mainMuscleGroup)).toList();
+          final exercises = _group == 'Todos'
+              ? ex.toList()
+              : ex
+                  .where((e) => widget.groups.contains(e.mainMuscleGroup))
+                  .toList();
           final filtered = exercises.where((e) {
             final byGroup = _group == 'Todos' || e.mainMuscleGroup == _group;
             final byName = e.name.toLowerCase().contains(_query.toLowerCase());
