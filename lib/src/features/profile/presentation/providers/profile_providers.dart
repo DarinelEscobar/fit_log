@@ -3,14 +3,15 @@ import '../../data/repositories/profile_repository_impl.dart';
 import '../../domain/usecases/get_user_profile_usecase.dart';
 import '../../domain/usecases/get_body_metrics_usecase.dart';
 
-final _repoProvider = Provider((_) => ProfileRepositoryImpl());
+/// Provides the implementation of [ProfileRepository].
+final profileRepositoryProvider = Provider((_) => ProfileRepositoryImpl());
 
 final userProfileProvider = FutureProvider((ref) {
-  final usecase = GetUserProfileUseCase(ref.watch(_repoProvider));
+  final usecase = GetUserProfileUseCase(ref.watch(profileRepositoryProvider));
   return usecase();
 });
 
 final bodyMetricsProvider = FutureProvider((ref) {
-  final usecase = GetBodyMetricsUseCase(ref.watch(_repoProvider));
+  final usecase = GetBodyMetricsUseCase(ref.watch(profileRepositoryProvider));
   return usecase();
 });

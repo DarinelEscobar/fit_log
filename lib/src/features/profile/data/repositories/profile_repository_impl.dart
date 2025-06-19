@@ -135,7 +135,12 @@ class ProfileRepositoryImpl implements ProfileRepository {
       DoubleCellValue(m.forearm),
       IntCellValue(m.age),
     ]);
-    await file.writeAsBytes(excel.save()!);
+    final bytes = excel.save();
+    if (bytes != null) {
+      await file.writeAsBytes(bytes);
+    } else {
+      throw Exception('Failed to save Excel file: save() returned null.');
+    }
   }
 
   @override
@@ -175,6 +180,11 @@ class ProfileRepositoryImpl implements ProfileRepository {
     } else {
       sheet.appendRow(values);
     }
-    await file.writeAsBytes(excel.save()!);
+    final bytes = excel.save();
+    if (bytes != null) {
+      await file.writeAsBytes(bytes);
+    } else {
+      throw Exception('Failed to save Excel file: save() returned null.');
+    }
   }
 }

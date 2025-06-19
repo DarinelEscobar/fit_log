@@ -11,30 +11,31 @@ class SelectExerciseScreen extends ConsumerStatefulWidget {
 }
 
 class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
+  static const allGroupsLabel = 'Todos';
   late String _group;
   String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _group = 'Todos';
+    _group = allGroupsLabel;
   }
 
   @override
   Widget build(BuildContext context) {
     final asyncExercises = ref.watch(allExercisesProvider);
-    final groupsList = ['Todos', ...widget.groups.toList()];
+    final groupsList = [allGroupsLabel, ...widget.groups.toList()];
     return Scaffold(
       appBar: AppBar(title: const Text('Elegir ejercicio')),
       body: asyncExercises.when(
         data: (ex) {
-          final exercises = _group == 'Todos'
+          final exercises = _group == allGroupsLabel
               ? ex.toList()
               : ex
                   .where((e) => widget.groups.contains(e.mainMuscleGroup))
                   .toList();
           final filtered = exercises.where((e) {
-            final byGroup = _group == 'Todos' || e.mainMuscleGroup == _group;
+            final byGroup = _group == allGroupsLabel || e.mainMuscleGroup == _group;
             final byName = e.name.toLowerCase().contains(_query.toLowerCase());
             return byGroup && byName;
           }).toList();

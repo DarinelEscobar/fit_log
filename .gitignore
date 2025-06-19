@@ -50,3 +50,4 @@ app.*.map.json
 # Or if quieres ser más específico:
 *.bin
 
+lib/src/data/var/
