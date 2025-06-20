@@ -338,10 +338,10 @@ class ExerciseTileState extends State<ExerciseTile>
 
     double? baseTon;
     String tooltip = '';
-    if (lastTon > 0) {
+    if (widget.lastLogs != null && widget.lastLogs!.isNotEmpty) {
       baseTon = lastTon;
       tooltip = 'vs última sesión';
-    } else if (bestTon > 0) {
+    } else if (widget.bestLogs != null && widget.bestLogs!.isNotEmpty) {
       baseTon = bestTon;
       tooltip = 'No last set found, comparing with best';
     }
