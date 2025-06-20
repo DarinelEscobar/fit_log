@@ -154,8 +154,8 @@ const Map<String, TableSchema> kTableSchemas = {
       'main_muscle_group',
     ],
     sample: const [
-      [1, 'Barbell Overhead Press', 'Tempo 2-0-1-0 — Mantén core firme; empuja la barra en línea recta.'],
-      [2, 'Incline Dumbbell Press', 'Tempo 2-0-1-0 — Codos a 45°, no bloquees arriba.'],
+        [1, 'Barbell Overhead Press', 'Tempo 2-0-1-0 — Mantén core firme; empuja la barra en línea recta.', 'Compound', 'Shoulders'],
+        [2, 'Incline Dumbbell Press', 'Tempo 2-0-1-0 — Codos a 45°, no bloquees arriba.', 'Compound', 'Chest'],
       ...kExerciseExtraSamples,
     ],
   ),
