@@ -32,7 +32,7 @@ const kExerciseExtraSamples = [
   [33, 'Side-plank Hip Dips', 'Tempo 2-0-2-1 — Controla bajada; cadera alineada.'],
   [34, 'Wrist Curl', 'Tempo 2-0-2-0 — Superset sin descanso.'],
   [36, 'Glute bridge bar', 'Tempo 2-0-2-0 — Barbell glute bridge; enfoca extensión de cadera.'],
-  [38, 'Peacher Curl', 'Tempo 2-0-2-0 — Curl en banco predicador; rango completo.'],
+  [38, 'Preacher Curl', 'Tempo 2-0-2-0 — Curl en banco predicador; rango completo.'],
   [39, 'Cable Fly (lower chest)', 'Tempo 2-0-2-0 — Poleas altas; cruza ligeramente abajo.'],
   [40, 'Cable Fly (inner chest)', 'Tempo 2-0-2-0 — Poleas al nivel del hombro N°17; aprieta al centro.'],
   [41, 'Sulek curl', 'Tempo 2-0-2-0 — Curl en cable enfatizando pico de bíceps.'],
