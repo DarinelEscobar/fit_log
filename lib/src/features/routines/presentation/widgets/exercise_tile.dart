@@ -1,15 +1,13 @@
+import 'dart:async';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:collection/collection.dart';
-import 'dart:async';
 import 'package:vibration/vibration.dart';
+
 import '../../../../utils/notification_service.dart';
-
-
 import '../state/workout_log_state.dart';
 import '../../domain/entities/workout_log_entry.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
-
 
 class ExerciseTile extends StatefulWidget {
   const ExerciseTile({
@@ -49,25 +47,32 @@ class ExerciseTile extends StatefulWidget {
 
 class ExerciseTileState extends State<ExerciseTile>
     with AutomaticKeepAliveClientMixin {
+  // ────────────────── controllers ──────────────────
   late List<TextEditingController> _repCtl, _kgCtl, _rirCtl;
   int _visibleSets = 0;
   bool _logsLoaded = false;
   final Map<int, WorkoutLogEntry> _extraLast = {};
+  // ────────────────── descanso ──────────────────
   Timer? _restTimer;
   int _restRemaining = 0;
-
-  double _tonnageFromLogs(Iterable<WorkoutLogEntry> logs) =>
-      logs.fold(0, (sum, e) => sum + e.reps * e.weight);
-
-  double get _todayTonnage => _tonnageFromLogs(
-        widget.logsMap.values.where(
-          (e) => e.exerciseId == widget.detail.exerciseId,
-        ),
-      );
 
   @override
   bool get wantKeepAlive => true;
 
+  // ────────────────── helpers ──────────────────
+  double _tonnage(Iterable<WorkoutLogEntry> logs) =>
+      logs.fold(0, (s, e) => s + e.reps * e.weight);
+
+  Iterable<WorkoutLogEntry> get _todayCompletedLogs =>
+      widget.logsMap.values.where(
+        (e) =>
+            e.exerciseId == widget.detail.exerciseId && //
+            e.completed,
+      );
+
+  double get _todayTonnage => _tonnage(_todayCompletedLogs);
+
+  // ────────────────── lifecycle ──────────────────
   @override
   void initState() {
     super.initState();
@@ -76,15 +81,14 @@ class ExerciseTileState extends State<ExerciseTile>
   }
 
   @override
-  void didUpdateWidget(covariant ExerciseTile oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.detail.sets != widget.detail.sets) {
-      _build(widget.detail.sets);
-    } else if (!_logsLoaded && widget.lastLogs != null) {
-      _build(widget.detail.sets);
-    }
+  void didUpdateWidget(covariant ExerciseTile old) {
+    super.didUpdateWidget(old);
+    final setsChanged = old.detail.sets != widget.detail.sets;
+    final lastArrived = !_logsLoaded && widget.lastLogs != null;
+    if (setsChanged || lastArrived) _build(widget.detail.sets);
   }
 
+  // ────────────────── construcción de controles ──────────────────
   void _build(int sets) {
     _visibleSets = sets;
     _repCtl = [];
@@ -93,8 +97,7 @@ class ExerciseTileState extends State<ExerciseTile>
     _extraLast.clear();
 
     WorkoutLogEntry? _lastFor(int set) =>
-    widget.lastLogs?.firstWhereOrNull((l) => l.setNumber == set);
-
+        widget.lastLogs?.firstWhereOrNull((l) => l.setNumber == set);
 
     for (var i = 0; i < _visibleSets; i++) {
       final e = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'] ??
@@ -109,35 +112,65 @@ class ExerciseTileState extends State<ExerciseTile>
 
     if (widget.lastLogs != null) {
       for (final l in widget.lastLogs!) {
-        if (l.setNumber > _visibleSets) {
-          _extraLast[l.setNumber] = l;
-        }
+        if (l.setNumber > _visibleSets) _extraLast[l.setNumber] = l;
       }
     }
-
     _logsLoaded = widget.lastLogs != null;
   }
 
-  void _persist(int index) {
+  // ────────────────── persistencia ──────────────────
+  void _persist(int idx, {bool completed = false}) {
     widget.update(
       WorkoutLogEntry(
         date: DateTime.now(),
         planId: widget.planId,
         exerciseId: widget.detail.exerciseId,
-        setNumber: index + 1,
-        reps: int.tryParse(_repCtl[index].text) ?? widget.detail.reps,
-        weight: double.tryParse(_kgCtl[index].text) ?? widget.detail.weight,
-        rir: int.tryParse(_rirCtl[index].text) ?? 2,
-        completed:
-            widget.logsMap['${widget.detail.exerciseId}-${index + 1}']?.completed ?? false,
+        setNumber: idx + 1,
+        reps: int.tryParse(_repCtl[idx].text) ?? widget.detail.reps,
+        weight: double.tryParse(_kgCtl[idx].text) ?? widget.detail.weight,
+        rir: int.tryParse(_rirCtl[idx].text) ?? 2,
+        completed: completed ||
+            (widget.logsMap['${widget.detail.exerciseId}-${idx + 1}']
+                    ?.completed ??
+                false),
       ),
     );
   }
 
-  bool isComplete(Map<String, WorkoutLogEntry> logs) =>
-      List.generate(_visibleSets, (i) => i + 1)
-          .every((s) => logs['${widget.detail.exerciseId}-$s']?.completed ?? false);
+  // ────────────────── métodos públicos usados afuera ──────────────────
+  /// Se llama desde el archivo start_routine_screen.dart
+  void logCurrentSet({required void Function(WorkoutLogEntry) addOrUpdate}) {
+    final current = List.generate(_visibleSets, (i) => i + 1).firstWhere(
+      (s) =>
+          !(widget.logsMap['${widget.detail.exerciseId}-$s']?.completed ??
+              false),
+      orElse: () => _visibleSets,
+    );
+    addOrUpdate(
+      WorkoutLogEntry(
+        date: DateTime.now(),
+        planId: widget.planId,
+        exerciseId: widget.detail.exerciseId,
+        setNumber: current,
+        reps: int.tryParse(_repCtl[current - 1].text) ?? widget.detail.reps,
+        weight:
+            double.tryParse(_kgCtl[current - 1].text) ?? widget.detail.weight,
+        rir: int.tryParse(_rirCtl[current - 1].text) ?? 2,
+        completed: true,
+      ),
+    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('Serie $current registrada')));
+    setState(widget.onChanged);
+    _startRestTimer();
+  }
 
+  /// Devuelve true cuando **todas** las series del ejercicio están completadas.
+  bool isComplete(Map<String, WorkoutLogEntry> logs) =>
+      List.generate(_visibleSets, (i) => i + 1).every(
+          (s) => logs['${widget.detail.exerciseId}-$s']?.completed ?? false);
+
+  // ────────────────── control descanso ──────────────────
   void _startRestTimer() {
     _restTimer?.cancel();
     NotificationService.cancelRest();
@@ -155,34 +188,11 @@ class ExerciseTileState extends State<ExerciseTile>
     });
   }
 
-  void logCurrentSet({required void Function(WorkoutLogEntry) addOrUpdate}) {
-    final current = List.generate(_visibleSets, (i) => i + 1).firstWhere(
-      (s) => !(widget.logsMap['${widget.detail.exerciseId}-$s']?.completed ?? false),
-      orElse: () => _visibleSets,
-    );
-    addOrUpdate(
-      WorkoutLogEntry(
-        date: DateTime.now(),
-        planId: widget.planId,
-        exerciseId: widget.detail.exerciseId,
-        setNumber: current,
-        reps: int.tryParse(_repCtl[current - 1].text) ?? widget.detail.reps,
-        weight: double.tryParse(_kgCtl[current - 1].text) ?? widget.detail.weight,
-        rir: int.tryParse(_rirCtl[current - 1].text) ?? 2,
-        completed: true,
-      ),
-    );
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Serie $current registrada')),
-    );
-    setState(widget.onChanged);
-    _startRestTimer();
-  }
-
+  // ────────────────── botones + / - ──────────────────
   void _add() {
     final setNum = _visibleSets + 1;
-    final last = widget.logsMap['${widget.detail.exerciseId}-$setNum'] ??
-        _extraLast[setNum];
+    final last =
+        widget.logsMap['${widget.detail.exerciseId}-$setNum'] ?? _extraLast[setNum];
     setState(() {
       _repCtl.add(TextEditingController(
           text: last?.reps.toString() ?? widget.detail.reps.toString()));
@@ -217,14 +227,13 @@ class ExerciseTileState extends State<ExerciseTile>
     setState(widget.onChanged);
   }
 
+  // ────────────────── UI helpers ──────────────────
   OutlinedButton _actionBtn(IconData ic, VoidCallback fn) => OutlinedButton(
         style: OutlinedButton.styleFrom(
           foregroundColor: Colors.white70,
           side: const BorderSide(color: Colors.white24),
           visualDensity: VisualDensity.compact,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         onPressed: fn,
         child: Icon(ic, size: 16),
@@ -244,7 +253,8 @@ class ExerciseTileState extends State<ExerciseTile>
                 },
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13, color: Colors.white),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))
                 ],
@@ -261,13 +271,13 @@ class ExerciseTileState extends State<ExerciseTile>
               ),
             ),
             const SizedBox(width: 4),
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
+            Text(label,
+                style: const TextStyle(color: Colors.white, fontSize: 13)),
           ],
         ),
       );
 
-  Widget _info(String label, String value, {bool highlight = false}) =>
-      Padding(
+  Widget _info(String label, String value, {bool highlight = false}) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,8 +296,9 @@ class ExerciseTileState extends State<ExerciseTile>
             ),
             Text(value,
                 style: TextStyle(
-                    fontSize: 12,
-                    color: highlight ? Colors.amber : Colors.white70)),
+                  fontSize: 12,
+                  color: highlight ? Colors.amber : Colors.white70,
+                )),
           ],
         ),
       );
@@ -306,18 +317,17 @@ class ExerciseTileState extends State<ExerciseTile>
             children: [
               Icon(icon, size: 12, color: color),
               const SizedBox(width: 2),
-              Text(
-                '${delta > 0 ? '+' : ''}$delta%',
-                style: TextStyle(
-                    color: color,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600),
-              ),
+              Text('${delta > 0 ? '+' : ''}$delta%',
+                  style: TextStyle(
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
             ],
           ),
         ),
       );
 
+  // ────────────────── dispose ──────────────────
   @override
   void dispose() {
     for (final c in [..._repCtl, ..._kgCtl, ..._rirCtl]) {
@@ -328,40 +338,32 @@ class ExerciseTileState extends State<ExerciseTile>
     super.dispose();
   }
 
-
+  // ────────────────── build ──────────────────
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final todayTon = _todayTonnage;
-    final lastTon = _tonnageFromLogs(widget.lastLogs ?? []);
-    final bestTon = _tonnageFromLogs(widget.bestLogs ?? []);
 
-    double? baseTon;
-    String tooltip = '';
-    if (widget.lastLogs != null && widget.lastLogs!.isNotEmpty) {
-      baseTon = lastTon;
-      tooltip = 'vs última sesión';
-    } else if (widget.bestLogs != null && widget.bestLogs!.isNotEmpty) {
-      baseTon = bestTon;
-      tooltip = 'No last set found, comparing with best';
-    }
+    final lastTon = _tonnage(widget.lastLogs ?? []);
+    final todayTon = _todayTonnage;
 
     int? delta;
-    if (baseTon != null && baseTon > 0) {
-      delta = ((todayTon - baseTon) / baseTon * 100).round();
+    if (_todayCompletedLogs.isNotEmpty && lastTon > 0) {
+      final raw = ((todayTon - lastTon) / lastTon * 100);
+      delta = raw.abs() < 1 ? 0 : raw.round(); // ±1 % ≈ 0
     }
 
-    Color deltaColor = Colors.grey;
+    Color deltaColor = Colors.grey.shade400;
     IconData deltaIcon = Icons.remove;
     if (delta != null) {
       if (delta > 0) {
-        deltaColor = Colors.green;
+        deltaColor = const Color(0xFF40CF45);
         deltaIcon = Icons.arrow_upward;
       } else if (delta < 0) {
-        deltaColor = Colors.orange;
+        deltaColor = const Color(0xFFFF2600);
         deltaIcon = Icons.arrow_downward;
       }
     }
+
     return GestureDetector(
       onTap: widget.onToggle,
       child: AnimatedContainer(
@@ -382,46 +384,44 @@ class ExerciseTileState extends State<ExerciseTile>
         ),
         child: Column(
           children: [
+            // ─── cabecera ───
             ListTile(
-              title: Text(
-                widget.detail.name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
-              ),
+              title: Text(widget.detail.name,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white70,
+                      fontSize: 16)),
               subtitle: widget.detail.description.isNotEmpty
-                  ? Text(
-                      widget.detail.description,
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
-                    )
+                  ? Text(widget.detail.description,
+                      style:
+                          const TextStyle(color: Colors.white54, fontSize: 12))
                   : null,
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (delta != null)
-                    _deltaBadge(delta, deltaColor, deltaIcon, tooltip),
+                    _deltaBadge(delta, deltaColor, deltaIcon, 'vs última sesión'),
                   if (widget.onSwap != null)
                     IconButton(
-                      icon: const Icon(Icons.swap_horiz),
-                      onPressed: widget.onSwap,
-                    ),
+                        icon: const Icon(Icons.swap_horiz), onPressed: widget.onSwap),
                   Icon(widget.expanded ? Icons.expand_less : Icons.expand_more),
                 ],
               ),
             ),
+            // ─── tonnage ───
             if (delta != null)
               Padding(
                 padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Tonnage: ${todayTon.toStringAsFixed(0)} kg (${delta > 0 ? '+' : ''}$delta%)',
+                    'Tonnage: ${todayTon.toStringAsFixed(0)} kg '
+                    '(${delta > 0 ? '+' : ''}$delta%)',
                     style: TextStyle(fontSize: 11, color: deltaColor),
                   ),
                 ),
               ),
+            // ─── info plan / last / best ───
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(
@@ -429,11 +429,14 @@ class ExerciseTileState extends State<ExerciseTile>
                 children: [
                   Expanded(
                     child: _info(
-                        'Plan',
-                        '${widget.detail.sets}x${widget.detail.reps} @${widget.detail.weight.toStringAsFixed(0)}kg • ${widget.detail.restSeconds}s'),
+                      'Plan',
+                      '${widget.detail.sets}x${widget.detail.reps} '
+                      '@${widget.detail.weight.toStringAsFixed(0)}kg • '
+                      '${widget.detail.restSeconds}s',
+                    ),
                   ),
                   Expanded(
-                    child: widget.lastLogs == null || widget.lastLogs!.isEmpty
+                    child: (widget.lastLogs == null || widget.lastLogs!.isEmpty)
                         ? _info('Último', '-')
                         : _info(
                             'Último',
@@ -445,7 +448,7 @@ class ExerciseTileState extends State<ExerciseTile>
                   ),
                   if (widget.showBest)
                     Expanded(
-                      child: widget.bestLogs == null || widget.bestLogs!.isEmpty
+                      child: (widget.bestLogs == null || widget.bestLogs!.isEmpty)
                           ? _info('Mejor', '-')
                           : _info(
                               'Mejor',
@@ -459,14 +462,14 @@ class ExerciseTileState extends State<ExerciseTile>
                 ],
               ),
             ),
+            // ─── descanso ───
             if (_restRemaining > 0)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'Descanso: $_restRemaining s',
-                  style: const TextStyle(color: Colors.amber, fontSize: 12),
-                ),
+                child: Text('Descanso: $_restRemaining s',
+                    style: const TextStyle(color: Colors.amber, fontSize: 12)),
               ),
+            // ─── zona expandida ───
             if (widget.expanded) ...[
               Padding(
                 padding: const EdgeInsets.only(right: 12, bottom: 4),
@@ -481,10 +484,13 @@ class ExerciseTileState extends State<ExerciseTile>
               ),
               Column(
                 children: List.generate(_visibleSets, (i) {
-                  final done =
-                      widget.logsMap['${widget.detail.exerciseId}-${i + 1}']?.completed ?? false;
+                  final done = widget.logsMap[
+                              '${widget.detail.exerciseId}-${i + 1}']
+                          ?.completed ??
+                      false;
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                     child: Row(
                       children: [
                         _num(_repCtl[i], 50, 'r', i),
