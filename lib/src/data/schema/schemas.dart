@@ -153,8 +153,8 @@ const Map<String, TableSchema> kTableSchemas = {
       'main_muscle_group',
     ],
     sample: const [
-      [1, 'Barbell Overhead Press', 'Standing shoulder press with barbell', 'Compound', 'Shoulders'],
-      [2, 'Incline Dumbbell Press', 'Dumbbell bench press on incline', 'Compound', 'Chest'],
+      [1, 'Barbell Overhead Press', 'Tempo 2-0-1-0 — Mantén core firme; empuja la barra en línea recta.'],
+      [2, 'Incline Dumbbell Press', 'Tempo 2-0-1-0 — Codos a 45°, no bloquees arriba.'],
       ...kExerciseExtraSamples,
     ],
   ),
@@ -179,49 +179,40 @@ const Map<String, TableSchema> kTableSchemas = {
     'image_path',
   ],
   sample: [
-    // ── Day 1 ─ Upper Push (plan_id 1) ────────────────────────────────────────
-    [1, 1, 4,  8, 25.0, 180, ''], // Barbell Overhead Press
-    [1, 2, 4, 10, 45.0, 180, ''], // Incline Dumbbell Press
-    [1, 3, 3, 10, 40.0, 180, ''], // Flat Barbell Press
-    [1, 4, 3, 15, 15.0, 120, ''], // Cable / Machine Fly
-    [1, 5, 3, 12, 45.0, 120, ''], // V-Bar Push-down
-    [1, 6, 2, 15, 20.0,  60, ''], // Overhead Rope Extension
-
-    // ── Day 2 ─ Lower A (plan_id 2) ───────────────────────────────────────────
-    [2, 7, 4,  8, 55.0, 180, ''], // Back Squat
-    [2, 8, 4, 12, 30.0, 180, ''], // Leg Press
-    [2, 9, 3, 15, 20.0, 120, ''], // Leg Extension (1½ reps)
-    [2,10, 4, 20, 25.0, 120, ''], // Seated Calf Raise
-    [2,11, 3, 20, 10.0,  60, ''], // Tibialis Raise (opt.)
-
-    // ── Day 3 ─ Upper Pull (plan_id 3) ────────────────────────────────────────
-    [3, 12, 4, 12, 55.0, 180, ''], // Wide-grip Lat Pulldown
-    [3, 13, 4, 15, 30.0, 180, ''], // Seated Cable Row (close)
-    [3, 14, 4, 15, 30.0, 120, ''], // Straight-arm Pulldown
-    [3, 15, 3, 20, 25.0, 120, ''], // Face Pull
-    [3, 16, 4, 10, 40.0, 120, ''], // Barbell Curl
-    [3, 17, 3, 12, 10.0, 120, ''], // Incline DB Curl
-    [3, 18, 3, 15, 10.0,  60, ''], // Wrist / Reverse Curl superset
-    [3, 34, 3, 15, 20.0,  60, ''], // Wrist Curl
-    [3, 19, 3, 20, 25.0,  60, ''], // Cable Crunch
-
-    // ── Day 5 ─ Push-Pull Hybrid (plan_id 4) ─────────────────────────────────
-    [4,20, 3, 12,  0.0, 180, ''], // Decline Barbell Press
-    [4,21, 3, 15,  0.0, 180, ''], // Chest-Supported Row (light)
-    [4,22, 4, 15,  0.0, 120, ''], // Cable Lateral Raise
-    [4,23, 3, 15,  0.0, 120, ''], // Reverse Cable Fly
-    [4,24, 3, 12,  0.0, 120, ''], // Hammer Curl
-    [4,25, 3, 12,  0.0, 120, ''], // Parallel-bar Dips
-    [4,26, 2, 15,  0.0, 120, ''], // Concentration Curl
-    [4,27, 3, 15,  0.0,  60, ''], // Hanging Leg Raise
-
-    // ── Day 6 ─ Lower B (plan_id 5) ───────────────────────────────────────────
-    [5,28, 4, 10,  0.0, 180, ''], // Romanian Deadlift
-    [5,29, 4, 12,  0.0, 120, ''], // Seated Leg Curl
-    [5,30, 3, 15,  0.0,  60, ''], // Glute Kick-back Machine
-    [5,31, 3, 20,  0.0,  60, ''], // Hip Abduction
-    [5,32, 4, 15,  0.0,  60, ''], // Standing Calf Raise
-    [5,33, 3, 20,  0.0,  60, ''], // Side-plank Hip Dips
+    [1, 1, 4, 8, 25.0, 150, ''],
+    [1, 2, 4, 10, 45.0, 150, ''],
+    [1, 3, 3, 10, 40.0, 150, ''],
+    [1, 4, 3, 15, 15.0, 75, ''],
+    [1, 5, 3, 12, 45.0, 75, ''],
+    [1, 6, 2, 15, 20.0, 60, ''],
+    [2, 7, 4, 8, 55.0, 180, ''],
+    [2, 8, 4, 12, 30.0, 150, ''],
+    [2, 9, 3, 15, 20.0, 75, ''],
+    [2, 10, 4, 20, 25.0, 60, ''],
+    [2, 11, 3, 20, 10.0, 60, ''],
+    [3, 12, 4, 12, 55.0, 150, ''],
+    [3, 13, 4, 15, 30.0, 150, ''],
+    [3, 14, 4, 15, 30.0, 75, ''],
+    [3, 15, 3, 20, 25.0, 60, ''],
+    [3, 16, 4, 10, 40.0, 90, ''],
+    [3, 17, 3, 12, 10.0, 75, ''],
+    [3, 18, 3, 15, 10.0, 0, ''],
+    [3, 34, 3, 15, 20.0, 0, ''],
+    [3, 19, 3, 20, 25.0, 45, ''],
+    [4, 20, 3, 12, 0.0, 120, ''],
+    [4, 21, 3, 15, 0.0, 90, ''],
+    [4, 22, 4, 15, 0.0, 60, ''],
+    [4, 23, 3, 15, 0.0, 60, ''],
+    [4, 24, 3, 12, 0.0, 75, ''],
+    [4, 25, 3, 12, 0.0, 90, ''],
+    [4, 26, 2, 15, 0.0, 60, ''],
+    [4, 27, 3, 15, 0.0, 60, ''],
+    [5, 28, 4, 10, 0.0, 180, ''],
+    [5, 29, 4, 12, 0.0, 120, ''],
+    [5, 30, 3, 15, 0.0, 60, ''],
+    [5, 31, 3, 20, 0.0, 60, ''],
+    [5, 32, 4, 15, 0.0, 60, ''],
+    [5, 33, 3, 20, 0.0, 30, ''],
   ],
   ),
 
