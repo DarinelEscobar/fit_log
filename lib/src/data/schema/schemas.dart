@@ -449,7 +449,7 @@ const Map<String, TableSchema> kTableSchemas = {
       [40, 5, 0.8], [40, 4, 0.1], [40, 1, 0.1],
       // Sulek curl
       [41, 11, 0.4], [41, 9, 0.3], [41, 10, 0.3],
-      // Triceps rope pushdwon
+      // Triceps Rope Pushdown
       [42, 6, 0.4], [42, 7, 0.3], [42, 8, 0.3],
       // Romanian Deadlift straight bar
       [43, 31, 0.4], [43, 32, 0.3], [43, 24, 0.3],
