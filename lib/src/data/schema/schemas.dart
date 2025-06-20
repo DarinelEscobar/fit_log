@@ -441,7 +441,7 @@ const Map<String, TableSchema> kTableSchemas = {
 
       // Glute bridge bar
       [36, 24, 0.7], [36, 31, 0.3],
-      // Peacher Curl
+      // Preacher Curl
       [38, 9, 0.6], [38, 10, 0.3], [38, 11, 0.1],
       // Cable Fly (lower chest)
       [39, 5, 0.8], [39, 4, 0.1], [39, 1, 0.1],
