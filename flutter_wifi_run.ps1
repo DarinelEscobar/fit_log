@@ -30,12 +30,6 @@ flutter run
 # En PowerShell, ejecútalo con:
 
 # powershell
-# Copy
-# Edit
 # ./flutter_wifi_run.ps1
-# o si te da error de ejecución, primero permite scripts con:
 
-# powershell
-# Copy
-# Edit
 # Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
