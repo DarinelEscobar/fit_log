@@ -56,6 +56,15 @@ class ExerciseTileState extends State<ExerciseTile>
   Timer? _restTimer;
   int _restRemaining = 0;
 
+  double _tonnageFromLogs(Iterable<WorkoutLogEntry> logs) =>
+      logs.fold(0, (sum, e) => sum + e.reps * e.weight);
+
+  double get _todayTonnage => _tonnageFromLogs(
+        widget.logsMap.values.where(
+          (e) => e.exerciseId == widget.detail.exerciseId,
+        ),
+      );
+
   @override
   bool get wantKeepAlive => true;
 
@@ -283,6 +292,32 @@ class ExerciseTileState extends State<ExerciseTile>
         ),
       );
 
+  Widget _deltaBadge(int delta, Color color, IconData icon, String tooltip) =>
+      Tooltip(
+        message: tooltip,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: color.withOpacity(.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 12, color: color),
+              const SizedBox(width: 2),
+              Text(
+                '${delta > 0 ? '+' : ''}$delta%',
+                style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      );
+
   @override
   void dispose() {
     for (final c in [..._repCtl, ..._kgCtl, ..._rirCtl]) {
@@ -297,6 +332,36 @@ class ExerciseTileState extends State<ExerciseTile>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final todayTon = _todayTonnage;
+    final lastTon = _tonnageFromLogs(widget.lastLogs ?? []);
+    final bestTon = _tonnageFromLogs(widget.bestLogs ?? []);
+
+    double? baseTon;
+    String tooltip = '';
+    if (lastTon > 0) {
+      baseTon = lastTon;
+      tooltip = 'vs última sesión';
+    } else if (bestTon > 0) {
+      baseTon = bestTon;
+      tooltip = 'No last set found, comparing with best';
+    }
+
+    int? delta;
+    if (baseTon != null && baseTon > 0) {
+      delta = ((todayTon - baseTon) / baseTon * 100).round();
+    }
+
+    Color deltaColor = Colors.grey;
+    IconData deltaIcon = Icons.remove;
+    if (delta != null) {
+      if (delta > 0) {
+        deltaColor = Colors.green;
+        deltaIcon = Icons.arrow_upward;
+      } else if (delta < 0) {
+        deltaColor = Colors.orange;
+        deltaIcon = Icons.arrow_downward;
+      }
+    }
     return GestureDetector(
       onTap: widget.onToggle,
       child: AnimatedContainer(
@@ -323,6 +388,7 @@ class ExerciseTileState extends State<ExerciseTile>
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   color: Colors.white70,
+                  fontSize: 16,
                 ),
               ),
               subtitle: widget.detail.description.isNotEmpty
@@ -334,6 +400,8 @@ class ExerciseTileState extends State<ExerciseTile>
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (delta != null)
+                    _deltaBadge(delta, deltaColor, deltaIcon, tooltip),
                   if (widget.onSwap != null)
                     IconButton(
                       icon: const Icon(Icons.swap_horiz),
@@ -343,6 +411,17 @@ class ExerciseTileState extends State<ExerciseTile>
                 ],
               ),
             ),
+            if (delta != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Tonnage: ${todayTon.toStringAsFixed(0)} kg (${delta > 0 ? '+' : ''}$delta%)',
+                    style: TextStyle(fontSize: 11, color: deltaColor),
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: Row(
