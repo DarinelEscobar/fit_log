@@ -36,7 +36,7 @@ const kExerciseExtraSamples = [
   [39, 'Cable Fly (lower chest)', 'Tempo 2-0-2-0 — Poleas altas; cruza ligeramente abajo.'],
   [40, 'Cable Fly (inner chest)', 'Tempo 2-0-2-0 — Poleas al nivel del hombro N°17; aprieta al centro.'],
   [41, 'Sulek curl', 'Tempo 2-0-2-0 — Curl en cable enfatizando pico de bíceps.'],
-  [42, 'Triceps rope pushdwon', 'Tempo 2-0-2-0 — Extensión de tríceps con cuerda; separa puntas abajo.'],
+  [42, 'Triceps Rope Pushdown', 'Tempo 2-0-2-0 — Extensión de tríceps con cuerda; separa puntas abajo.'],
   [43, 'Romanian Deadlift straight bar', 'Tempo 3-0-1-0 — Variante con barra recta.'],
   [44, 'Hip Adduction', 'Tempo 2-0-2-0 — Aduce cadera dentro del rango cómodo.'],
 ];
