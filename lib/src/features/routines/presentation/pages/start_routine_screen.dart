@@ -274,12 +274,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     );
     if (picked != null) {
       final notifier = ref.read(workoutLogProvider.notifier);
-      final existingEntries = notifier.state.values
-          .where((entry) =>
-              entry.planId == widget.planId &&
-              entry.exerciseId == detail.exerciseId &&
-              entry.setNumber <= detail.sets)
-          .toList();
+      final existingEntries = notifier.state.values.where((entry) =>
+          entry.planId == widget.planId &&
+          entry.exerciseId == detail.exerciseId &&
+          entry.setNumber <= detail.sets);
       for (var entry in existingEntries) {
         notifier.remove(entry);
       }
