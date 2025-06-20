@@ -88,7 +88,6 @@ class _Chart extends StatefulWidget {
 }
 
 class _ChartState extends State<_Chart> {
-  bool _scaleVolume = true;
 
   double _interval(double max) {
     if (max <= 0) return 1;
@@ -112,22 +111,15 @@ class _ChartState extends State<_Chart> {
         final maxVolume =
             widget.data.fold<double>(0, (p, e) => e.volume > p ? e.volume : p);
 
-        final scale =
-            _scaleVolume && maxWeight > 0 ? maxVolume / maxWeight : 1.0;
-        final volumeSpots = _scaleVolume
-            ? rawVolumeSpots
-                .map((s) => FlSpot(s.x, s.y / scale))
-                .toList()
-            : rawVolumeSpots;
+        final scale = maxWeight > 0 ? maxVolume / maxWeight : 1.0;
+        final volumeSpots = rawVolumeSpots
+            .map((s) => FlSpot(s.x, s.y / scale))
+            .toList();
 
         final stepWeight = _interval(maxWeight);
-        final stepVolume = _scaleVolume
-            ? _interval(maxVolume) / scale
-            : _interval(maxVolume) * 2;
+        final stepVolume = _interval(maxVolume) / scale;
 
-        final maxY = _scaleVolume
-            ? maxWeight
-            : (maxVolume > maxWeight ? maxVolume : maxWeight);
+        final maxY = maxWeight;
 
         final chart = LineChart(
           LineChartData(
@@ -150,8 +142,7 @@ class _ChartState extends State<_Chart> {
                 sideTitles: SideTitles(
                   showTitles: true,
                   interval: stepVolume,
-                  getTitlesWidget: (v, _) =>
-                      Text((_scaleVolume ? v * scale : v).toInt().toString()),
+                  getTitlesWidget: (v, _) => Text((v * scale).toInt().toString()),
                   reservedSize: 48,
                 ),
               ),
@@ -225,16 +216,6 @@ class _ChartState extends State<_Chart> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  const Text('Escalar volumen'),
-                  Switch(
-                    value: _scaleVolume,
-                    onChanged: (v) => setState(() => _scaleVolume = v),
-                  ),
-                ],
-              ),
               chartWidget,
               const SizedBox(height: 8),
               Row(
