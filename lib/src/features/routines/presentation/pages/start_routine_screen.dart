@@ -339,17 +339,29 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   }
 
   List<WorkoutLogEntry> _bestLogs(List<WorkoutLogEntry> logs) {
-    final filtered = logs.where((l) => l.reps >= 5).toList();
-    if (filtered.isEmpty) return [];
-    filtered.sort((a, b) {
-      final c = b.weight.compareTo(a.weight);
-      return c != 0 ? c : b.reps.compareTo(a.reps);
+    if (logs.isEmpty) return [];
+
+    final grouped = <DateTime, List<WorkoutLogEntry>>{};
+    for (final l in logs) {
+      grouped.putIfAbsent(l.date, () => []).add(l);
+    }
+
+    double tonnage(List<WorkoutLogEntry> ls) =>
+        ls.fold(0, (sum, e) => sum + e.reps * e.weight);
+
+    DateTime bestDate = grouped.keys.first;
+    double bestTon = tonnage(grouped[bestDate]!);
+    grouped.forEach((date, ls) {
+      final t = tonnage(ls);
+      if (t > bestTon) {
+        bestTon = t;
+        bestDate = date;
+      }
     });
-    final best = filtered.first;
-    return logs
-        .where((l) => l.date.isAtSameMomentAs(best.date))
-        .toList()
-      ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
+
+    final bestLogs = grouped[bestDate]!;
+    bestLogs.sort((a, b) => a.setNumber.compareTo(b.setNumber));
+    return bestLogs;
   }
 
   Future<bool> _confirmExit(BuildContext ctx) async =>
