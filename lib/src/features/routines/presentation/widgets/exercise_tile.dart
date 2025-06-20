@@ -129,10 +129,10 @@ class ExerciseTileState extends State<ExerciseTile>
       List.generate(_visibleSets, (i) => i + 1)
           .every((s) => logs['${widget.detail.exerciseId}-$s']?.completed ?? false);
 
-  Future<void> _startRestTimer() async {
+  void _startRestTimer() {
     _restTimer?.cancel();
-    await NotificationService.cancelRest();
-    await NotificationService.scheduleRestDone(widget.detail.restSeconds);
+    NotificationService.cancelRest();
+    NotificationService.scheduleRestDone(widget.detail.restSeconds);
     setState(() => _restRemaining = widget.detail.restSeconds);
     _restTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (_restRemaining <= 1) {
