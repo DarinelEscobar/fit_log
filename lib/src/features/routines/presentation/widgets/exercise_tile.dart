@@ -90,20 +90,17 @@ class ExerciseTileState extends State<ExerciseTile>
     _kgCtl = [];
     _rirCtl = [];
     _extraLast.clear();
-
     WorkoutLogEntry? lastFor(int set) =>
         widget.lastLogs?.firstWhereOrNull((l) => l.setNumber == set);
-
     for (var i = 0; i < _visibleSets; i++) {
       final e =
           widget.logsMap['${widget.detail.exerciseId}-${i + 1}'] ?? lastFor(i + 1);
-      _repCtl.add(
-          TextEditingController(text: e?.reps.toString() ?? widget.detail.reps.toString()));
+      _repCtl.add(TextEditingController(
+          text: e?.reps.toString() ?? widget.detail.reps.toString()));
       _kgCtl.add(TextEditingController(
           text: e?.weight.toStringAsFixed(0) ?? widget.detail.weight.toStringAsFixed(0)));
       _rirCtl.add(TextEditingController(text: e?.rir.toString() ?? '2'));
     }
-
     if (widget.lastLogs != null) {
       for (final l in widget.lastLogs!) {
         if (l.setNumber > _visibleSets) _extraLast[l.setNumber] = l;
@@ -260,26 +257,13 @@ class ExerciseTileState extends State<ExerciseTile>
         ),
       );
 
-  Widget _info(String label, String value, {bool highlight = false}) => Padding(
+  Widget _info(String label, String value) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Text(label, style: const TextStyle(fontSize: 11, color: Colors.white54)),
-                if (highlight)
-                  const Padding(
-                    padding: EdgeInsets.only(left: 2),
-                    child: Icon(Icons.star, size: 12, color: Colors.amber),
-                  ),
-              ],
-            ),
-            Text(value,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: highlight ? Colors.amber : Colors.white70,
-                )),
+            Text(label, style: const TextStyle(fontSize: 11, color: Colors.white54)),
+            Text(value, style: const TextStyle(fontSize: 12, color: Colors.white70)),
           ],
         ),
       );
@@ -434,42 +418,12 @@ class ExerciseTileState extends State<ExerciseTile>
                   ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _info(
-                          'Plan',
-                          '${widget.detail.sets}x${widget.detail.reps} '
-                          '@${widget.detail.weight.toStringAsFixed(0)}kg • '
-                          '${widget.detail.restSeconds}s',
-                        ),
-                      ),
-                      Expanded(
-                        child: (widget.lastLogs == null || widget.lastLogs!.isEmpty)
-                            ? _info('Último', '-')
-                            : _info(
-                                'Último',
-                                widget.lastLogs!
-                                    .map((l) =>
-                                        '${l.setNumber}: ${l.reps}r ${l.weight.toStringAsFixed(0)}kg R${l.rir}')
-                                    .join('\n'),
-                              ),
-                      ),
-                      if (widget.showBest)
-                        Expanded(
-                          child: (widget.bestLogs == null || widget.bestLogs!.isEmpty)
-                              ? _info('Mejor', '-')
-                              : _info(
-                                  'Mejor',
-                                  widget.bestLogs!
-                                      .map((l) =>
-                                          '${l.setNumber}: ${l.reps}r ${l.weight.toStringAsFixed(0)}kg R${l.rir}')
-                                      .join('\n'),
-                                  highlight: true,
-                                ),
-                        ),
-                    ],
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _info(
+                      'Plan',
+                      '${widget.detail.sets}x${widget.detail.reps} @${widget.detail.weight.toStringAsFixed(0)}kg • ${widget.detail.restSeconds}s',
+                    ),
                   ),
                 ),
                 if (widget.expanded) ...[
