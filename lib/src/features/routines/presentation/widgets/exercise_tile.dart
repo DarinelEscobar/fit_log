@@ -1,4 +1,16 @@
 import 'dart:async';
+import 'mini_line_chart.dart';
+
+  bool _showChart = false;
+  List<WorkoutLogEntry> get _todayCompletedLogs {
+    final logs = widget.logsMap.values
+        .where((e) =>
+            e.exerciseId == widget.detail.exerciseId && e.completed)
+        .toList();
+    logs.sort((a, b) => a.setNumber.compareTo(b.setNumber));
+    return logs;
+  }
+
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -130,6 +142,9 @@ class ExerciseTileState extends State<ExerciseTile>
         weight: double.tryParse(_kgCtl[idx].text) ?? widget.detail.weight,
         rir: int.tryParse(_rirCtl[idx].text) ?? 2,
         completed: completed ||
+  // Duración total del descanso (para progreso circular)
+  int get _restTotal => widget.detail.restSeconds;
+
             (widget.logsMap['${widget.detail.exerciseId}-${idx + 1}']
                     ?.completed ??
                 false),
@@ -375,14 +390,65 @@ class ExerciseTileState extends State<ExerciseTile>
               : const Color(0xFF1F1F1F),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(.3),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
+                  IconButton(
+                    icon: Icon(
+                      _showChart ? Icons.grid_view : Icons.show_chart,
+                      size: 20,
+                    ),
+                    tooltip:
+                        _showChart ? 'Ocultar gráfica' : 'Mostrar gráfica',
+                    onPressed: () => setState(() => _showChart = !_showChart),
+                  ),
+            if (!_showChart)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                child: SizedBox(
+                  height: 42,
+                  width: 42,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CircularProgressIndicator(
+                        value: 1 - _restRemaining / _restTotal,
+                        strokeWidth: 4,
+                        color: Colors.amber,
+                        backgroundColor: Colors.white12,
+                      ),
+                      Center(
+                        child: Text(
+                          '$_restRemaining',
+                          style:
+                              const TextStyle(fontSize: 12, color: Colors.amber),
+                        ),
+                      ),
+                    ],
+                  ),
+              if (_showChart)
+                SizedBox(
+                  height: 160,
+                  width: double.infinity,
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    child: MiniLineChart(
+                      today: _todayCompletedLogs
+                          .map((e) => e.reps * e.weight)
+                          .toList(),
+                      last: widget.lastLogs
+                              ?.map((e) => e.reps * e.weight)
+                              .toList() ??
+                          [],
+                      best: widget.bestLogs
+                              ?.map((e) => e.reps * e.weight)
+                              .toList() ??
+                          [],
+                    ),
+                  ),
+                ),
           children: [
             // ─── cabecera ───
             ListTile(
