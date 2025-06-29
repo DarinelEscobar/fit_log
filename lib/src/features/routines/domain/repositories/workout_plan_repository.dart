@@ -13,6 +13,26 @@ abstract class WorkoutPlanRepository {
   Future<void> createWorkoutPlan(String name, String frequency);
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId);
 
+  Future<void> addPlanExercise({
+    required int planId,
+    required int exerciseId,
+    required int sets,
+    required int reps,
+    required double weight,
+    required int restSeconds,
+  });
+
+  Future<void> updatePlanExercise({
+    required int planId,
+    required int exerciseId,
+    required int sets,
+    required int reps,
+    required double weight,
+    required int restSeconds,
+  });
+
+  Future<void> removePlanExercise(int planId, int exerciseId);
+
   //Start session 
   Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs);
   Future<void> saveWorkoutSession(WorkoutSession session);
