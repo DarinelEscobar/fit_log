@@ -205,6 +205,33 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
 
+    // If the exercise already exists for this plan just update it
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty &&
+          _cast<int>(row[0]) == planId &&
+          _cast<int>(row[1]) == detail.exerciseId) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i),
+          IntCellValue(detail.sets),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i),
+          IntCellValue(detail.reps),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: i),
+          DoubleCellValue(detail.weight),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i),
+          IntCellValue(detail.restSeconds),
+        );
+        await file.writeAsBytes(excel.save()!);
+        return;
+      }
+    }
+
     final row = [
       IntCellValue(planId),
       IntCellValue(detail.exerciseId),
@@ -264,6 +291,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
           CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i),
           IntCellValue(detail.restSeconds),
         );
+        break;
       }
     }
 
@@ -276,11 +304,13 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
 
-    final rows = sheet.rows;
-    for (var i = rows.length - 1; i >= 1; i--) {
-      final r = rows[i];
-      if (r.isNotEmpty && _cast<int>(r[0]) == planId && _cast<int>(r[1]) == exerciseId) {
+    for (var i = sheet.rows.length - 1; i >= 1; i--) {
+      final r = sheet.rows[i];
+      if (r.isNotEmpty &&
+          _cast<int>(r[0]) == planId &&
+          _cast<int>(r[1]) == exerciseId) {
         sheet.removeRow(i);
+        break;
       }
     }
 
