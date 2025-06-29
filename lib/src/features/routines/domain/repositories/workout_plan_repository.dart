@@ -15,8 +15,9 @@ abstract class WorkoutPlanRepository {
 
   Future<void> addExerciseToPlan(
     int planId,
-    PlanExerciseDetail detail,
-  );
+    PlanExerciseDetail detail, {
+    int? position,
+  });
 
   Future<void> updateExerciseInPlan(
     int planId,
