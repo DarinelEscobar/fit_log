@@ -196,12 +196,16 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   @override
-  Future<void> addExerciseToPlan(int planId, PlanExerciseDetail detail) async {
+  Future<void> addExerciseToPlan(
+    int planId,
+    PlanExerciseDetail detail, {
+    int? position,
+  }) async {
     final file = await _getOrCreateFile('plan_exercise.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
 
-    sheet.appendRow([
+    final row = [
       IntCellValue(planId),
       IntCellValue(detail.exerciseId),
       IntCellValue(detail.sets),
@@ -209,7 +213,26 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
       DoubleCellValue(detail.weight),
       IntCellValue(detail.restSeconds),
       TextCellValue(''),
-    ]);
+    ];
+
+    if (position == null) {
+      sheet.appendRow(row);
+    } else {
+      // calculate row index to insert considering header row
+      int insertIndex = sheet.rows.length;
+      int current = 0;
+      for (var i = 1; i < sheet.rows.length; i++) {
+        final r = sheet.rows[i];
+        if (r.isNotEmpty && _cast<int>(r[0]) == planId) {
+          if (current == position) {
+            insertIndex = i;
+            break;
+          }
+          current++;
+        }
+      }
+      sheet.insertRowIterables(row, insertIndex);
+    }
 
     await file.writeAsBytes(excel.save()!);
   }

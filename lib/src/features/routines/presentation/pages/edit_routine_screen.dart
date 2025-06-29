@@ -44,6 +44,36 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
       ),
     );
     if (exercise != null) {
+      final current = await ref.read(
+        planExerciseDetailsProvider(widget.planId).future,
+      );
+      final posCtl = TextEditingController(
+        text: '${current.length + 1}',
+      );
+      final index = await showDialog<int>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Posición del ejercicio'),
+          content: TextField(
+            controller: posCtl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: '1 = inicio'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(
+                context,
+                int.tryParse(posCtl.text) ?? current.length + 1,
+              ),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
       final repo = WorkoutPlanRepositoryImpl();
       await AddExerciseToPlanUseCase(repo)(
         widget.planId,
@@ -56,6 +86,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
           weight: 0,
           restSeconds: 90,
         ),
+        position: ((index ?? (current.length + 1)) - 1).clamp(0, current.length),
       );
       await _refresh();
     }
