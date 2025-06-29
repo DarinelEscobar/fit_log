@@ -49,6 +49,22 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     return null;
   }
 
+  int _findInsertIndex(Sheet sheet, int planId, int position) {
+    int insertIndex = sheet.rows.length;
+    int current = 0;
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final r = sheet.rows[i];
+      if (r.isNotEmpty && _cast<int>(r[0]) == planId) {
+        if (current == position) {
+          insertIndex = i;
+          break;
+        }
+        current++;
+      }
+    }
+    return insertIndex;
+  }
+
   @override
   Future<List<WorkoutPlan>> getAllPlans() async {
     final file = await _getOrCreateFile('workout_plan.xlsx');
@@ -206,11 +222,13 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
 
     // If the exercise already exists for this plan just update it
+    int existingRow = -1;
     for (var i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
       if (row.isNotEmpty &&
           _cast<int>(row[0]) == planId &&
           _cast<int>(row[1]) == detail.exerciseId) {
+        existingRow = i;
         sheet.updateCell(
           CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i),
           IntCellValue(detail.sets),
@@ -227,12 +245,11 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
           CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i),
           IntCellValue(detail.restSeconds),
         );
-        await file.writeAsBytes(excel.save()!);
-        return;
+        break;
       }
     }
 
-    final row = [
+    final rowValues = [
       IntCellValue(planId),
       IntCellValue(detail.exerciseId),
       IntCellValue(detail.sets),
@@ -242,23 +259,18 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
       TextCellValue(''),
     ];
 
-    if (position == null) {
-      sheet.appendRow(row);
-    } else {
-      // calculate row index to insert considering header row
-      int insertIndex = sheet.rows.length;
-      int current = 0;
-      for (var i = 1; i < sheet.rows.length; i++) {
-        final r = sheet.rows[i];
-        if (r.isNotEmpty && _cast<int>(r[0]) == planId) {
-          if (current == position) {
-            insertIndex = i;
-            break;
-          }
-          current++;
-        }
+    if (existingRow != -1) {
+      if (position != null) {
+        final rowData = sheet.rows[existingRow];
+        sheet.removeRow(existingRow);
+        final insertIndex = _findInsertIndex(sheet, planId, position);
+        sheet.insertRowIterables(rowData, insertIndex);
       }
-      sheet.insertRowIterables(row, insertIndex);
+    } else {
+      final insertIndex = position == null
+          ? sheet.rows.length
+          : _findInsertIndex(sheet, planId, position);
+      sheet.insertRowIterables(rowValues, insertIndex);
     }
 
     await file.writeAsBytes(excel.save()!);
