@@ -243,12 +243,27 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
 
-    for (var row in sheet.rows.skip(1)) {
-      if (row.isNotEmpty && _cast<int>(row[0]) == planId && _cast<int>(row[1]) == detail.exerciseId) {
-        row[2]?.value = IntCellValue(detail.sets);
-        row[3]?.value = IntCellValue(detail.reps);
-        row[4]?.value = DoubleCellValue(detail.weight);
-        row[5]?.value = IntCellValue(detail.restSeconds);
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty &&
+          _cast<int>(row[0]) == planId &&
+          _cast<int>(row[1]) == detail.exerciseId) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i),
+          IntCellValue(detail.sets),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i),
+          IntCellValue(detail.reps),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: i),
+          DoubleCellValue(detail.weight),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i),
+          IntCellValue(detail.restSeconds),
+        );
       }
     }
 
