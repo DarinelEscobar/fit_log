@@ -28,8 +28,10 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   }
 
   Future<void> _refresh() async {
+    final provider = planExerciseDetailsProvider(widget.planId);
+    ref.invalidate(provider);
     setState(() {
-      _future = ref.read(planExerciseDetailsProvider(widget.planId).future);
+      _future = ref.read(provider.future);
     });
   }
 
@@ -95,6 +97,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   Future<void> _updateDetail(PlanExerciseDetail detail) async {
     final repo = WorkoutPlanRepositoryImpl();
     await UpdateExerciseInPlanUseCase(repo)(widget.planId, detail);
+    await _refresh();
   }
 
   Future<void> _deleteDetail(int exerciseId) async {
