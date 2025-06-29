@@ -222,10 +222,10 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
     for (var row in sheet.rows.skip(1)) {
       if (row.isNotEmpty && _cast<int>(row[0]) == planId && _cast<int>(row[1]) == detail.exerciseId) {
-        row[2] = IntCellValue(detail.sets);
-        row[3] = IntCellValue(detail.reps);
-        row[4] = DoubleCellValue(detail.weight);
-        row[5] = IntCellValue(detail.restSeconds);
+        row[2]?.value = IntCellValue(detail.sets);
+        row[3]?.value = IntCellValue(detail.reps);
+        row[4]?.value = DoubleCellValue(detail.weight);
+        row[5]?.value = IntCellValue(detail.restSeconds);
       }
     }
 
