@@ -13,6 +13,18 @@ abstract class WorkoutPlanRepository {
   Future<void> createWorkoutPlan(String name, String frequency);
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId);
 
+  Future<void> addExerciseToPlan(
+    int planId,
+    PlanExerciseDetail detail,
+  );
+
+  Future<void> updateExerciseInPlan(
+    int planId,
+    PlanExerciseDetail detail,
+  );
+
+  Future<void> deleteExerciseFromPlan(int planId, int exerciseId);
+
   //Start session 
   Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs);
   Future<void> saveWorkoutSession(WorkoutSession session);

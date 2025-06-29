@@ -195,6 +195,60 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
         .toList();
   }
 
+  @override
+  Future<void> addExerciseToPlan(int planId, PlanExerciseDetail detail) async {
+    final file = await _getOrCreateFile('plan_exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+
+    sheet.appendRow([
+      IntCellValue(planId),
+      IntCellValue(detail.exerciseId),
+      IntCellValue(detail.sets),
+      IntCellValue(detail.reps),
+      DoubleCellValue(detail.weight),
+      IntCellValue(detail.restSeconds),
+      TextCellValue(''),
+    ]);
+
+    await file.writeAsBytes(excel.save()!);
+  }
+
+  @override
+  Future<void> updateExerciseInPlan(int planId, PlanExerciseDetail detail) async {
+    final file = await _getOrCreateFile('plan_exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+
+    for (var row in sheet.rows.skip(1)) {
+      if (row.isNotEmpty && _cast<int>(row[0]) == planId && _cast<int>(row[1]) == detail.exerciseId) {
+        row[2] = IntCellValue(detail.sets);
+        row[3] = IntCellValue(detail.reps);
+        row[4] = DoubleCellValue(detail.weight);
+        row[5] = IntCellValue(detail.restSeconds);
+      }
+    }
+
+    await file.writeAsBytes(excel.save()!);
+  }
+
+  @override
+  Future<void> deleteExerciseFromPlan(int planId, int exerciseId) async {
+    final file = await _getOrCreateFile('plan_exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+
+    final rows = sheet.rows;
+    for (var i = rows.length - 1; i >= 1; i--) {
+      final r = rows[i];
+      if (r.isNotEmpty && _cast<int>(r[0]) == planId && _cast<int>(r[1]) == exerciseId) {
+        sheet.removeRow(i);
+      }
+    }
+
+    await file.writeAsBytes(excel.save()!);
+  }
+
 
   @override
   Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs) async {
