@@ -195,6 +195,86 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
         .toList();
   }
 
+  @override
+  Future<void> addPlanExercise({
+    required int planId,
+    required int exerciseId,
+    required int sets,
+    required int reps,
+    required double weight,
+    required int restSeconds,
+  }) async {
+    final file = await _getOrCreateFile('plan_exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+    sheet.appendRow([
+      IntCellValue(planId),
+      IntCellValue(exerciseId),
+      IntCellValue(sets),
+      IntCellValue(reps),
+      DoubleCellValue(weight),
+      IntCellValue(restSeconds),
+      const TextCellValue(''),
+    ]);
+    await file.writeAsBytes(excel.save()!);
+  }
+
+  @override
+  Future<void> updatePlanExercise({
+    required int planId,
+    required int exerciseId,
+    required int sets,
+    required int reps,
+    required double weight,
+    required int restSeconds,
+  }) async {
+    final file = await _getOrCreateFile('plan_exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final r = sheet.rows[i];
+      if (_cast<int>(r[0]) == planId && _cast<int>(r[1]) == exerciseId) {
+        r[2] = IntCellValue(sets);
+        r[3] = IntCellValue(reps);
+        r[4] = DoubleCellValue(weight);
+        r[5] = IntCellValue(restSeconds);
+        break;
+      }
+    }
+    await file.writeAsBytes(excel.save()!);
+  }
+
+  @override
+  Future<void> removePlanExercise(int planId, int exerciseId) async {
+    final file = await _getOrCreateFile('plan_exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+    final rows = sheet.rows;
+    final header = rows.first.map((c) => c?.value).toList();
+    final remaining = rows
+        .skip(1)
+        .where((r) => !(_cast<int>(r[0]) == planId && _cast<int>(r[1]) == exerciseId))
+        .map((r) => r.map((c) => c?.value).toList())
+        .toList();
+    final newExcel = Excel.createExcel();
+    final defaultSheet = newExcel.getDefaultSheet();
+    if (defaultSheet != null) newExcel.rename(defaultSheet, sheet.sheetName);
+    final newSheet = newExcel[sheet.sheetName]!;
+    newSheet.appendRow(header.map<CellValue?>((e) => e is num ? IntCellValue(e.toInt()) : TextCellValue(e.toString())).toList());
+    for (final r in remaining) {
+      newSheet.appendRow([
+        IntCellValue(int.tryParse(r[0].toString()) ?? 0),
+        IntCellValue(int.tryParse(r[1].toString()) ?? 0),
+        IntCellValue(int.tryParse(r[2].toString()) ?? 0),
+        IntCellValue(int.tryParse(r[3].toString()) ?? 0),
+        DoubleCellValue(double.tryParse(r[4].toString()) ?? 0),
+        IntCellValue(int.tryParse(r[5].toString()) ?? 0),
+        TextCellValue(r.length > 6 ? r[6].toString() : ''),
+      ]);
+    }
+    await file.writeAsBytes(newExcel.save()!);
+  }
+
 
   @override
   Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs) async {
