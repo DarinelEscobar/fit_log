@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../routines/presentation/providers/workout_plan_provider.dart';
-import '../pages/exercises_screen.dart'; // Nueva pantalla
-import '../widgets/add_routine_button.dart'; // importar botón
+import '../pages/exercises_screen.dart';
+import '../pages/edit_routine_screen.dart';
+import '../widgets/add_routine_button.dart';
 
 class RoutinesScreen extends ConsumerWidget {
   static const routeName = '/routines';
@@ -25,6 +26,17 @@ class RoutinesScreen extends ConsumerWidget {
               leading: Text(plan.id.toString()),
               title: Text(plan.name),
               subtitle: Text(plan.frequency),
+              trailing: IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EditRoutineScreen(planId: plan.id),
+                    ),
+                  );
+                },
+              ),
               onTap: () {
                 Navigator.push(
                   context,

@@ -49,6 +49,22 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     return null;
   }
 
+  int _findInsertIndex(Sheet sheet, int planId, int position) {
+    int insertIndex = sheet.rows.length;
+    int current = 0;
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final r = sheet.rows[i];
+      if (r.isNotEmpty && _cast<int>(r[0]) == planId) {
+        if (current == position) {
+          insertIndex = i;
+          break;
+        }
+        current++;
+      }
+    }
+    return insertIndex;
+  }
+
   @override
   Future<List<WorkoutPlan>> getAllPlans() async {
     final file = await _getOrCreateFile('workout_plan.xlsx');
@@ -193,6 +209,138 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
           );
         })
         .toList();
+  }
+
+  @override
+  Future<void> addExerciseToPlan(
+    int planId,
+    PlanExerciseDetail detail, {
+    int? position,
+  }) async {
+    final file = await _getOrCreateFile('plan_exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+
+    // Collect current rows for this plan and remember the first index
+    final planRows = <List<Data?>>[];
+    int? firstIndex;
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
+        firstIndex ??= i;
+        planRows.add(row);
+      }
+    }
+
+    // Remove existing plan rows
+    for (var i = sheet.rows.length - 1; i >= 1; i--) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
+        sheet.removeRow(i);
+      }
+    }
+
+    // Convert to detail objects
+    final details = planRows
+        .map(
+          (r) => PlanExerciseDetail(
+            exerciseId: _cast<int>(r[1]) ?? 0,
+            name: '',
+            description: '',
+            sets: _cast<int>(r[2]) ?? 0,
+            reps: _cast<int>(r[3]) ?? 0,
+            weight: _cast<double>(r[4]) ?? 0,
+            restSeconds: _cast<int>(r[5]) ?? 0,
+          ),
+        )
+        .toList();
+
+    final existingIndex =
+        details.indexWhere((d) => d.exerciseId == detail.exerciseId);
+    if (existingIndex != -1) {
+      details[existingIndex] = detail;
+      if (position != null) {
+        final item = details.removeAt(existingIndex);
+        details.insert(position.clamp(0, details.length), item);
+      }
+    } else {
+      final insertPos = (position ?? details.length).clamp(0, details.length);
+      details.insert(insertPos, detail);
+    }
+
+    final newRows = details
+        .map(
+          (d) => [
+            IntCellValue(planId),
+            IntCellValue(d.exerciseId),
+            IntCellValue(d.sets),
+            IntCellValue(d.reps),
+            DoubleCellValue(d.weight),
+            IntCellValue(d.restSeconds),
+            TextCellValue(''),
+          ],
+        )
+        .toList();
+
+    final start = firstIndex ?? sheet.rows.length;
+    for (var i = 0; i < newRows.length; i++) {
+      sheet.insertRowIterables(newRows[i], start + i);
+    }
+
+    await file.writeAsBytes(excel.save()!);
+  }
+
+  @override
+  Future<void> updateExerciseInPlan(int planId, PlanExerciseDetail detail) async {
+    final file = await _getOrCreateFile('plan_exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty &&
+          _cast<int>(row[0]) == planId &&
+          _cast<int>(row[1]) == detail.exerciseId) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i),
+          IntCellValue(detail.sets),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i),
+          IntCellValue(detail.reps),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: i),
+          DoubleCellValue(detail.weight),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i),
+          IntCellValue(detail.restSeconds),
+        );
+        break;
+      }
+    }
+
+    await file.writeAsBytes(excel.save()!);
+  }
+
+  @override
+  Future<void> deleteExerciseFromPlan(int planId, int exerciseId) async {
+    final file = await _getOrCreateFile('plan_exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+
+    for (var i = sheet.rows.length - 1; i >= 1; i--) {
+      final r = sheet.rows[i];
+      if (r.isNotEmpty &&
+          _cast<int>(r[0]) == planId &&
+          _cast<int>(r[1]) == exerciseId) {
+        sheet.removeRow(i);
+        break;
+      }
+    }
+
+    await file.writeAsBytes(excel.save()!);
   }
 
 
