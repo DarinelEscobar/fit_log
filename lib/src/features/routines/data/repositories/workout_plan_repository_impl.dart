@@ -221,57 +221,70 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
 
-    // If the exercise already exists for this plan just update it
-    int existingRow = -1;
+    // Collect current rows for this plan and remember the first index
+    final planRows = <List<Data?>>[];
+    int? firstIndex;
     for (var i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
-      if (row.isNotEmpty &&
-          _cast<int>(row[0]) == planId &&
-          _cast<int>(row[1]) == detail.exerciseId) {
-        existingRow = i;
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i),
-          IntCellValue(detail.sets),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i),
-          IntCellValue(detail.reps),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: i),
-          DoubleCellValue(detail.weight),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i),
-          IntCellValue(detail.restSeconds),
-        );
-        break;
+      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
+        firstIndex ??= i;
+        planRows.add(row);
       }
     }
 
-    final rowValues = [
-      IntCellValue(planId),
-      IntCellValue(detail.exerciseId),
-      IntCellValue(detail.sets),
-      IntCellValue(detail.reps),
-      DoubleCellValue(detail.weight),
-      IntCellValue(detail.restSeconds),
-      TextCellValue(''),
-    ];
+    // Remove existing plan rows
+    for (var i = sheet.rows.length - 1; i >= 1; i--) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
+        sheet.removeRow(i);
+      }
+    }
 
-    if (existingRow != -1) {
+    // Convert to detail objects
+    final details = planRows
+        .map(
+          (r) => PlanExerciseDetail(
+            exerciseId: _cast<int>(r[1]) ?? 0,
+            name: '',
+            description: '',
+            sets: _cast<int>(r[2]) ?? 0,
+            reps: _cast<int>(r[3]) ?? 0,
+            weight: _cast<double>(r[4]) ?? 0,
+            restSeconds: _cast<int>(r[5]) ?? 0,
+          ),
+        )
+        .toList();
+
+    final existingIndex =
+        details.indexWhere((d) => d.exerciseId == detail.exerciseId);
+    if (existingIndex != -1) {
+      details[existingIndex] = detail;
       if (position != null) {
-        final oldRowData = sheet.rows[existingRow];
-        sheet.removeRow(existingRow);
-        final insertIndex = _findInsertIndex(sheet, planId, position);
-        final cellValues = oldRowData.map<CellValue?>((cell) => cell?.value).toList();
-        sheet.insertRowIterables(cellValues, insertIndex);
+        final item = details.removeAt(existingIndex);
+        details.insert(position.clamp(0, details.length), item);
       }
     } else {
-      final insertIndex = position == null
-          ? sheet.rows.length
-          : _findInsertIndex(sheet, planId, position);
-      sheet.insertRowIterables(rowValues, insertIndex);
+      final insertPos = (position ?? details.length).clamp(0, details.length);
+      details.insert(insertPos, detail);
+    }
+
+    final newRows = details
+        .map(
+          (d) => [
+            IntCellValue(planId),
+            IntCellValue(d.exerciseId),
+            IntCellValue(d.sets),
+            IntCellValue(d.reps),
+            DoubleCellValue(d.weight),
+            IntCellValue(d.restSeconds),
+            TextCellValue(''),
+          ],
+        )
+        .toList();
+
+    final start = firstIndex ?? sheet.rows.length;
+    for (var i = 0; i < newRows.length; i++) {
+      sheet.insertRowIterables(newRows[i], start + i);
     }
 
     await file.writeAsBytes(excel.save()!);
