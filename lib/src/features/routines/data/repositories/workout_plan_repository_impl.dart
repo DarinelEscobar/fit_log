@@ -261,10 +261,11 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
     if (existingRow != -1) {
       if (position != null) {
-        final rowData = sheet.rows[existingRow];
+        final oldRowData = sheet.rows[existingRow];
         sheet.removeRow(existingRow);
         final insertIndex = _findInsertIndex(sheet, planId, position);
-        sheet.insertRowIterables(rowData, insertIndex);
+        final cellValues = oldRowData.map<CellValue?>((cell) => cell?.value).toList();
+        sheet.insertRowIterables(cellValues, insertIndex);
       }
     } else {
       final insertIndex = position == null
