@@ -8,6 +8,7 @@ import '../../domain/entities/exercise.dart';
 import '../../domain/usecases/add_exercise_to_plan_usecase.dart';
 import '../../domain/usecases/update_exercise_in_plan_usecase.dart';
 import '../../domain/usecases/delete_exercise_from_plan_usecase.dart';
+import '../../domain/usecases/create_exercise_usecase.dart';
 import 'select_exercise_screen.dart';
 
 class EditRoutineScreen extends ConsumerStatefulWidget {
@@ -94,6 +95,65 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     }
   }
 
+  Future<void> _createExercise() async {
+    final nameCtl = TextEditingController();
+    final descCtl = TextEditingController();
+    final catCtl = TextEditingController();
+    final groupCtl = TextEditingController();
+
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Nuevo ejercicio'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtl,
+                decoration: const InputDecoration(labelText: 'Nombre'),
+              ),
+              TextField(
+                controller: descCtl,
+                decoration: const InputDecoration(labelText: 'Descripción'),
+              ),
+              TextField(
+                controller: catCtl,
+                decoration: const InputDecoration(labelText: 'Categoría'),
+              ),
+              TextField(
+                controller: groupCtl,
+                decoration:
+                    const InputDecoration(labelText: 'Músculo principal'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+
+    if (save == true) {
+      final repo = WorkoutPlanRepositoryImpl();
+      await CreateExerciseUseCase(repo)(
+        nameCtl.text.trim(),
+        descCtl.text.trim(),
+        catCtl.text.trim(),
+        groupCtl.text.trim(),
+      );
+      ref.invalidate(allExercisesProvider);
+    }
+  }
+
   Future<void> _updateDetail(PlanExerciseDetail detail) async {
     final repo = WorkoutPlanRepositoryImpl();
     await UpdateExerciseInPlanUseCase(repo)(widget.planId, detail);
@@ -109,7 +169,15 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Editar rutina')),
+      appBar: AppBar(
+        title: const Text('Editar rutina'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.fitness_center),
+            onPressed: _createExercise,
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addExercise,
         child: const Icon(Icons.add),

@@ -161,6 +161,29 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   @override
+  Future<void> createExercise(
+    String name,
+    String description,
+    String category,
+    String mainMuscleGroup,
+  ) async {
+    final exFile = await _getOrCreateFile('exercise.xlsx');
+    final excel = Excel.decodeBytes(await exFile.readAsBytes());
+    final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
+
+    sheet.appendRow([
+      IntCellValue(_getLastId(sheet) + 1),
+      TextCellValue(name),
+      TextCellValue(description),
+      TextCellValue(category),
+      TextCellValue(mainMuscleGroup),
+    ]);
+
+    await exFile.writeAsBytes(excel.save()!);
+    _exerciseCache = null; // reset cache
+  }
+
+  @override
   Future<List<Exercise>> getSimilarExercises(int exerciseId) async {
     final all = await getAllExercises();
     final base = all.firstWhere((e) => e.id == exerciseId, orElse: () => Exercise(id: 0, name: '', description: '', category: '', mainMuscleGroup: ''));
