@@ -184,6 +184,45 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   @override
+  Future<void> updateExercise(
+    int id,
+    String name,
+    String description,
+    String category,
+    String mainMuscleGroup,
+  ) async {
+    final file = await _getOrCreateFile('exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
+
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty && _cast<int>(row[0]) == id) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i),
+          TextCellValue(name),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i),
+          TextCellValue(description),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i),
+          TextCellValue(category),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: i),
+          TextCellValue(mainMuscleGroup),
+        );
+        break;
+      }
+    }
+
+    await file.writeAsBytes(excel.save()!);
+    _exerciseCache = null; // reset cache
+  }
+
+  @override
   Future<List<Exercise>> getSimilarExercises(int exerciseId) async {
     final all = await getAllExercises();
     final base = all.firstWhere((e) => e.id == exerciseId, orElse: () => Exercise(id: 0, name: '', description: '', category: '', mainMuscleGroup: ''));

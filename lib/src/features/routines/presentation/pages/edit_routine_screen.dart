@@ -9,6 +9,7 @@ import '../../domain/usecases/add_exercise_to_plan_usecase.dart';
 import '../../domain/usecases/update_exercise_in_plan_usecase.dart';
 import '../../domain/usecases/delete_exercise_from_plan_usecase.dart';
 import '../../domain/usecases/create_exercise_usecase.dart';
+import '../../domain/usecases/update_exercise_usecase.dart';
 import 'select_exercise_screen.dart';
 
 class EditRoutineScreen extends ConsumerStatefulWidget {
@@ -154,6 +155,80 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     }
   }
 
+  Future<void> _editExercise(int exerciseId) async {
+    final all = await ref.read(allExercisesProvider.future);
+    final ex = all.firstWhere(
+      (e) => e.id == exerciseId,
+      orElse: () => Exercise(
+        id: 0,
+        name: '',
+        description: '',
+        category: '',
+        mainMuscleGroup: '',
+      ),
+    );
+    if (ex.id == 0) return;
+
+    final nameCtl = TextEditingController(text: ex.name);
+    final descCtl = TextEditingController(text: ex.description);
+    final catCtl = TextEditingController(text: ex.category);
+    final groupCtl = TextEditingController(text: ex.mainMuscleGroup);
+
+    final save = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Editar ejercicio'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtl,
+                decoration: const InputDecoration(labelText: 'Nombre'),
+              ),
+              TextField(
+                controller: descCtl,
+                decoration: const InputDecoration(labelText: 'Descripción'),
+              ),
+              TextField(
+                controller: catCtl,
+                decoration: const InputDecoration(labelText: 'Categoría'),
+              ),
+              TextField(
+                controller: groupCtl,
+                decoration:
+                    const InputDecoration(labelText: 'Músculo principal'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+
+    if (save == true) {
+      final repo = WorkoutPlanRepositoryImpl();
+      await UpdateExerciseUseCase(repo)(
+        ex.id,
+        nameCtl.text.trim(),
+        descCtl.text.trim(),
+        catCtl.text.trim(),
+        groupCtl.text.trim(),
+      );
+      ref.invalidate(allExercisesProvider);
+      await _refresh();
+    }
+  }
+
   Future<void> _updateDetail(PlanExerciseDetail detail) async {
     final repo = WorkoutPlanRepositoryImpl();
     await UpdateExerciseInPlanUseCase(repo)(widget.planId, detail);
@@ -213,6 +288,10 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                       Row(
                         children: [
                           Expanded(child: Text(d.name, style: const TextStyle(fontWeight: FontWeight.w600))),
+                          IconButton(
+                            icon: const Icon(Icons.edit),
+                            onPressed: () => _editExercise(d.exerciseId),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.delete),
                             onPressed: () => _deleteDetail(d.exerciseId),
