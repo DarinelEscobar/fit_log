@@ -16,6 +16,13 @@ abstract class WorkoutPlanRepository {
     String category,
     String mainMuscleGroup,
   );
+  Future<void> updateExercise(
+    int id,
+    String name,
+    String description,
+    String category,
+    String mainMuscleGroup,
+  );
   Future<void> createWorkoutPlan(String name, String frequency);
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId);
 
