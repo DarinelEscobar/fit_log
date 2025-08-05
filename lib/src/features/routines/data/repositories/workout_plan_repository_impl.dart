@@ -65,6 +65,38 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     return insertIndex;
   }
 
+  Future<(Excel, Sheet, File)> _openExerciseFileEnsuringIds() async {
+    final file = await _getOrCreateFile('exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
+    final used = <int>{};
+    var maxId = 0;
+    var changed = false;
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isEmpty) continue;
+      var id = _cast<int>(row[0]);
+      if (id == null || used.contains(id)) {
+        do {
+          maxId++;
+        } while (used.contains(maxId));
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i),
+          IntCellValue(maxId),
+        );
+        id = maxId;
+        changed = true;
+      }
+      used.add(id);
+      if (id > maxId) maxId = id;
+    }
+    if (changed) {
+      await file.writeAsBytes(excel.save()!);
+      _exerciseCache = null;
+    }
+    return (excel, sheet, file);
+  }
+
   @override
   Future<List<WorkoutPlan>> getAllPlans() async {
     final file = await _getOrCreateFile('workout_plan.xlsx');
@@ -99,16 +131,29 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   @override
+  Future<int> createExercise(Exercise exercise) async {
+    final (excel, sheet, file) = await _openExerciseFileEnsuringIds();
+    final newId = _getLastId(sheet) + 1;
+    sheet.appendRow([
+      IntCellValue(newId),
+      TextCellValue(exercise.name),
+      TextCellValue(exercise.description),
+      TextCellValue(exercise.category),
+      TextCellValue(exercise.mainMuscleGroup),
+    ]);
+    await file.writeAsBytes(excel.save()!);
+    _exerciseCache = null;
+    return newId;
+  }
+
+  @override
   Future<List<Exercise>> getExercisesForPlan(int planId) async {
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
-    final exFile = await _getOrCreateFile('exercise.xlsx');
-
-    final peSheet = Excel.decodeBytes(await peFile.readAsBytes())[
+    final peSheet = Excel.decodeBytes(await peFile.readAsBytes())[ 
         kTableSchemas['plan_exercise.xlsx']!.sheetName];
-    final exSheet = Excel.decodeBytes(await exFile.readAsBytes())[
-        kTableSchemas['exercise.xlsx']!.sheetName];
+    final (_, exSheet, __) = await _openExerciseFileEnsuringIds();
 
-    if (peSheet == null || exSheet == null) return [];
+    if (peSheet == null) return [];
 
     final exerciseIdsForPlan = peSheet.rows
         .skip(1)
@@ -139,10 +184,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   Future<List<Exercise>> getAllExercises() async {
     if (_exerciseCache != null) return _exerciseCache!;
 
-    final exFile = await _getOrCreateFile('exercise.xlsx');
-    final exSheet =
-        Excel.decodeBytes(await exFile.readAsBytes())[kTableSchemas['exercise.xlsx']!.sheetName];
-    if (exSheet == null) return [];
+    final (_, exSheet, __) = await _openExerciseFileEnsuringIds();
 
     _exerciseCache = exSheet.rows
         .skip(1)
@@ -173,14 +215,11 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   @override
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) async {
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
-    final exFile = await _getOrCreateFile('exercise.xlsx');
-
-    final peSheet = Excel.decodeBytes(await peFile.readAsBytes())[
+    final peSheet = Excel.decodeBytes(await peFile.readAsBytes())[ 
         kTableSchemas['plan_exercise.xlsx']!.sheetName];
-    final exSheet = Excel.decodeBytes(await exFile.readAsBytes())[
-        kTableSchemas['exercise.xlsx']!.sheetName];
+    final (_, exSheet, __) = await _openExerciseFileEnsuringIds();
 
-    if (peSheet == null || exSheet == null) return [];
+    if (peSheet == null) return [];
 
     final mapIdName = {
       for (var r in exSheet.rows.skip(1))

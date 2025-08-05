@@ -11,6 +11,7 @@ abstract class WorkoutPlanRepository {
   Future<List<Exercise>> getAllExercises();
   Future<List<Exercise>> getSimilarExercises(int exerciseId);
   Future<void> createWorkoutPlan(String name, String frequency);
+  Future<int> createExercise(Exercise exercise);
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId);
 
   Future<void> addExerciseToPlan(
