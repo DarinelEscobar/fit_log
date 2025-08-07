@@ -33,11 +33,13 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   int _getLastId(Sheet sheet) {
-    for (var i = sheet.rows.length - 1; i >= 1; i--) {
+    var maxId = 0;
+    for (var i = 1; i < sheet.rows.length; i++) {
       final val = sheet.rows[i][0]?.value;
-      if (val != null) return int.tryParse(val.toString()) ?? 0;
+      final id = int.tryParse(val?.toString() ?? '');
+      if (id != null && id > maxId) maxId = id;
     }
-    return 0;
+    return maxId;
   }
   T? _cast<T>(Data? cell) {
     final v = cell?.value;
@@ -63,6 +65,37 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
       }
     }
     return insertIndex;
+  }
+
+  Future<void> _normalizeExerciseIds() async {
+    final file = await _getOrCreateFile('exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
+
+    final seen = <int>{};
+    var maxId = _getLastId(sheet);
+    var changed = false;
+
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final id = _cast<int>(sheet.rows[i][0]);
+      if (id == null) continue;
+      if (seen.contains(id)) {
+        maxId++;
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i),
+          IntCellValue(maxId),
+        );
+        changed = true;
+      } else {
+        seen.add(id);
+        if (id > maxId) maxId = id;
+      }
+    }
+
+    if (changed) {
+      await file.writeAsBytes(excel.save()!);
+      _exerciseCache = null;
+    }
   }
 
   @override
@@ -100,6 +133,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
   @override
   Future<List<Exercise>> getExercisesForPlan(int planId) async {
+    await _normalizeExerciseIds();
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
     final exFile = await _getOrCreateFile('exercise.xlsx');
 
@@ -139,6 +173,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   Future<List<Exercise>> getAllExercises() async {
     if (_exerciseCache != null) return _exerciseCache!;
 
+    await _normalizeExerciseIds();
     final exFile = await _getOrCreateFile('exercise.xlsx');
     final exSheet =
         Excel.decodeBytes(await exFile.readAsBytes())[kTableSchemas['exercise.xlsx']!.sheetName];
@@ -161,6 +196,70 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   @override
+  Future<void> createExercise(
+    String name,
+    String description,
+    String category,
+    String mainMuscleGroup,
+  ) async {
+    await _normalizeExerciseIds();
+    final exFile = await _getOrCreateFile('exercise.xlsx');
+    final excel = Excel.decodeBytes(await exFile.readAsBytes());
+    final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
+
+    sheet.appendRow([
+      IntCellValue(_getLastId(sheet) + 1),
+      TextCellValue(name),
+      TextCellValue(description),
+      TextCellValue(category),
+      TextCellValue(mainMuscleGroup),
+    ]);
+
+    await exFile.writeAsBytes(excel.save()!);
+    _exerciseCache = null; // reset cache
+  }
+
+  @override
+  Future<void> updateExercise(
+    int id,
+    String name,
+    String description,
+    String category,
+    String mainMuscleGroup,
+  ) async {
+    await _normalizeExerciseIds();
+    final file = await _getOrCreateFile('exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
+
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty && _cast<int>(row[0]) == id) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i),
+          TextCellValue(name),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i),
+          TextCellValue(description),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i),
+          TextCellValue(category),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: i),
+          TextCellValue(mainMuscleGroup),
+        );
+        break;
+      }
+    }
+
+    await file.writeAsBytes(excel.save()!);
+    _exerciseCache = null; // reset cache
+  }
+
+  @override
   Future<List<Exercise>> getSimilarExercises(int exerciseId) async {
     final all = await getAllExercises();
     final base = all.firstWhere((e) => e.id == exerciseId, orElse: () => Exercise(id: 0, name: '', description: '', category: '', mainMuscleGroup: ''));
@@ -172,6 +271,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
   @override
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) async {
+    await _normalizeExerciseIds();
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
     final exFile = await _getOrCreateFile('exercise.xlsx');
 
