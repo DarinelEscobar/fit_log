@@ -256,20 +256,17 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
       '${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}';
 
   Future<void> _swapExercise(int index) async {
-    if (_sessionDetails == null) return;
+    if (_exerciseMap == null || _sessionDetails == null) return;
+    final groups = <String>{};
+    for (final d in _sessionDetails!) {
+      final g = _exerciseMap![d.exerciseId]?.mainMuscleGroup;
+      if (g != null) groups.add(g);
+    }
     final detail = _sessionDetails![index];
-    final alternatives = await ref.read(similarExercisesProvider(detail.exerciseId).future);
-    if (alternatives.isEmpty) return;
-    final picked = await showModalBottomSheet<Exercise>(
-      context: context,
-      builder: (_) => ListView(
-        children: alternatives
-            .map((e) => ListTile(
-                  title: Text(e.name),
-                  subtitle: Text('${e.category} • ${e.mainMuscleGroup}'),
-                  onTap: () => Navigator.pop(context, e),
-                ))
-            .toList(),
+    final picked = await Navigator.push<Exercise>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SelectExerciseScreen(groups: groups),
       ),
     );
     if (picked != null) {
