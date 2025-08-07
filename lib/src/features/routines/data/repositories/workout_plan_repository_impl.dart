@@ -67,6 +67,37 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     return insertIndex;
   }
 
+  Future<void> _normalizeExerciseIds() async {
+    final file = await _getOrCreateFile('exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
+
+    final seen = <int>{};
+    var maxId = _getLastId(sheet);
+    var changed = false;
+
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final id = _cast<int>(sheet.rows[i][0]);
+      if (id == null) continue;
+      if (seen.contains(id)) {
+        maxId++;
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i),
+          IntCellValue(maxId),
+        );
+        changed = true;
+      } else {
+        seen.add(id);
+        if (id > maxId) maxId = id;
+      }
+    }
+
+    if (changed) {
+      await file.writeAsBytes(excel.save()!);
+      _exerciseCache = null;
+    }
+  }
+
   @override
   Future<List<WorkoutPlan>> getAllPlans() async {
     final file = await _getOrCreateFile('workout_plan.xlsx');
@@ -102,6 +133,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
   @override
   Future<List<Exercise>> getExercisesForPlan(int planId) async {
+    await _normalizeExerciseIds();
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
     final exFile = await _getOrCreateFile('exercise.xlsx');
 
@@ -141,6 +173,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   Future<List<Exercise>> getAllExercises() async {
     if (_exerciseCache != null) return _exerciseCache!;
 
+    await _normalizeExerciseIds();
     final exFile = await _getOrCreateFile('exercise.xlsx');
     final exSheet =
         Excel.decodeBytes(await exFile.readAsBytes())[kTableSchemas['exercise.xlsx']!.sheetName];
@@ -169,6 +202,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     String category,
     String mainMuscleGroup,
   ) async {
+    await _normalizeExerciseIds();
     final exFile = await _getOrCreateFile('exercise.xlsx');
     final excel = Excel.decodeBytes(await exFile.readAsBytes());
     final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
@@ -193,6 +227,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     String category,
     String mainMuscleGroup,
   ) async {
+    await _normalizeExerciseIds();
     final file = await _getOrCreateFile('exercise.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
@@ -236,6 +271,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
   @override
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) async {
+    await _normalizeExerciseIds();
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
     final exFile = await _getOrCreateFile('exercise.xlsx');
 
