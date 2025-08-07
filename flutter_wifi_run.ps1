@@ -13,23 +13,24 @@ if (-not $connected) {
         Write-Host " Dispositivo conectado por WiFi" -ForegroundColor Green
     } else {
         Write-Host " No se pudo conectar al dispositivo en $ip" -ForegroundColor Red
+        Write-Host ""
+        Write-Host " Asegúrate de tener activado 'Wireless debugging' en tu teléfono (Developer Options > Wireless debugging)" -ForegroundColor Yellow
         exit 1
     }
 } else {
-    Write-Host " Ya esta conectado por WiFi" -ForegroundColor Green
+    Write-Host " Ya está conectado por WiFi" -ForegroundColor Green
 }
 
-# Corrección: eliminar el backtick y poner salto de línea con Write-Host separado
 Write-Host ''
 Write-Host ' Ejecutando flutter run ...' -ForegroundColor Yellow
 
 flutter run
 
-
-
 # En PowerShell, ejecútalo con:
-
 # powershell
 # ./flutter_wifi_run.ps1
 
+# Asegúrate de tener activado 'Wireless debugging' en tu teléfono (Developer Options > Wireless debugging)
+# Y si es Android 11 o superior, empareja el dispositivo antes con: adb pair <ip:port>
+# También asegúrate de haber autorizado la depuración en el dispositivo cuando se conecte
 # Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
