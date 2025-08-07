@@ -33,11 +33,13 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   int _getLastId(Sheet sheet) {
-    for (var i = sheet.rows.length - 1; i >= 1; i--) {
+    var maxId = 0;
+    for (var i = 1; i < sheet.rows.length; i++) {
       final val = sheet.rows[i][0]?.value;
-      if (val != null) return int.tryParse(val.toString()) ?? 0;
+      final id = int.tryParse(val?.toString() ?? '');
+      if (id != null && id > maxId) maxId = id;
     }
-    return 0;
+    return maxId;
   }
   T? _cast<T>(Data? cell) {
     final v = cell?.value;
