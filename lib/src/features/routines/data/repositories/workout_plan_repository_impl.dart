@@ -75,6 +75,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final seen = <int>{};
     var maxId = _getLastId(sheet);
     var changed = false;
+    final idMap = <int, int>{};
 
     for (var i = 1; i < sheet.rows.length; i++) {
       final id = _cast<int>(sheet.rows[i][0]);
@@ -85,6 +86,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
           CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i),
           IntCellValue(maxId),
         );
+        idMap[id] = maxId;
         changed = true;
       } else {
         seen.add(id);
@@ -94,6 +96,25 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
     if (changed) {
       await file.writeAsBytes(excel.save()!);
+
+      if (idMap.isNotEmpty) {
+        final peFile = await _getOrCreateFile('plan_exercise.xlsx');
+        final peExcel = Excel.decodeBytes(await peFile.readAsBytes());
+        final peSheet =
+            peExcel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+        for (var i = 1; i < peSheet.rows.length; i++) {
+          final eid = _cast<int>(peSheet.rows[i][1]);
+          final newId = idMap[eid];
+          if (newId != null) {
+            peSheet.updateCell(
+              CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i),
+              IntCellValue(newId),
+            );
+          }
+        }
+        await peFile.writeAsBytes(peExcel.save()!);
+      }
+
       _exerciseCache = null;
     }
   }
@@ -321,71 +342,47 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
 
-    // Collect current rows for this plan and remember the first index
-    final planRows = <List<Data?>>[];
-    int? firstIndex;
+    int? existingRow;
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty &&
+          _cast<int>(row[0]) == planId &&
+          _cast<int>(row[1]) == detail.exerciseId) {
+        existingRow = i;
+        break;
+      }
+    }
+
+    if (existingRow != null) {
+      sheet.removeRow(existingRow);
+    }
+
+    // Count current exercises for this plan after removal
+    int count = 0;
     for (var i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
       if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
-        firstIndex ??= i;
-        planRows.add(row);
+        count++;
       }
     }
 
-    // Remove existing plan rows
-    for (var i = sheet.rows.length - 1; i >= 1; i--) {
-      final row = sheet.rows[i];
-      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
-        sheet.removeRow(i);
-      }
-    }
+    final insertIndex = _findInsertIndex(
+      sheet,
+      planId,
+      (position ?? count).clamp(0, count),
+    );
 
-    // Convert to detail objects
-    final details = planRows
-        .map(
-          (r) => PlanExerciseDetail(
-            exerciseId: _cast<int>(r[1]) ?? 0,
-            name: '',
-            description: '',
-            sets: _cast<int>(r[2]) ?? 0,
-            reps: _cast<int>(r[3]) ?? 0,
-            weight: _cast<double>(r[4]) ?? 0,
-            restSeconds: _cast<int>(r[5]) ?? 0,
-          ),
-        )
-        .toList();
+    final rowData = [
+      IntCellValue(planId),
+      IntCellValue(detail.exerciseId),
+      IntCellValue(detail.sets),
+      IntCellValue(detail.reps),
+      DoubleCellValue(detail.weight),
+      IntCellValue(detail.restSeconds),
+      TextCellValue(''),
+    ];
 
-    final existingIndex =
-        details.indexWhere((d) => d.exerciseId == detail.exerciseId);
-    if (existingIndex != -1) {
-      details[existingIndex] = detail;
-      if (position != null) {
-        final item = details.removeAt(existingIndex);
-        details.insert(position.clamp(0, details.length), item);
-      }
-    } else {
-      final insertPos = (position ?? details.length).clamp(0, details.length);
-      details.insert(insertPos, detail);
-    }
-
-    final newRows = details
-        .map(
-          (d) => [
-            IntCellValue(planId),
-            IntCellValue(d.exerciseId),
-            IntCellValue(d.sets),
-            IntCellValue(d.reps),
-            DoubleCellValue(d.weight),
-            IntCellValue(d.restSeconds),
-            TextCellValue(''),
-          ],
-        )
-        .toList();
-
-    final start = firstIndex ?? sheet.rows.length;
-    for (var i = 0; i < newRows.length; i++) {
-      sheet.insertRowIterables(newRows[i], start + i);
-    }
+    sheet.insertRowIterables(rowData, insertIndex);
 
     await file.writeAsBytes(excel.save()!);
   }
