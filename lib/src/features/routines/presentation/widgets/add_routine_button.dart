@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/repositories/workout_plan_repository_impl.dart';
+import '../../data/repositories/workout_plan_repository_sqlite.dart';
 import '../../domain/usecases/create_workout_plan_usecase.dart';
 import '../providers/workout_plan_provider.dart';
 
@@ -38,7 +38,7 @@ class AddRoutineButton extends ConsumerWidget {
               ),
               ElevatedButton(
                 onPressed: () async {
-                  final repo = WorkoutPlanRepositoryImpl();
+                  final repo = WorkoutPlanRepositorySqlite();
                   final usecase = CreateWorkoutPlanUseCase(repo);
                   await usecase(
                     nameController.text.trim(),

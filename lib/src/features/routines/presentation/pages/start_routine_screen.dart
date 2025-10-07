@@ -12,7 +12,7 @@ import '../../domain/entities/workout_log_entry.dart';
 import '../../domain/entities/workout_session.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
-import '../../data/repositories/workout_plan_repository_impl.dart';
+import '../../data/repositories/workout_plan_repository_sqlite.dart';
 import '../../domain/usecases/save_workout_logs_usecase.dart';
 import '../../domain/usecases/save_workout_session_usecase.dart';
 import '../widgets/exercise_tile.dart';
@@ -114,7 +114,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                   return;
                 }
                 if (!await _showFinishDialog(context)) return;
-                final repo = WorkoutPlanRepositoryImpl();
+                final repo = WorkoutPlanRepositorySqlite();
                 await SaveWorkoutLogsUseCase(repo)(notifier.completedLogs);
                 await SaveWorkoutSessionUseCase(repo)(
                   WorkoutSession(

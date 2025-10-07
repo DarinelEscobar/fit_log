@@ -5,12 +5,16 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../../data/schema/schemas.dart';
+import '../../../../data/sqlite/app_database.dart';
+import '../../../../data/services/excel_sync_service.dart';
 import '../../domain/repositories/app_data_repository.dart';
 
 class AppDataRepositoryImpl implements AppDataRepository {
   @override
   Future<File> exportData() async {
     final dir = await getApplicationDocumentsDirectory();
+    final db = await AppDatabase.instance;
+    await ExcelSyncService(db).exportToExcel();
     final archive = Archive();
     for (final filename in kTableSchemas.keys) {
       final file = File(p.join(dir.path, filename));
@@ -48,6 +52,8 @@ class AppDataRepositoryImpl implements AppDataRepository {
     if (ext == '.xlsx') {
       final outFile = File(p.join(dir.path, p.basename(file.path)));
       await outFile.writeAsBytes(await file.readAsBytes(), flush: true);
+      final db = await AppDatabase.instance;
+      await ExcelSyncService(db).importFromExcel();
       return;
     }
 
@@ -60,5 +66,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
       final outFile = File(outPath);
       await outFile.writeAsBytes(archived.content as List<int>, flush: true);
     }
+    final db = await AppDatabase.instance;
+    await ExcelSyncService(db).importFromExcel();
   }
 }

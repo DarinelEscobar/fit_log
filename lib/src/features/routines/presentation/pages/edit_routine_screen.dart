@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/plan_exercise_details_provider.dart';
 import '../providers/exercises_provider.dart';
-import '../../data/repositories/workout_plan_repository_impl.dart';
+import '../../data/repositories/workout_plan_repository_sqlite.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/usecases/add_exercise_to_plan_usecase.dart';
@@ -78,7 +78,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
           ],
         ),
       );
-      final repo = WorkoutPlanRepositoryImpl();
+      final repo = WorkoutPlanRepositorySqlite();
       await AddExerciseToPlanUseCase(repo)(
         widget.planId,
         PlanExerciseDetail(
@@ -144,7 +144,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     );
 
     if (save == true) {
-      final repo = WorkoutPlanRepositoryImpl();
+      final repo = WorkoutPlanRepositorySqlite();
       await CreateExerciseUseCase(repo)(
         nameCtl.text.trim(),
         descCtl.text.trim(),
@@ -216,7 +216,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     );
 
     if (save == true) {
-      final repo = WorkoutPlanRepositoryImpl();
+      final repo = WorkoutPlanRepositorySqlite();
       await UpdateExerciseUseCase(repo)(
         ex.id,
         nameCtl.text.trim(),
@@ -230,13 +230,13 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   }
 
   Future<void> _updateDetail(PlanExerciseDetail detail) async {
-    final repo = WorkoutPlanRepositoryImpl();
+    final repo = WorkoutPlanRepositorySqlite();
     await UpdateExerciseInPlanUseCase(repo)(widget.planId, detail);
     await _refresh();
   }
 
   Future<void> _deleteDetail(int exerciseId) async {
-    final repo = WorkoutPlanRepositoryImpl();
+    final repo = WorkoutPlanRepositorySqlite();
     await DeleteExerciseFromPlanUseCase(repo)(widget.planId, exerciseId);
     await _refresh();
   }
