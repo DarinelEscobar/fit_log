@@ -275,11 +275,11 @@ Object? _unwrapCellValue(Object? raw) {
   if (raw is DoubleCellValue) return raw.value;
   if (raw is TextCellValue) return raw.value;
   if (raw is BoolCellValue) return raw.value;
-  if (raw is FormulaCellValue) return raw.value;
-  if (raw is CellValue) {
-    final dynamic cell = raw;
-    return cell.value;
-  }
+  if (raw is FormulaCellValue) return raw.formula;
+  if (raw is DateCellValue) return raw.asDateTimeUtc();
+  if (raw is DateTimeCellValue) return raw.asDateTimeUtc();
+  if (raw is TimeCellValue) return raw.asDuration();
+  if (raw is CellValue) return raw.toString();
   return raw;
 }
 
