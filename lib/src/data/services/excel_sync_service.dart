@@ -204,8 +204,8 @@ class ExcelSyncService {
             if (column == null) continue;
             final parser = config.parsers[column];
             final parsedValue = parser != null
-                ? parser(row[c]?.value)
-                : _defaultParse(row[c]?.value);
+                ? parser(_unwrapCellValue(row[c]?.value))
+                : _defaultParse(_unwrapCellValue(row[c]?.value));
             values[column] = parsedValue;
           }
 
@@ -258,7 +258,7 @@ class ExcelSyncService {
 
 bool _isRowEmpty(List<Data?> row) {
   for (final cell in row) {
-    final value = cell?.value;
+    final value = _unwrapCellValue(cell?.value);
     if (value == null) {
       continue;
     }
@@ -268,6 +268,13 @@ bool _isRowEmpty(List<Data?> row) {
     return false;
   }
   return true;
+}
+
+Object? _unwrapCellValue(Object? raw) {
+  if (raw is CellValue) {
+    return raw.value;
+  }
+  return raw;
 }
 
 CellValue? _toCellValue(Object? value) {
