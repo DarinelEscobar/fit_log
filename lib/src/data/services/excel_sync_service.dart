@@ -271,8 +271,14 @@ bool _isRowEmpty(List<Data?> row) {
 }
 
 Object? _unwrapCellValue(Object? raw) {
+  if (raw is IntCellValue) return raw.value;
+  if (raw is DoubleCellValue) return raw.value;
+  if (raw is TextCellValue) return raw.value;
+  if (raw is BoolCellValue) return raw.value;
+  if (raw is FormulaCellValue) return raw.value;
   if (raw is CellValue) {
-    return raw.value;
+    final dynamic cell = raw;
+    return cell.value;
   }
   return raw;
 }
