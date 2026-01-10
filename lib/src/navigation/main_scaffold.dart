@@ -33,9 +33,6 @@ class _MainScaffoldState extends State<MainScaffold> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
           BottomNavigationBarItem(icon: Icon(Icons.fitness_center), label: 'Rutinas'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Logs'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Stats'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
       ),
     );
@@ -73,4 +70,3 @@ class _StatsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const Center(child: Text('Próximamente: Estadísticas'));
 }
-
