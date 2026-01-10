@@ -51,6 +51,9 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     return null;
   }
 
+  Data? _cellAt(List<Data?> row, int index) =>
+      index < row.length ? row[index] : null;
+
   int _findInsertIndex(Sheet sheet, int planId, int position) {
     int insertIndex = sheet.rows.length;
     int current = 0;
@@ -323,10 +326,12 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
             exerciseId: id,
             name: mapIdName[id] ?? 'Unknown',
             description: mapIdDescription[id] ?? '',
-            sets: _cast<int>(r[2]) ?? 0,
-            reps: _cast<int>(r[3]) ?? 0,
-            weight: _cast<double>(r[4]) ?? 0,
-            restSeconds: _cast<int>(r[5]) ?? 0,
+            sets: _cast<int>(_cellAt(r, 2)) ?? 0,
+            reps: _cast<int>(_cellAt(r, 3)) ?? 0,
+            weight: _cast<double>(_cellAt(r, 4)) ?? 0,
+            restSeconds: _cast<int>(_cellAt(r, 5)) ?? 0,
+            rir: _cast<int>(_cellAt(r, 6)) ?? 2,
+            tempo: _cast<String>(_cellAt(r, 7)) ?? '3-1-1-0',
           );
         })
         .toList();
@@ -379,6 +384,8 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
       IntCellValue(detail.reps),
       DoubleCellValue(detail.weight),
       IntCellValue(detail.restSeconds),
+      IntCellValue(detail.rir),
+      TextCellValue(detail.tempo),
       TextCellValue(''),
     ];
 
@@ -413,6 +420,14 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
         sheet.updateCell(
           CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i),
           IntCellValue(detail.restSeconds),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: i),
+          IntCellValue(detail.rir),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: i),
+          TextCellValue(detail.tempo),
         );
         break;
       }
