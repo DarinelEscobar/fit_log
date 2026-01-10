@@ -179,7 +179,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                               return asyncLogs.when(
                                 data: (logs) {
                                   final last = _lastLogs(logs);
-                                  final best = _bestLogs(logs);
+                                  final best = _bestLogs(logs, detail.sets);
                                   return ExerciseTile(
                                     key: _keys[detail.exerciseId],
                                     detail: detail,
@@ -337,30 +337,44 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
       ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
   }
 
-  List<WorkoutLogEntry> _bestLogs(List<WorkoutLogEntry> logs) {
+  List<WorkoutLogEntry> _bestLogs(
+    List<WorkoutLogEntry> logs,
+    int plannedSets,
+  ) {
     if (logs.isEmpty) return [];
+    if (plannedSets <= 0) return [];
 
     final grouped = <DateTime, List<WorkoutLogEntry>>{};
     for (final l in logs) {
       grouped.putIfAbsent(l.date, () => []).add(l);
     }
 
+    List<WorkoutLogEntry> normalizedLogs(List<WorkoutLogEntry> ls) {
+      final filtered = ls.where((entry) => entry.setNumber <= plannedSets).toList()
+        ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
+      if (filtered.length < plannedSets) {
+        return [];
+      }
+      return filtered;
+    }
+
     double tonnage(List<WorkoutLogEntry> ls) =>
         ls.fold(0, (sum, e) => sum + e.reps * e.weight);
 
-    DateTime bestDate = grouped.keys.first;
-    double bestTon = tonnage(grouped[bestDate]!);
+    DateTime? bestDate;
+    double bestTon = 0;
     grouped.forEach((date, ls) {
-      final t = tonnage(ls);
-      if (t > bestTon) {
+      final normalized = normalizedLogs(ls);
+      if (normalized.isEmpty) return;
+      final t = tonnage(normalized);
+      if (bestDate == null || t > bestTon) {
         bestTon = t;
         bestDate = date;
       }
     });
 
-    final bestLogs = grouped[bestDate]!;
-    bestLogs.sort((a, b) => a.setNumber.compareTo(b.setNumber));
-    return bestLogs;
+    if (bestDate == null) return [];
+    return normalizedLogs(grouped[bestDate] ?? []);
   }
 
   Future<bool> _confirmExit(BuildContext ctx) async =>
