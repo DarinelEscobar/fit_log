@@ -16,9 +16,8 @@ class RoutineJsonImportDialog extends StatefulWidget {
 
 class _RoutineJsonImportDialogState extends State<RoutineJsonImportDialog> {
   static const _sampleJson = '''{
-  "name": "Upper Push",
   "exercises": [
-    {"name": "Barbell Overhead Press", "sets": 4, "reps": 8, "rir": 2, "kg": 25},
+    {"name": "Barbell Overhead Press", "sets": 4, "reps": 8, "rir": 2, "kg": 25, "restSeconds": 150},
     {"name": "Incline Dumbbell Press", "sets": 4, "reps": 10, "rir": 2, "kg": 45}
   ]
 }''';
@@ -34,7 +33,7 @@ class _RoutineJsonImportDialogState extends State<RoutineJsonImportDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Importar rutina desde JSON'),
+      title: const Text('Actualizar ejercicios desde JSON'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -45,7 +44,8 @@ class _RoutineJsonImportDialogState extends State<RoutineJsonImportDialog> {
               minLines: 6,
               maxLines: 12,
               decoration: const InputDecoration(
-                hintText: 'Pega tu JSON aquí',
+                hintText:
+                    'Pega tu JSON aquí (solo actualiza ejercicios existentes)',
                 border: OutlineInputBorder(),
               ),
             ),

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/services/routine_json_parser.dart';
 import '../providers/plan_exercise_details_provider.dart';
 import '../providers/exercises_provider.dart';
-import '../providers/workout_plan_provider.dart';
 import '../../data/repositories/workout_plan_repository_impl.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
 import '../../domain/entities/exercise.dart';
@@ -12,7 +11,6 @@ import '../../domain/usecases/update_exercise_in_plan_usecase.dart';
 import '../../domain/usecases/delete_exercise_from_plan_usecase.dart';
 import '../../domain/usecases/create_exercise_usecase.dart';
 import '../../domain/usecases/update_exercise_usecase.dart';
-import '../../domain/usecases/update_workout_plan_name_usecase.dart';
 import '../widgets/exercise_editor_dialog.dart';
 import '../widgets/plan_exercise_card.dart';
 import '../widgets/routine_json_import_dialog.dart';
@@ -173,69 +171,61 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
       );
       return;
     }
-    final allExercises = await ref.read(allExercisesProvider.future);
-    final exerciseByName = {
-      for (final e in allExercises) e.name.toLowerCase(): e,
-    };
     final currentDetails =
         await ref.read(planExerciseDetailsProvider(widget.planId).future);
-    final currentById = {
-      for (final d in currentDetails) d.exerciseId: d,
+    final currentByName = {
+      for (final d in currentDetails) d.name.toLowerCase(): d,
     };
     final missing = <String>[];
-    final newDetails = <PlanExerciseDetail>[];
+    final skipped = <String>[];
+    final updated = <PlanExerciseDetail>[];
     for (final item in payload.exercises) {
-      final exercise = exerciseByName[item.name.toLowerCase()];
-      if (exercise == null) {
+      final existing = currentByName[item.name.toLowerCase()];
+      if (existing == null) {
         missing.add(item.name);
         continue;
       }
-      final existing = currentById[exercise.id];
-      newDetails.add(
-        PlanExerciseDetail(
-          exerciseId: exercise.id,
-          name: exercise.name,
-          description: exercise.description,
-          sets: item.sets ?? existing?.sets ?? 3,
-          reps: item.reps ?? existing?.reps ?? 10,
-          weight: item.weight ?? existing?.weight ?? 0,
-          restSeconds: item.restSeconds ?? existing?.restSeconds ?? 90,
-          rir: item.rir ?? existing?.rir ?? 2,
-        ),
+      final updatedDetail = existing.copyWith(
+        sets: item.sets ?? existing.sets,
+        reps: item.reps ?? existing.reps,
+        weight: item.weight ?? existing.weight,
+        restSeconds: item.restSeconds ?? existing.restSeconds,
+        rir: item.rir ?? existing.rir,
       );
+      final isSame = updatedDetail.sets == existing.sets &&
+          updatedDetail.reps == existing.reps &&
+          updatedDetail.weight == existing.weight &&
+          updatedDetail.restSeconds == existing.restSeconds &&
+          updatedDetail.rir == existing.rir;
+      if (isSame) {
+        skipped.add(existing.name);
+        continue;
+      }
+      updated.add(updatedDetail);
     }
+    final repo = WorkoutPlanRepositoryImpl();
+    final updateUseCase = UpdateExerciseInPlanUseCase(repo);
+    for (final detail in updated) {
+      await updateUseCase(widget.planId, detail);
+    }
+    await _refresh();
+    if (!mounted) return;
     if (missing.isNotEmpty) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Ejercicios no encontrados: ${missing.join(', ')}'),
+          content: Text('No existen en la rutina: ${missing.join(', ')}'),
         ),
       );
       return;
     }
-    final repo = WorkoutPlanRepositoryImpl();
-    if (payload.name != null && payload.name!.trim().isNotEmpty) {
-      await UpdateWorkoutPlanNameUseCase(repo)(
-        widget.planId,
-        payload.name!.trim(),
+    if (skipped.isNotEmpty && updated.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sin cambios: ${skipped.join(', ')}')),
       );
-      ref.invalidate(workoutPlanProvider);
+      return;
     }
-    final newIds = newDetails.map((d) => d.exerciseId).toSet();
-    final deleteUseCase = DeleteExerciseFromPlanUseCase(repo);
-    for (final detail in currentDetails) {
-      if (!newIds.contains(detail.exerciseId)) {
-        await deleteUseCase(widget.planId, detail.exerciseId);
-      }
-    }
-    final addUseCase = AddExerciseToPlanUseCase(repo);
-    for (var i = 0; i < newDetails.length; i++) {
-      await addUseCase(widget.planId, newDetails[i], position: i);
-    }
-    await _refresh();
-    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Rutina actualizada desde JSON.')),
+      const SnackBar(content: Text('Ejercicios actualizados desde JSON.')),
     );
   }
   @override
