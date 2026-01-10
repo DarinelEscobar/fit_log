@@ -47,6 +47,12 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     if (v is T) return v as T;
     if (T == int) return int.tryParse(v.toString()) as T?;
     if (T == double) return double.tryParse(v.toString()) as T?;
+    if (T == bool) {
+      if (v is num) return (v != 0) as T;
+      final str = v.toString().toLowerCase();
+      if (str == 'true' || str == '1') return true as T;
+      if (str == 'false' || str == '0') return false as T;
+    }
     if (T == String) return v.toString() as T;
     return null;
   }
@@ -119,12 +125,106 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     }
   }
 
+  Future<void> _ensurePlanExerciseRirColumn(
+    File file,
+    Excel excel,
+    Sheet sheet,
+  ) async {
+    final schema = kTableSchemas['plan_exercise.xlsx']!;
+    bool changed = false;
+
+    if (sheet.rows.isEmpty) {
+      sheet.appendRow(
+        schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList(),
+      );
+      changed = true;
+    } else {
+      for (var i = 0; i < schema.headers.length; i++) {
+        if (sheet.rows.first.length <= i ||
+            sheet.rows.first[i]?.value == null ||
+            sheet.rows.first[i]?.value.toString().isEmpty == true) {
+          sheet.updateCell(
+            CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
+            TextCellValue(schema.headers[i]),
+          );
+          changed = true;
+        }
+      }
+    }
+
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.length < schema.headers.length) {
+        final existingImage = row.length > 6 ? row[6] : null;
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: i),
+          IntCellValue(2),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: i),
+          existingImage ?? TextCellValue(''),
+        );
+        changed = true;
+        continue;
+      }
+      if (_cast<int>(row[6]) == null) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: i),
+          IntCellValue(2),
+        );
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await file.writeAsBytes(excel.save()!);
+    }
+  }
+
+  Future<void> _ensureActiveColumn(
+    File file,
+    Excel excel,
+    Sheet sheet,
+  ) async {
+    bool changed = false;
+    final schema = kTableSchemas['workout_plan.xlsx']!;
+
+    if (sheet.rows.isEmpty) {
+      sheet.appendRow(
+        schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList(),
+      );
+      changed = true;
+    } else if (sheet.rows.first.length < 4) {
+      sheet.updateCell(
+        CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: 0),
+        TextCellValue(schema.headers[3]),
+      );
+      changed = true;
+    }
+
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.length < 4) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i),
+          IntCellValue(1),
+        );
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await file.writeAsBytes(excel.save()!);
+    }
+  }
+
   @override
   Future<List<WorkoutPlan>> getAllPlans() async {
     final file = await _getOrCreateFile('workout_plan.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName];
     if (sheet == null) return [];
+    await _ensureActiveColumn(file, excel, sheet);
 
     return sheet.rows
         .skip(1)
@@ -133,7 +233,13 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
           final id = int.tryParse(row[0]?.value.toString() ?? '0') ?? 0;
           final name = row[1]?.value.toString() ?? '';
           final frequency = row[2]?.value.toString() ?? '';
-          return WorkoutPlan(id: id, name: name, frequency: frequency);
+          final isActive = _cast<bool>(row.length > 3 ? row[3] : null) ?? true;
+          return WorkoutPlan(
+            id: id,
+            name: name,
+            frequency: frequency,
+            isActive: isActive,
+          );
         })
         .toList();
   }
@@ -143,12 +249,35 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final file = await _getOrCreateFile('workout_plan.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName]!;
+    await _ensureActiveColumn(file, excel, sheet);
 
     sheet.appendRow([
       IntCellValue(_getLastId(sheet) + 1),
       TextCellValue(name),
       TextCellValue(frequency),
+      IntCellValue(1),
     ]);
+    await file.writeAsBytes(excel.save()!);
+  }
+
+  @override
+  Future<void> setPlanActive(int planId, bool isActive) async {
+    final file = await _getOrCreateFile('workout_plan.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName]!;
+    await _ensureActiveColumn(file, excel, sheet);
+
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i),
+          IntCellValue(isActive ? 1 : 0),
+        );
+        break;
+      }
+    }
+
     await file.writeAsBytes(excel.save()!);
   }
 
@@ -296,12 +425,14 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
     final exFile = await _getOrCreateFile('exercise.xlsx');
 
-    final peSheet = Excel.decodeBytes(await peFile.readAsBytes())[
-        kTableSchemas['plan_exercise.xlsx']!.sheetName];
+    final peExcel = Excel.decodeBytes(await peFile.readAsBytes());
+    final peSheet =
+        peExcel[kTableSchemas['plan_exercise.xlsx']!.sheetName];
     final exSheet = Excel.decodeBytes(await exFile.readAsBytes())[
         kTableSchemas['exercise.xlsx']!.sheetName];
 
     if (peSheet == null || exSheet == null) return [];
+    await _ensurePlanExerciseRirColumn(peFile, peExcel, peSheet);
 
     final mapIdName = {
       for (var r in exSheet.rows.skip(1))
@@ -327,6 +458,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
             reps: _cast<int>(r[3]) ?? 0,
             weight: _cast<double>(r[4]) ?? 0,
             restSeconds: _cast<int>(r[5]) ?? 0,
+            targetRir: _cast<int>(r.length > 6 ? r[6] : null) ?? 2,
           );
         })
         .toList();
@@ -341,6 +473,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final file = await _getOrCreateFile('plan_exercise.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+    await _ensurePlanExerciseRirColumn(file, excel, sheet);
 
     int? existingRow;
     for (var i = 1; i < sheet.rows.length; i++) {
@@ -379,6 +512,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
       IntCellValue(detail.reps),
       DoubleCellValue(detail.weight),
       IntCellValue(detail.restSeconds),
+      IntCellValue(detail.targetRir),
       TextCellValue(''),
     ];
 
@@ -392,6 +526,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final file = await _getOrCreateFile('plan_exercise.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
+    await _ensurePlanExerciseRirColumn(file, excel, sheet);
 
     for (var i = 1; i < sheet.rows.length; i++) {
       final row = sheet.rows[i];
@@ -413,6 +548,10 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
         sheet.updateCell(
           CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i),
           IntCellValue(detail.restSeconds),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: i),
+          IntCellValue(detail.targetRir),
         );
         break;
       }

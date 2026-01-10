@@ -89,6 +89,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
           reps: 10,
           weight: 0,
           restSeconds: 90,
+          targetRir: 2,
         ),
         position: ((index ?? (current.length + 1)) - 1).clamp(0, current.length),
       );
@@ -278,6 +279,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
               final repsCtl = TextEditingController(text: d.reps.toString());
               final weightCtl = TextEditingController(text: d.weight.toString());
               final restCtl = TextEditingController(text: d.restSeconds.toString());
+              final rirCtl = TextEditingController(text: d.targetRir.toString());
               return Card(
                 margin: const EdgeInsets.all(8),
                 child: Padding(
@@ -311,6 +313,8 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                           _numField('Kg', weightCtl),
                           const SizedBox(width: 8),
                           _numField('Desc (s)', restCtl),
+                          const SizedBox(width: 8),
+                          _numField('RIR', rirCtl),
                         ],
                       ),
                       Align(
@@ -322,6 +326,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                               reps: int.tryParse(repsCtl.text) ?? d.reps,
                               weight: double.tryParse(weightCtl.text) ?? d.weight,
                               restSeconds: int.tryParse(restCtl.text) ?? d.restSeconds,
+                              targetRir: int.tryParse(rirCtl.text) ?? d.targetRir,
                             );
                             _updateDetail(newDetail);
                           },
