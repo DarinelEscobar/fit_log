@@ -344,37 +344,31 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     if (logs.isEmpty) return [];
     if (plannedSets <= 0) return [];
 
-    final grouped = <DateTime, List<WorkoutLogEntry>>{};
-    for (final l in logs) {
-      grouped.putIfAbsent(l.date, () => []).add(l);
+    final grouped = <DateTime, _BestLogSummary>{};
+    for (final entry in logs) {
+      if (entry.setNumber > plannedSets) continue;
+      final summary = grouped.putIfAbsent(entry.date, () => _BestLogSummary());
+      summary.tonnage += entry.reps * entry.weight;
+      summary.logs.add(entry);
     }
-
-    List<WorkoutLogEntry> normalizedLogs(List<WorkoutLogEntry> ls) {
-      final filtered = ls.where((entry) => entry.setNumber <= plannedSets).toList()
-        ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
-      if (filtered.length < plannedSets) {
-        return [];
-      }
-      return filtered;
-    }
-
-    double tonnage(List<WorkoutLogEntry> ls) =>
-        ls.fold(0, (sum, e) => sum + e.reps * e.weight);
 
     DateTime? bestDate;
     double bestTon = 0;
-    grouped.forEach((date, ls) {
-      final normalized = normalizedLogs(ls);
-      if (normalized.isEmpty) return;
-      final t = tonnage(normalized);
-      if (bestDate == null || t > bestTon) {
-        bestTon = t;
+    grouped.forEach((date, summary) {
+      if (summary.logs.length < plannedSets) return;
+      if (bestDate == null || summary.tonnage > bestTon) {
+        bestTon = summary.tonnage;
         bestDate = date;
       }
     });
 
     if (bestDate == null) return [];
-    return normalizedLogs(grouped[bestDate] ?? []);
+    final bestLogs = grouped[bestDate]!.logs
+      ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
+    if (bestLogs.length > plannedSets) {
+      return bestLogs.take(plannedSets).toList();
+    }
+    return bestLogs;
   }
 
   Future<bool> _confirmExit(BuildContext ctx) async =>
@@ -463,4 +457,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     }
     return ok ?? false;
   }
+}
+
+class _BestLogSummary {
+  double tonnage = 0;
+  final List<WorkoutLogEntry> logs = [];
 }
