@@ -128,13 +128,15 @@ const Map<String, TableSchema> kTableSchemas = {
       'name',
       // e.g. “Mon-Wed-Fri”
       'frequency',
+      // Soft delete flag
+      'is_active',
     ],
     sample: [
-      [1, 'Upper Push (Strength)', 'Weekly Monday'],
-      [2, 'Lower A (Quads)', 'Weekly Tuesday'],
-      [3, 'Upper Pull (Width)', 'Weekly wensday'],
-      [4, 'Push-Pull Hybrid (Pump)', 'Weekly Friday '],
-      [5, 'Lower B (Posterior Chain)', 'Weekly saturda'],
+      [1, 'Upper Push (Strength)', 'Weekly Monday', 1],
+      [2, 'Lower A (Quads)', 'Weekly Tuesday', 1],
+      [3, 'Upper Pull (Width)', 'Weekly wensday', 1],
+      [4, 'Push-Pull Hybrid (Pump)', 'Weekly Friday ', 1],
+      [5, 'Lower B (Posterior Chain)', 'Weekly saturda', 1],
     ],
   ),
 

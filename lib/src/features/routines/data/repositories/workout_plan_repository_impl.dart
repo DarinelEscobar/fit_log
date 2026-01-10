@@ -12,6 +12,7 @@ import '../../../../data/schema/schemas.dart';
 
 class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   List<Exercise>? _exerciseCache;
+  static const int _planActiveColumnIndex = 3;
   Future<File> _getOrCreateFile(String filename) async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/$filename');
@@ -40,6 +41,37 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
       if (id != null && id > maxId) maxId = id;
     }
     return maxId;
+  }
+
+  bool _parseActiveCell(Data? cell) {
+    final value = cell?.value;
+    if (value == null) return true;
+    if (value is bool) return value;
+    if (value is int) return value != 0;
+    final text = value.toString().toLowerCase();
+    return text != '0' && text != 'false' && text != 'no';
+  }
+
+  void _ensurePlanActiveColumn(Sheet sheet) {
+    if (sheet.rows.isEmpty) return;
+    final header = sheet.rows.first;
+    final hasColumn = header.length > _planActiveColumnIndex &&
+        header[_planActiveColumnIndex]?.value.toString() == 'is_active';
+    if (hasColumn) return;
+
+    sheet.updateCell(
+      CellIndex.indexByColumnRow(columnIndex: _planActiveColumnIndex, rowIndex: 0),
+      TextCellValue('is_active'),
+    );
+    for (var i = 1; i < sheet.rows.length; i++) {
+      sheet.updateCell(
+        CellIndex.indexByColumnRow(
+          columnIndex: _planActiveColumnIndex,
+          rowIndex: i,
+        ),
+        IntCellValue(1),
+      );
+    }
   }
   T? _cast<T>(Data? cell) {
     final v = cell?.value;
@@ -133,7 +165,15 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
           final id = int.tryParse(row[0]?.value.toString() ?? '0') ?? 0;
           final name = row[1]?.value.toString() ?? '';
           final frequency = row[2]?.value.toString() ?? '';
-          return WorkoutPlan(id: id, name: name, frequency: frequency);
+          final isActive = row.length > _planActiveColumnIndex
+              ? _parseActiveCell(row[_planActiveColumnIndex])
+              : true;
+          return WorkoutPlan(
+            id: id,
+            name: name,
+            frequency: frequency,
+            isActive: isActive,
+          );
         })
         .toList();
   }
@@ -143,12 +183,38 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     final file = await _getOrCreateFile('workout_plan.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName]!;
+    _ensurePlanActiveColumn(sheet);
 
     sheet.appendRow([
       IntCellValue(_getLastId(sheet) + 1),
       TextCellValue(name),
       TextCellValue(frequency),
+      IntCellValue(1),
     ]);
+    await file.writeAsBytes(excel.save()!);
+  }
+
+  @override
+  Future<void> setWorkoutPlanActive(int planId, bool isActive) async {
+    final file = await _getOrCreateFile('workout_plan.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName]!;
+    _ensurePlanActiveColumn(sheet);
+
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(
+            columnIndex: _planActiveColumnIndex,
+            rowIndex: i,
+          ),
+          IntCellValue(isActive ? 1 : 0),
+        );
+        break;
+      }
+    }
+
     await file.writeAsBytes(excel.save()!);
   }
 
