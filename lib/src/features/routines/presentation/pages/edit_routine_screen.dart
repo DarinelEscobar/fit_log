@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/plan_exercise_details_provider.dart';
@@ -22,6 +23,7 @@ class EditRoutineScreen extends ConsumerStatefulWidget {
 
 class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   late Future<List<PlanExerciseDetail>> _future;
+  final JsonEncoder _jsonEncoder = const JsonEncoder.withIndent('  ');
 
   @override
   void initState() {
@@ -89,6 +91,8 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
           reps: 10,
           weight: 0,
           restSeconds: 90,
+          rir: 2,
+          tempo: '3-1-1-0',
         ),
         position: ((index ?? (current.length + 1)) - 1).clamp(0, current.length),
       );
@@ -169,37 +173,18 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     );
     if (ex.id == 0) return;
 
-    final nameCtl = TextEditingController(text: ex.name);
-    final descCtl = TextEditingController(text: ex.description);
-    final catCtl = TextEditingController(text: ex.category);
-    final groupCtl = TextEditingController(text: ex.mainMuscleGroup);
+    final jsonCtl = TextEditingController(text: _exerciseJson(ex));
 
     final save = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Editar ejercicio'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtl,
-                decoration: const InputDecoration(labelText: 'Nombre'),
-              ),
-              TextField(
-                controller: descCtl,
-                decoration: const InputDecoration(labelText: 'Descripción'),
-              ),
-              TextField(
-                controller: catCtl,
-                decoration: const InputDecoration(labelText: 'Categoría'),
-              ),
-              TextField(
-                controller: groupCtl,
-                decoration:
-                    const InputDecoration(labelText: 'Músculo principal'),
-              ),
-            ],
+        content: TextField(
+          controller: jsonCtl,
+          maxLines: 10,
+          decoration: const InputDecoration(
+            labelText: 'JSON del ejercicio',
+            hintText: '{ "name": "...", "description": "...", "category": "...", "mainMuscle": "..." }',
           ),
         ),
         actions: [
@@ -216,13 +201,18 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     );
 
     if (save == true) {
+      final data = _parseExerciseJson(jsonCtl.text);
+      if (data == null) {
+        _showJsonError('JSON inválido para el ejercicio.');
+        return;
+      }
       final repo = WorkoutPlanRepositoryImpl();
       await UpdateExerciseUseCase(repo)(
         ex.id,
-        nameCtl.text.trim(),
-        descCtl.text.trim(),
-        catCtl.text.trim(),
-        groupCtl.text.trim(),
+        data.name,
+        data.description,
+        data.category,
+        data.mainMuscleGroup,
       );
       ref.invalidate(allExercisesProvider);
       await _refresh();
@@ -274,10 +264,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
             itemCount: details.length,
             itemBuilder: (_, i) {
               final d = details[i];
-              final setsCtl = TextEditingController(text: d.sets.toString());
-              final repsCtl = TextEditingController(text: d.reps.toString());
-              final weightCtl = TextEditingController(text: d.weight.toString());
-              final restCtl = TextEditingController(text: d.restSeconds.toString());
+              final jsonCtl = TextEditingController(text: _detailJson(d));
               return Card(
                 margin: const EdgeInsets.all(8),
                 child: Padding(
@@ -298,32 +285,25 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                           ),
                         ],
                       ),
-                      Row(
-                        children: [
-                          _numField('Sets', setsCtl),
-                          const SizedBox(width: 8),
-                          _numField('Reps', repsCtl),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _numField('Kg', weightCtl),
-                          const SizedBox(width: 8),
-                          _numField('Desc (s)', restCtl),
-                        ],
+                      TextField(
+                        controller: jsonCtl,
+                        maxLines: 8,
+                        decoration: const InputDecoration(
+                          labelText: 'Parámetros JSON',
+                          hintText:
+                              '{ "sets": 3, "reps": 12, "kg": 12.5, "rest": 120, "rir": 2, "tempo": "3-1-1-0" }',
+                        ),
                       ),
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            final newDetail = d.copyWith(
-                              sets: int.tryParse(setsCtl.text) ?? d.sets,
-                              reps: int.tryParse(repsCtl.text) ?? d.reps,
-                              weight: double.tryParse(weightCtl.text) ?? d.weight,
-                              restSeconds: int.tryParse(restCtl.text) ?? d.restSeconds,
-                            );
-                            _updateDetail(newDetail);
+                            final parsed = _parseDetailJson(d, jsonCtl.text);
+                            if (parsed == null) {
+                              _showJsonError('JSON inválido para parámetros.');
+                              return;
+                            }
+                            _updateDetail(parsed);
                           },
                           child: const Text('Guardar'),
                         ),
@@ -339,13 +319,78 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     );
   }
 
-  Widget _numField(String label, TextEditingController ctl) {
-    return Expanded(
-      child: TextField(
-        controller: ctl,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(labelText: label),
-      ),
-    );
+  String _detailJson(PlanExerciseDetail detail) => _jsonEncoder.convert({
+        'sets': detail.sets,
+        'reps': detail.reps,
+        'kg': detail.weight,
+        'rest': detail.restSeconds,
+        'rir': detail.rir,
+        'tempo': detail.tempo,
+      });
+
+  String _exerciseJson(Exercise exercise) => _jsonEncoder.convert({
+        'name': exercise.name,
+        'description': exercise.description,
+        'category': exercise.category,
+        'mainMuscle': exercise.mainMuscleGroup,
+      });
+
+  int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  double? _asDouble(dynamic value) {
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  PlanExerciseDetail? _parseDetailJson(
+    PlanExerciseDetail base,
+    String source,
+  ) {
+    try {
+      final decoded = jsonDecode(source);
+      if (decoded is! Map) return null;
+      return base.copyWith(
+        sets: _asInt(decoded['sets']) ?? base.sets,
+        reps: _asInt(decoded['reps']) ?? base.reps,
+        weight: _asDouble(decoded['kg']) ?? base.weight,
+        restSeconds: _asInt(decoded['rest']) ?? base.restSeconds,
+        rir: _asInt(decoded['rir']) ?? base.rir,
+        tempo: decoded['tempo']?.toString() ?? base.tempo,
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  Exercise? _parseExerciseJson(String source) {
+    try {
+      final decoded = jsonDecode(source);
+      if (decoded is! Map) return null;
+      final name = decoded['name']?.toString().trim() ?? '';
+      final description = decoded['description']?.toString().trim() ?? '';
+      final category = decoded['category']?.toString().trim() ?? '';
+      final mainMuscle = decoded['mainMuscle']?.toString().trim() ?? '';
+      if (name.isEmpty) return null;
+      return Exercise(
+        id: 0,
+        name: name,
+        description: description,
+        category: category,
+        mainMuscleGroup: mainMuscle,
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  void _showJsonError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }

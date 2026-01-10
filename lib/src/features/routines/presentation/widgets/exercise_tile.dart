@@ -99,7 +99,8 @@ class ExerciseTileState extends State<ExerciseTile>
           text: e?.reps.toString() ?? widget.detail.reps.toString()));
       _kgCtl.add(TextEditingController(
           text: e?.weight.toStringAsFixed(0) ?? widget.detail.weight.toStringAsFixed(0)));
-      _rirCtl.add(TextEditingController(text: e?.rir.toString() ?? '2'));
+      _rirCtl.add(TextEditingController(
+          text: e?.rir.toString() ?? widget.detail.rir.toString()));
     }
     if (widget.lastLogs != null) {
       for (final l in widget.lastLogs!) {
@@ -118,7 +119,7 @@ class ExerciseTileState extends State<ExerciseTile>
         setNumber: idx + 1,
         reps: int.tryParse(_repCtl[idx].text) ?? widget.detail.reps,
         weight: double.tryParse(_kgCtl[idx].text) ?? widget.detail.weight,
-        rir: int.tryParse(_rirCtl[idx].text) ?? 2,
+        rir: int.tryParse(_rirCtl[idx].text) ?? widget.detail.rir,
         completed: completed ||
             (widget.logsMap['${widget.detail.exerciseId}-${idx + 1}']?.completed ??
                 false),
@@ -139,7 +140,7 @@ class ExerciseTileState extends State<ExerciseTile>
         setNumber: current,
         reps: int.tryParse(_repCtl[current - 1].text) ?? widget.detail.reps,
         weight: double.tryParse(_kgCtl[current - 1].text) ?? widget.detail.weight,
-        rir: int.tryParse(_rirCtl[current - 1].text) ?? 2,
+        rir: int.tryParse(_rirCtl[current - 1].text) ?? widget.detail.rir,
         completed: true,
       ),
     );
@@ -179,7 +180,8 @@ class ExerciseTileState extends State<ExerciseTile>
           text: last?.reps.toString() ?? widget.detail.reps.toString()));
       _kgCtl.add(TextEditingController(
           text: last?.weight.toStringAsFixed(0) ?? widget.detail.weight.toStringAsFixed(0)));
-      _rirCtl.add(TextEditingController(text: last?.rir.toString() ?? '2'));
+      _rirCtl.add(TextEditingController(
+          text: last?.rir.toString() ?? widget.detail.rir.toString()));
       _visibleSets++;
     });
     _persist(setNum - 1);
@@ -266,6 +268,34 @@ class ExerciseTileState extends State<ExerciseTile>
             Text(value, style: const TextStyle(fontSize: 12, color: Colors.white70)),
           ],
         ),
+      );
+
+  Widget _rirBadge(TextEditingController controller) =>
+      ValueListenableBuilder<TextEditingValue>(
+        valueListenable: controller,
+        builder: (_, value, __) {
+          final parsed = int.tryParse(value.text);
+          final rir = parsed ?? widget.detail.rir;
+          Color color;
+          if (rir <= 1) {
+            color = Colors.redAccent;
+          } else if (rir <= 3) {
+            color = Colors.amber;
+          } else {
+            color = Colors.greenAccent;
+          }
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              'RIR $rir',
+              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          );
+        },
       );
 
   Widget _deltaBadge(int delta, Color color, IconData icon, String tooltip) => Tooltip(
@@ -422,7 +452,11 @@ class ExerciseTileState extends State<ExerciseTile>
                     alignment: Alignment.centerLeft,
                     child: _info(
                       'Plan',
-                      '${widget.detail.sets}x${widget.detail.reps} @${widget.detail.weight.toStringAsFixed(0)}kg • ${widget.detail.restSeconds}s',
+                      '${widget.detail.sets}x${widget.detail.reps} '
+                      '@${widget.detail.weight.toStringAsFixed(0)}kg '
+                      '- ${widget.detail.restSeconds}s '
+                      '| Tempo ${widget.detail.tempo} '
+                      '| RIR ${widget.detail.rir}',
                     ),
                   ),
                 ),
@@ -453,6 +487,8 @@ class ExerciseTileState extends State<ExerciseTile>
                             _num(_kgCtl[i], 66, 'kg', i, !done),
                             const SizedBox(width: 12),
                             _num(_rirCtl[i], 54, 'R', i, !done),
+                            const SizedBox(width: 8),
+                            _rirBadge(_rirCtl[i]),
                             const Spacer(),
                             Icon(
                               done ? Icons.check_circle : Icons.circle,
