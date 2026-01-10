@@ -317,6 +317,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
           reps: 10,
           weight: 0,
           restSeconds: 90,
+          rir: 2,
         );
         _sessionDetails ??= [];
         _sessionDetails!.add(newDetail);

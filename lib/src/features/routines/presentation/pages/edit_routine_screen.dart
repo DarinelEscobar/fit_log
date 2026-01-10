@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../application/services/routine_json_parser.dart';
 import '../providers/plan_exercise_details_provider.dart';
 import '../providers/exercises_provider.dart';
+import '../providers/workout_plan_provider.dart';
 import '../../data/repositories/workout_plan_repository_impl.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
 import '../../domain/entities/exercise.dart';
@@ -10,25 +12,26 @@ import '../../domain/usecases/update_exercise_in_plan_usecase.dart';
 import '../../domain/usecases/delete_exercise_from_plan_usecase.dart';
 import '../../domain/usecases/create_exercise_usecase.dart';
 import '../../domain/usecases/update_exercise_usecase.dart';
+import '../../domain/usecases/update_workout_plan_name_usecase.dart';
+import '../widgets/exercise_editor_dialog.dart';
+import '../widgets/plan_exercise_card.dart';
+import '../widgets/routine_json_import_dialog.dart';
 import 'select_exercise_screen.dart';
 
 class EditRoutineScreen extends ConsumerStatefulWidget {
   final int planId;
   const EditRoutineScreen({required this.planId, super.key});
-
   @override
   ConsumerState<EditRoutineScreen> createState() => _EditRoutineScreenState();
 }
 
 class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   late Future<List<PlanExerciseDetail>> _future;
-
   @override
   void initState() {
     super.initState();
     _future = ref.read(planExerciseDetailsProvider(widget.planId).future);
   }
-
   Future<void> _refresh() async {
     final provider = planExerciseDetailsProvider(widget.planId);
     ref.invalidate(provider);
@@ -36,7 +39,6 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
       _future = ref.read(provider.future);
     });
   }
-
   Future<void> _addExercise() async {
     final all = await ref.read(allExercisesProvider.future);
     final exercise = await Navigator.push<Exercise>(
@@ -89,72 +91,29 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
           reps: 10,
           weight: 0,
           restSeconds: 90,
+          rir: 2,
         ),
         position: ((index ?? (current.length + 1)) - 1).clamp(0, current.length),
       );
       await _refresh();
     }
   }
-
   Future<void> _createExercise() async {
-    final nameCtl = TextEditingController();
-    final descCtl = TextEditingController();
-    final catCtl = TextEditingController();
-    final groupCtl = TextEditingController();
-
-    final save = await showDialog<bool>(
+    final data = await ExerciseEditorDialog.show(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Nuevo ejercicio'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtl,
-                decoration: const InputDecoration(labelText: 'Nombre'),
-              ),
-              TextField(
-                controller: descCtl,
-                decoration: const InputDecoration(labelText: 'Descripción'),
-              ),
-              TextField(
-                controller: catCtl,
-                decoration: const InputDecoration(labelText: 'Categoría'),
-              ),
-              TextField(
-                controller: groupCtl,
-                decoration:
-                    const InputDecoration(labelText: 'Músculo principal'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
+      title: 'Nuevo ejercicio',
+      actionLabel: 'Guardar',
     );
-
-    if (save == true) {
-      final repo = WorkoutPlanRepositoryImpl();
-      await CreateExerciseUseCase(repo)(
-        nameCtl.text.trim(),
-        descCtl.text.trim(),
-        catCtl.text.trim(),
-        groupCtl.text.trim(),
-      );
-      ref.invalidate(allExercisesProvider);
-    }
+    if (data == null) return;
+    final repo = WorkoutPlanRepositoryImpl();
+    await CreateExerciseUseCase(repo)(
+      data.name,
+      data.description,
+      data.category,
+      data.mainMuscleGroup,
+    );
+    ref.invalidate(allExercisesProvider);
   }
-
   Future<void> _editExercise(int exerciseId) async {
     final all = await ref.read(allExercisesProvider.future);
     final ex = all.firstWhere(
@@ -168,79 +127,117 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
       ),
     );
     if (ex.id == 0) return;
-
-    final nameCtl = TextEditingController(text: ex.name);
-    final descCtl = TextEditingController(text: ex.description);
-    final catCtl = TextEditingController(text: ex.category);
-    final groupCtl = TextEditingController(text: ex.mainMuscleGroup);
-
-    final save = await showDialog<bool>(
+    final data = await ExerciseEditorDialog.show(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Editar ejercicio'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtl,
-                decoration: const InputDecoration(labelText: 'Nombre'),
-              ),
-              TextField(
-                controller: descCtl,
-                decoration: const InputDecoration(labelText: 'Descripción'),
-              ),
-              TextField(
-                controller: catCtl,
-                decoration: const InputDecoration(labelText: 'Categoría'),
-              ),
-              TextField(
-                controller: groupCtl,
-                decoration:
-                    const InputDecoration(labelText: 'Músculo principal'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Guardar'),
-          ),
-        ],
+      title: 'Editar ejercicio',
+      actionLabel: 'Guardar',
+      initialData: ExerciseEditorDialogData(
+        name: ex.name,
+        description: ex.description,
+        category: ex.category,
+        mainMuscleGroup: ex.mainMuscleGroup,
       ),
     );
-
-    if (save == true) {
-      final repo = WorkoutPlanRepositoryImpl();
-      await UpdateExerciseUseCase(repo)(
-        ex.id,
-        nameCtl.text.trim(),
-        descCtl.text.trim(),
-        catCtl.text.trim(),
-        groupCtl.text.trim(),
-      );
-      ref.invalidate(allExercisesProvider);
-      await _refresh();
-    }
+    if (data == null) return;
+    final repo = WorkoutPlanRepositoryImpl();
+    await UpdateExerciseUseCase(repo)(
+      ex.id,
+      data.name,
+      data.description,
+      data.category,
+      data.mainMuscleGroup,
+    );
+    ref.invalidate(allExercisesProvider);
+    await _refresh();
   }
-
   Future<void> _updateDetail(PlanExerciseDetail detail) async {
     final repo = WorkoutPlanRepositoryImpl();
     await UpdateExerciseInPlanUseCase(repo)(widget.planId, detail);
     await _refresh();
   }
-
   Future<void> _deleteDetail(int exerciseId) async {
     final repo = WorkoutPlanRepositoryImpl();
     await DeleteExerciseFromPlanUseCase(repo)(widget.planId, exerciseId);
     await _refresh();
   }
-
+  Future<void> _importFromJson() async {
+    final jsonText = await RoutineJsonImportDialog.show(context);
+    if (jsonText == null || jsonText.trim().isEmpty) return;
+    RoutineJsonPayload payload;
+    try {
+      payload = RoutineJsonParser.parse(jsonText);
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('JSON inválido: ${error.message}')),
+      );
+      return;
+    }
+    final allExercises = await ref.read(allExercisesProvider.future);
+    final exerciseByName = {
+      for (final e in allExercises) e.name.toLowerCase(): e,
+    };
+    final currentDetails =
+        await ref.read(planExerciseDetailsProvider(widget.planId).future);
+    final currentById = {
+      for (final d in currentDetails) d.exerciseId: d,
+    };
+    final missing = <String>[];
+    final newDetails = <PlanExerciseDetail>[];
+    for (final item in payload.exercises) {
+      final exercise = exerciseByName[item.name.toLowerCase()];
+      if (exercise == null) {
+        missing.add(item.name);
+        continue;
+      }
+      final existing = currentById[exercise.id];
+      newDetails.add(
+        PlanExerciseDetail(
+          exerciseId: exercise.id,
+          name: exercise.name,
+          description: exercise.description,
+          sets: item.sets ?? existing?.sets ?? 3,
+          reps: item.reps ?? existing?.reps ?? 10,
+          weight: item.weight ?? existing?.weight ?? 0,
+          restSeconds: item.restSeconds ?? existing?.restSeconds ?? 90,
+          rir: item.rir ?? existing?.rir ?? 2,
+        ),
+      );
+    }
+    if (missing.isNotEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ejercicios no encontrados: ${missing.join(', ')}'),
+        ),
+      );
+      return;
+    }
+    final repo = WorkoutPlanRepositoryImpl();
+    if (payload.name != null && payload.name!.trim().isNotEmpty) {
+      await UpdateWorkoutPlanNameUseCase(repo)(
+        widget.planId,
+        payload.name!.trim(),
+      );
+      ref.invalidate(workoutPlanProvider);
+    }
+    final newIds = newDetails.map((d) => d.exerciseId).toSet();
+    final deleteUseCase = DeleteExerciseFromPlanUseCase(repo);
+    for (final detail in currentDetails) {
+      if (!newIds.contains(detail.exerciseId)) {
+        await deleteUseCase(widget.planId, detail.exerciseId);
+      }
+    }
+    final addUseCase = AddExerciseToPlanUseCase(repo);
+    for (var i = 0; i < newDetails.length; i++) {
+      await addUseCase(widget.planId, newDetails[i], position: i);
+    }
+    await _refresh();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Rutina actualizada desde JSON.')),
+    );
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -250,6 +247,10 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
           IconButton(
             icon: const Icon(Icons.fitness_center),
             onPressed: _createExercise,
+          ),
+          IconButton(
+            icon: const Icon(Icons.code),
+            onPressed: _importFromJson,
           ),
         ],
       ),
@@ -274,77 +275,15 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
             itemCount: details.length,
             itemBuilder: (_, i) {
               final d = details[i];
-              final setsCtl = TextEditingController(text: d.sets.toString());
-              final repsCtl = TextEditingController(text: d.reps.toString());
-              final weightCtl = TextEditingController(text: d.weight.toString());
-              final restCtl = TextEditingController(text: d.restSeconds.toString());
-              return Card(
-                margin: const EdgeInsets.all(8),
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(child: Text(d.name, style: const TextStyle(fontWeight: FontWeight.w600))),
-                          IconButton(
-                            icon: const Icon(Icons.edit),
-                            onPressed: () => _editExercise(d.exerciseId),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () => _deleteDetail(d.exerciseId),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          _numField('Sets', setsCtl),
-                          const SizedBox(width: 8),
-                          _numField('Reps', repsCtl),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _numField('Kg', weightCtl),
-                          const SizedBox(width: 8),
-                          _numField('Desc (s)', restCtl),
-                        ],
-                      ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {
-                            final newDetail = d.copyWith(
-                              sets: int.tryParse(setsCtl.text) ?? d.sets,
-                              reps: int.tryParse(repsCtl.text) ?? d.reps,
-                              weight: double.tryParse(weightCtl.text) ?? d.weight,
-                              restSeconds: int.tryParse(restCtl.text) ?? d.restSeconds,
-                            );
-                            _updateDetail(newDetail);
-                          },
-                          child: const Text('Guardar'),
-                        ),
-                      )
-                    ],
-                  ),
-                ),
+              return PlanExerciseCard(
+                detail: d,
+                onEditExercise: () => _editExercise(d.exerciseId),
+                onDeleteExercise: () => _deleteDetail(d.exerciseId),
+                onSave: _updateDetail,
               );
             },
           );
         },
-      ),
-    );
-  }
-
-  Widget _numField(String label, TextEditingController ctl) {
-    return Expanded(
-      child: TextField(
-        controller: ctl,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(labelText: label),
       ),
     );
   }

@@ -11,6 +11,7 @@ import '../../domain/repositories/workout_plan_repository.dart';
 import '../../../../data/schema/schemas.dart';
 
 class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
+  static const int _defaultRir = 2;
   List<Exercise>? _exerciseCache;
   Future<File> _getOrCreateFile(String filename) async {
     final dir = await getApplicationDocumentsDirectory();
@@ -65,6 +66,36 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
       }
     }
     return insertIndex;
+  }
+
+  Future<void> _ensurePlanExerciseSchema() async {
+    final file = await _getOrCreateFile('plan_exercise.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final schema = kTableSchemas['plan_exercise.xlsx']!;
+    final sheet = excel[schema.sheetName];
+    if (sheet == null || sheet.rows.isEmpty) return;
+
+    final headerRow = sheet.rows.first;
+    if (headerRow.length >= schema.headers.length) return;
+
+    for (var i = headerRow.length; i < schema.headers.length; i++) {
+      sheet.updateCell(
+        CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
+        TextCellValue(schema.headers[i]),
+      );
+    }
+
+    final targetRirColumn = schema.headers.length - 1;
+    for (var i = 1; i < sheet.rows.length; i++) {
+      if (sheet.rows[i].length <= targetRirColumn) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: targetRirColumn, rowIndex: i),
+          IntCellValue(_defaultRir),
+        );
+      }
+    }
+
+    await file.writeAsBytes(excel.save()!);
   }
 
   Future<void> _normalizeExerciseIds() async {
@@ -149,6 +180,26 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
       TextCellValue(name),
       TextCellValue(frequency),
     ]);
+    await file.writeAsBytes(excel.save()!);
+  }
+
+  @override
+  Future<void> updateWorkoutPlanName(int planId, String name) async {
+    final file = await _getOrCreateFile('workout_plan.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName]!;
+
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i),
+          TextCellValue(name),
+        );
+        break;
+      }
+    }
+
     await file.writeAsBytes(excel.save()!);
   }
 
@@ -293,6 +344,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   @override
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) async {
     await _normalizeExerciseIds();
+    await _ensurePlanExerciseSchema();
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
     final exFile = await _getOrCreateFile('exercise.xlsx');
 
@@ -327,6 +379,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
             reps: _cast<int>(r[3]) ?? 0,
             weight: _cast<double>(r[4]) ?? 0,
             restSeconds: _cast<int>(r[5]) ?? 0,
+            rir: _cast<int>(r.length > 7 ? r[7] : null) ?? _defaultRir,
           );
         })
         .toList();
@@ -338,6 +391,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     PlanExerciseDetail detail, {
     int? position,
   }) async {
+    await _ensurePlanExerciseSchema();
     final file = await _getOrCreateFile('plan_exercise.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
@@ -380,6 +434,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
       DoubleCellValue(detail.weight),
       IntCellValue(detail.restSeconds),
       TextCellValue(''),
+      IntCellValue(detail.rir),
     ];
 
     sheet.insertRowIterables(rowData, insertIndex);
@@ -389,6 +444,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
   @override
   Future<void> updateExerciseInPlan(int planId, PlanExerciseDetail detail) async {
+    await _ensurePlanExerciseSchema();
     final file = await _getOrCreateFile('plan_exercise.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
@@ -413,6 +469,10 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
         sheet.updateCell(
           CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i),
           IntCellValue(detail.restSeconds),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: i),
+          IntCellValue(detail.rir),
         );
         break;
       }
