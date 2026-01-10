@@ -11,6 +11,8 @@ import '../../domain/usecases/delete_exercise_from_plan_usecase.dart';
 import '../../domain/usecases/create_exercise_usecase.dart';
 import '../../domain/usecases/update_exercise_usecase.dart';
 import 'select_exercise_screen.dart';
+import '../widgets/exercise_json_dialog.dart';
+import '../../services/routine_json_codec.dart';
 
 class EditRoutineScreen extends ConsumerStatefulWidget {
   final int planId;
@@ -22,6 +24,7 @@ class EditRoutineScreen extends ConsumerStatefulWidget {
 
 class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   late Future<List<PlanExerciseDetail>> _future;
+  final RoutineJsonCodec _jsonCodec = RoutineJsonCodec();
 
   @override
   void initState() {
@@ -89,6 +92,8 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
           reps: 10,
           weight: 0,
           restSeconds: 90,
+          rir: 2,
+          tempo: '3-1-1-0',
         ),
         position: ((index ?? (current.length + 1)) - 1).clamp(0, current.length),
       );
@@ -97,59 +102,35 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   }
 
   Future<void> _createExercise() async {
-    final nameCtl = TextEditingController();
-    final descCtl = TextEditingController();
-    final catCtl = TextEditingController();
-    final groupCtl = TextEditingController();
-
-    final save = await showDialog<bool>(
+    final jsonTemplate = _jsonCodec.exerciseJson(
+      Exercise(
+        id: 0,
+        name: 'Press Banca',
+        description: 'Ejercicio compuesto para pecho',
+        category: 'Fuerza',
+        mainMuscleGroup: 'Pecho',
+      ),
+    );
+    final jsonText = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Nuevo ejercicio'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtl,
-                decoration: const InputDecoration(labelText: 'Nombre'),
-              ),
-              TextField(
-                controller: descCtl,
-                decoration: const InputDecoration(labelText: 'Descripción'),
-              ),
-              TextField(
-                controller: catCtl,
-                decoration: const InputDecoration(labelText: 'Categoría'),
-              ),
-              TextField(
-                controller: groupCtl,
-                decoration:
-                    const InputDecoration(labelText: 'Músculo principal'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Guardar'),
-          ),
-        ],
+      builder: (_) => ExerciseJsonDialog(
+        title: 'Nuevo ejercicio',
+        initialJson: jsonTemplate,
       ),
     );
 
-    if (save == true) {
+    if (jsonText != null) {
+      final data = _jsonCodec.parseExerciseJson(jsonText);
+      if (data == null) {
+        _showJsonError('JSON inválido para el ejercicio.');
+        return;
+      }
       final repo = WorkoutPlanRepositoryImpl();
       await CreateExerciseUseCase(repo)(
-        nameCtl.text.trim(),
-        descCtl.text.trim(),
-        catCtl.text.trim(),
-        groupCtl.text.trim(),
+        data.name,
+        data.description,
+        data.category,
+        data.mainMuscleGroup,
       );
       ref.invalidate(allExercisesProvider);
     }
@@ -169,60 +150,27 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     );
     if (ex.id == 0) return;
 
-    final nameCtl = TextEditingController(text: ex.name);
-    final descCtl = TextEditingController(text: ex.description);
-    final catCtl = TextEditingController(text: ex.category);
-    final groupCtl = TextEditingController(text: ex.mainMuscleGroup);
-
-    final save = await showDialog<bool>(
+    final jsonText = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Editar ejercicio'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtl,
-                decoration: const InputDecoration(labelText: 'Nombre'),
-              ),
-              TextField(
-                controller: descCtl,
-                decoration: const InputDecoration(labelText: 'Descripción'),
-              ),
-              TextField(
-                controller: catCtl,
-                decoration: const InputDecoration(labelText: 'Categoría'),
-              ),
-              TextField(
-                controller: groupCtl,
-                decoration:
-                    const InputDecoration(labelText: 'Músculo principal'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Guardar'),
-          ),
-        ],
+      builder: (_) => ExerciseJsonDialog(
+        title: 'Editar ejercicio',
+        initialJson: _jsonCodec.exerciseJson(ex),
       ),
     );
 
-    if (save == true) {
+    if (jsonText != null) {
+      final data = _jsonCodec.parseExerciseJson(jsonText);
+      if (data == null) {
+        _showJsonError('JSON inválido para el ejercicio.');
+        return;
+      }
       final repo = WorkoutPlanRepositoryImpl();
       await UpdateExerciseUseCase(repo)(
         ex.id,
-        nameCtl.text.trim(),
-        descCtl.text.trim(),
-        catCtl.text.trim(),
-        groupCtl.text.trim(),
+        data.name,
+        data.description,
+        data.category,
+        data.mainMuscleGroup,
       );
       ref.invalidate(allExercisesProvider);
       await _refresh();
@@ -274,10 +222,9 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
             itemCount: details.length,
             itemBuilder: (_, i) {
               final d = details[i];
-              final setsCtl = TextEditingController(text: d.sets.toString());
-              final repsCtl = TextEditingController(text: d.reps.toString());
-              final weightCtl = TextEditingController(text: d.weight.toString());
-              final restCtl = TextEditingController(text: d.restSeconds.toString());
+              final jsonCtl = TextEditingController(
+                text: _jsonCodec.detailJson(d),
+              );
               return Card(
                 margin: const EdgeInsets.all(8),
                 child: Padding(
@@ -298,32 +245,28 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                           ),
                         ],
                       ),
-                      Row(
-                        children: [
-                          _numField('Sets', setsCtl),
-                          const SizedBox(width: 8),
-                          _numField('Reps', repsCtl),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _numField('Kg', weightCtl),
-                          const SizedBox(width: 8),
-                          _numField('Desc (s)', restCtl),
-                        ],
+                      TextField(
+                        controller: jsonCtl,
+                        maxLines: 8,
+                        decoration: const InputDecoration(
+                          labelText: 'Parámetros JSON',
+                          hintText:
+                              '{ "sets": 3, "reps": 12, "kg": 12.5, "rest": 120, "rir": 2, "tempo": "3-1-1-0" }',
+                        ),
                       ),
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            final newDetail = d.copyWith(
-                              sets: int.tryParse(setsCtl.text) ?? d.sets,
-                              reps: int.tryParse(repsCtl.text) ?? d.reps,
-                              weight: double.tryParse(weightCtl.text) ?? d.weight,
-                              restSeconds: int.tryParse(restCtl.text) ?? d.restSeconds,
+                            final parsed = _jsonCodec.parseDetailJson(
+                              d,
+                              jsonCtl.text,
                             );
-                            _updateDetail(newDetail);
+                            if (parsed == null) {
+                              _showJsonError('JSON inválido para parámetros.');
+                              return;
+                            }
+                            _updateDetail(parsed);
                           },
                           child: const Text('Guardar'),
                         ),
@@ -339,13 +282,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     );
   }
 
-  Widget _numField(String label, TextEditingController ctl) {
-    return Expanded(
-      child: TextField(
-        controller: ctl,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(labelText: label),
-      ),
-    );
+  void _showJsonError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }
