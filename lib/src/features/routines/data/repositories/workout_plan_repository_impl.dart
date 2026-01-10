@@ -46,8 +46,9 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   bool _parseActiveCell(Data? cell) {
     final value = cell?.value;
     if (value == null) return true;
-    if (value is bool) return value;
-    if (value is int) return value != 0;
+    if (value is BoolCellValue) return value.value;
+    if (value is IntCellValue) return value.value != 0;
+    if (value is DoubleCellValue) return value.value != 0;
     final text = value.toString().toLowerCase();
     return text != '0' && text != 'false' && text != 'no';
   }
