@@ -13,9 +13,16 @@ class ExerciseJsonDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final jsonCtl = TextEditingController(text: initialJson);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return AlertDialog(
-      title: Text(title),
+      title: Row(
+        children: [
+          Icon(Icons.code, size: 20, color: colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(title),
+        ],
+      ),
       content: TextField(
         controller: jsonCtl,
         maxLines: 10,
@@ -26,13 +33,15 @@ class ExerciseJsonDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(
+        TextButton.icon(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
+          icon: const Icon(Icons.close),
+          label: const Text('Cancelar'),
         ),
-        ElevatedButton(
+        ElevatedButton.icon(
           onPressed: () => Navigator.pop(context, jsonCtl.text),
-          child: const Text('Guardar'),
+          icon: const Icon(Icons.check),
+          label: const Text('Guardar'),
         ),
       ],
     );

@@ -10,9 +10,11 @@ Future<bool> showConfirmExitSheet(BuildContext context) async =>
       builder: (_) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 28),
+          const SizedBox(height: 8),
           const Text(
             '¿Salir sin guardar?',
-            style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white38),
+            style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -22,17 +24,19 @@ Future<bool> showConfirmExitSheet(BuildContext context) async =>
           const SizedBox(height: 20),
           Row(children: [
             Expanded(
-              child: OutlinedButton(
+              child: OutlinedButton.icon(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancelar'),
+                icon: const Icon(Icons.close),
+                label: const Text('Cancelar'),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Salir'),
+                icon: const Icon(Icons.exit_to_app),
+                label: const Text('Salir'),
               ),
             ),
           ]),

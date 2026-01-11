@@ -34,6 +34,35 @@ class RoutinesScreen extends ConsumerWidget {
                         .setPlanActive(planId, true),
                   ),
                 ),
+              if (activePlans.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.bolt, size: 18, color: Color(0xFF8E8CF8)),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Rutinas activas',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2A2A2A),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '${activePlans.length}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               Expanded(
                 child: activePlans.isEmpty
                     ? const Center(child: Text('No hay rutinas activas'))
