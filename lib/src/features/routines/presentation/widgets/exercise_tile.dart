@@ -233,6 +233,12 @@ class ExerciseTileState extends State<ExerciseTile>
                   _persist(idx);
                   widget.onChanged();
                 },
+                onTap: () {
+                  c.selection = TextSelection(
+                    baseOffset: 0,
+                    extentOffset: c.text.length,
+                  );
+                },
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 13,
