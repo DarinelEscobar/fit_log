@@ -227,6 +227,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
             return const Center(child: Text('Sin ejercicios'));
           }
           return ListView.builder(
+            padding: const EdgeInsets.only(bottom: 96),
             itemCount: details.length,
             itemBuilder: (_, i) {
               final d = details[i];
