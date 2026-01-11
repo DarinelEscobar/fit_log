@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/plan_exercise_details_provider.dart';
@@ -12,6 +11,8 @@ import '../../domain/usecases/delete_exercise_from_plan_usecase.dart';
 import '../../domain/usecases/create_exercise_usecase.dart';
 import '../../domain/usecases/update_exercise_usecase.dart';
 import 'select_exercise_screen.dart';
+import '../widgets/exercise_json_dialog.dart';
+import '../../services/routine_json_codec.dart';
 
 class EditRoutineScreen extends ConsumerStatefulWidget {
   final int planId;
@@ -23,7 +24,7 @@ class EditRoutineScreen extends ConsumerStatefulWidget {
 
 class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   late Future<List<PlanExerciseDetail>> _future;
-  final JsonEncoder _jsonEncoder = const JsonEncoder.withIndent('  ');
+  final RoutineJsonCodec _jsonCodec = RoutineJsonCodec();
 
   @override
   void initState() {
@@ -101,59 +102,35 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   }
 
   Future<void> _createExercise() async {
-    final nameCtl = TextEditingController();
-    final descCtl = TextEditingController();
-    final catCtl = TextEditingController();
-    final groupCtl = TextEditingController();
-
-    final save = await showDialog<bool>(
+    final jsonTemplate = _jsonCodec.exerciseJson(
+      Exercise(
+        id: 0,
+        name: 'Press Banca',
+        description: 'Ejercicio compuesto para pecho',
+        category: 'Fuerza',
+        mainMuscleGroup: 'Pecho',
+      ),
+    );
+    final jsonText = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Nuevo ejercicio'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtl,
-                decoration: const InputDecoration(labelText: 'Nombre'),
-              ),
-              TextField(
-                controller: descCtl,
-                decoration: const InputDecoration(labelText: 'Descripción'),
-              ),
-              TextField(
-                controller: catCtl,
-                decoration: const InputDecoration(labelText: 'Categoría'),
-              ),
-              TextField(
-                controller: groupCtl,
-                decoration:
-                    const InputDecoration(labelText: 'Músculo principal'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Guardar'),
-          ),
-        ],
+      builder: (_) => ExerciseJsonDialog(
+        title: 'Nuevo ejercicio',
+        initialJson: jsonTemplate,
       ),
     );
 
-    if (save == true) {
+    if (jsonText != null) {
+      final data = _jsonCodec.parseExerciseJson(jsonText);
+      if (data == null) {
+        _showJsonError('JSON inválido para el ejercicio.');
+        return;
+      }
       final repo = WorkoutPlanRepositoryImpl();
       await CreateExerciseUseCase(repo)(
-        nameCtl.text.trim(),
-        descCtl.text.trim(),
-        catCtl.text.trim(),
-        groupCtl.text.trim(),
+        data.name,
+        data.description,
+        data.category,
+        data.mainMuscleGroup,
       );
       ref.invalidate(allExercisesProvider);
     }
@@ -173,35 +150,16 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     );
     if (ex.id == 0) return;
 
-    final jsonCtl = TextEditingController(text: _exerciseJson(ex));
-
-    final save = await showDialog<bool>(
+    final jsonText = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Editar ejercicio'),
-        content: TextField(
-          controller: jsonCtl,
-          maxLines: 10,
-          decoration: const InputDecoration(
-            labelText: 'JSON del ejercicio',
-            hintText: '{ "name": "...", "description": "...", "category": "...", "mainMuscle": "..." }',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Guardar'),
-          ),
-        ],
+      builder: (_) => ExerciseJsonDialog(
+        title: 'Editar ejercicio',
+        initialJson: _jsonCodec.exerciseJson(ex),
       ),
     );
 
-    if (save == true) {
-      final data = _parseExerciseJson(jsonCtl.text);
+    if (jsonText != null) {
+      final data = _jsonCodec.parseExerciseJson(jsonText);
       if (data == null) {
         _showJsonError('JSON inválido para el ejercicio.');
         return;
@@ -264,7 +222,9 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
             itemCount: details.length,
             itemBuilder: (_, i) {
               final d = details[i];
-              final jsonCtl = TextEditingController(text: _detailJson(d));
+              final jsonCtl = TextEditingController(
+                text: _jsonCodec.detailJson(d),
+              );
               return Card(
                 margin: const EdgeInsets.all(8),
                 child: Padding(
@@ -298,7 +258,10 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            final parsed = _parseDetailJson(d, jsonCtl.text);
+                            final parsed = _jsonCodec.parseDetailJson(
+                              d,
+                              jsonCtl.text,
+                            );
                             if (parsed == null) {
                               _showJsonError('JSON inválido para parámetros.');
                               return;
@@ -317,77 +280,6 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
         },
       ),
     );
-  }
-
-  String _detailJson(PlanExerciseDetail detail) => _jsonEncoder.convert({
-        'sets': detail.sets,
-        'reps': detail.reps,
-        'kg': detail.weight,
-        'rest': detail.restSeconds,
-        'rir': detail.rir,
-        'tempo': detail.tempo,
-      });
-
-  String _exerciseJson(Exercise exercise) => _jsonEncoder.convert({
-        'name': exercise.name,
-        'description': exercise.description,
-        'category': exercise.category,
-        'mainMuscle': exercise.mainMuscleGroup,
-      });
-
-  int? _asInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    if (value is String) return int.tryParse(value);
-    return null;
-  }
-
-  double? _asDouble(dynamic value) {
-    if (value is double) return value;
-    if (value is num) return value.toDouble();
-    if (value is String) return double.tryParse(value);
-    return null;
-  }
-
-  PlanExerciseDetail? _parseDetailJson(
-    PlanExerciseDetail base,
-    String source,
-  ) {
-    try {
-      final decoded = jsonDecode(source);
-      if (decoded is! Map) return null;
-      return base.copyWith(
-        sets: _asInt(decoded['sets']) ?? base.sets,
-        reps: _asInt(decoded['reps']) ?? base.reps,
-        weight: _asDouble(decoded['kg']) ?? base.weight,
-        restSeconds: _asInt(decoded['rest']) ?? base.restSeconds,
-        rir: _asInt(decoded['rir']) ?? base.rir,
-        tempo: decoded['tempo']?.toString() ?? base.tempo,
-      );
-    } on FormatException {
-      return null;
-    }
-  }
-
-  Exercise? _parseExerciseJson(String source) {
-    try {
-      final decoded = jsonDecode(source);
-      if (decoded is! Map) return null;
-      final name = decoded['name']?.toString().trim() ?? '';
-      final description = decoded['description']?.toString().trim() ?? '';
-      final category = decoded['category']?.toString().trim() ?? '';
-      final mainMuscle = decoded['mainMuscle']?.toString().trim() ?? '';
-      if (name.isEmpty) return null;
-      return Exercise(
-        id: 0,
-        name: name,
-        description: description,
-        category: category,
-        mainMuscleGroup: mainMuscle,
-      );
-    } on FormatException {
-      return null;
-    }
   }
 
   void _showJsonError(String message) {
