@@ -14,7 +14,7 @@ import '../widgets/exercise_tile.dart';
 import '../widgets/finish_session_dialog.dart';
 import '../widgets/confirm_exit_sheet.dart';
 import '../widgets/session_summary_card.dart';
-import '../../../history/presentation/providers/history_providers.dart';
+import '../widgets/session_exercise_tile.dart';
 import '../providers/exercises_provider.dart';
 import 'select_exercise_screen.dart';
 import '../../services/workout_session_helper.dart';
@@ -177,9 +177,15 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
               data: (dets) {
                 _sessionDetails ??= List.of(dets);
                 final list = _sessionDetails!;
-                final done = list.where((d) =>
-                  _keys[d.exerciseId]?.currentState?.isComplete(logsMap) ?? false
-                ).length;
+                final entries = list.asMap().entries.toList();
+                bool isComplete(PlanExerciseDetail detail) =>
+                    _keys[detail.exerciseId]?.currentState?.isComplete(logsMap) ??
+                    false;
+                final done = entries.where((entry) => isComplete(entry.value)).length;
+                final pendingEntries =
+                    entries.where((entry) => !isComplete(entry.value)).toList();
+                final completedEntries =
+                    entries.where((entry) => isComplete(entry.value)).toList();
                 return Column(
                   children: [
                     Padding(
@@ -197,78 +203,69 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                       child: ListView(
                         padding: const EdgeInsets.fromLTRB(12, 16, 12, 80),
                         children: [
-                          for (var entry in list.asMap().entries)
-                            Consumer(builder: (context, ref, _) {
-                              final detail = entry.value;
-                              final idx = entry.key;
-                              _keys[detail.exerciseId] ??= GlobalKey<ExerciseTileState>();
-                              final doneEx = _keys[detail.exerciseId]
-                                      ?.currentState
-                                      ?.isComplete(logsMap) ?? false;
-                              final asyncLogs = ref.watch(logsByExerciseProvider(detail.exerciseId));
-                              return asyncLogs.when(
-                                data: (logs) {
-                                  final last = WorkoutSessionHelper.lastLogs(logs);
-                                  final best = WorkoutSessionHelper.bestLogs(logs);
-                                  return ExerciseTile(
-                                    key: _keys[detail.exerciseId],
-                                    detail: detail,
-                                    expanded: _expandedExerciseId == detail.exerciseId,
-                                    onToggle: () => setState(() {
-                                      _expandedExerciseId = _expandedExerciseId == detail.exerciseId
-                                          ? null
-                                          : detail.exerciseId;
-                                    }),
-                                    logsMap: logsMap,
-                                    highlightDone: doneEx,
-                                    onChanged: () => setState(() {}),
-                                    removeLog: notifier.remove,
-                                    update: notifier.update,
-                                    planId: widget.planId,
-                                    lastLogs: last,
-                                    bestLogs: best,
-                                    showBest: _showBest,
-                                    onSwap: () => swapExercise(idx),
-                                  );
-                                },
-                                loading: () => ExerciseTile(
-                                  key: _keys[detail.exerciseId],
-                                  detail: detail,
-                                  expanded: _expandedExerciseId == detail.exerciseId,
-                                  onToggle: () => setState(() {
-                                    _expandedExerciseId = _expandedExerciseId == detail.exerciseId
+                          for (final entry in pendingEntries)
+                            SessionExerciseTile(
+                              detail: entry.value,
+                              index: entry.key,
+                              expandedExerciseId: _expandedExerciseId,
+                              onToggle: (exerciseId) => setState(() {
+                                _expandedExerciseId =
+                                    _expandedExerciseId == exerciseId
                                         ? null
-                                        : detail.exerciseId;
-                                  }),
-                                  logsMap: logsMap,
-                                  highlightDone: doneEx,
-                                  onChanged: () => setState(() {}),
-                                  removeLog: notifier.remove,
-                                  update: notifier.update,
-                                  planId: widget.planId,
-                                  showBest: _showBest,
-                                  onSwap: () => swapExercise(idx),
+                                        : exerciseId;
+                              }),
+                              keys: _keys,
+                              logsMap: logsMap,
+                              highlightDone: isComplete(entry.value),
+                              onChanged: () => setState(() {}),
+                              removeLog: notifier.remove,
+                              updateLog: notifier.update,
+                              planId: widget.planId,
+                              showBest: _showBest,
+                              onSwap: () => swapExercise(entry.key),
+                            ),
+                          if (completedEntries.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Theme(
+                                data: Theme.of(context).copyWith(
+                                  dividerColor: Colors.transparent,
                                 ),
-                                error: (e, _) => ExerciseTile(
-                                  key: _keys[detail.exerciseId],
-                                  detail: detail,
-                                  expanded: _expandedExerciseId == detail.exerciseId,
-                                  onToggle: () => setState(() {
-                                    _expandedExerciseId = _expandedExerciseId == detail.exerciseId
-                                        ? null
-                                        : detail.exerciseId;
-                                  }),
-                                  logsMap: logsMap,
-                                  highlightDone: doneEx,
-                                  onChanged: () => setState(() {}),
-                                  removeLog: notifier.remove,
-                                  update: notifier.update,
-                                  planId: widget.planId,
-                                  showBest: _showBest,
-                                  onSwap: () => swapExercise(idx),
+                                child: ExpansionTile(
+                                  tilePadding:
+                                      const EdgeInsets.symmetric(horizontal: 4),
+                                  title: Text(
+                                    'Completados (${completedEntries.length})',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  children: [
+                                    for (final entry in completedEntries)
+                                      SessionExerciseTile(
+                                        detail: entry.value,
+                                        index: entry.key,
+                                        expandedExerciseId: _expandedExerciseId,
+                                        onToggle: (exerciseId) => setState(() {
+                                          _expandedExerciseId =
+                                              _expandedExerciseId == exerciseId
+                                                  ? null
+                                                  : exerciseId;
+                                        }),
+                                        keys: _keys,
+                                        logsMap: logsMap,
+                                        highlightDone: isComplete(entry.value),
+                                        onChanged: () => setState(() {}),
+                                        removeLog: notifier.remove,
+                                        updateLog: notifier.update,
+                                        planId: widget.planId,
+                                        showBest: _showBest,
+                                        onSwap: () => swapExercise(entry.key),
+                                      ),
+                                  ],
                                 ),
-                              );
-                            }),
+                              ),
+                            ),
                         ],
                       ),
                     ),
