@@ -12,7 +12,6 @@ import '../../domain/usecases/save_workout_logs_usecase.dart';
 import '../../domain/usecases/save_workout_session_usecase.dart';
 import '../widgets/exercise_tile.dart';
 import '../widgets/finish_session_dialog.dart';
-import '../widgets/progress_header.dart';
 import '../widgets/confirm_exit_sheet.dart';
 import '../widgets/session_summary_card.dart';
 import '../../../history/presentation/providers/history_providers.dart';
@@ -104,19 +103,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
               }
             },
           ),
-          title: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
-            child: Text(
-              WorkoutSessionHelper.formatDuration(notifier.sessionDuration),
-              key: ValueKey<String>(
-                WorkoutSessionHelper.formatDuration(notifier.sessionDuration),
-              ),
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          title: const Text('Sesión activa'),
           centerTitle: true,
           actions: [
             IconButton(
@@ -195,7 +182,6 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                 ).length;
                 return Column(
                   children: [
-                    ProgressHeader(completed: done, total: list.length),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                       child: SessionSummaryCard(
