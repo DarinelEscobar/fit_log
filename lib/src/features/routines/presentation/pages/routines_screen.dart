@@ -67,6 +67,7 @@ class RoutinesScreen extends ConsumerWidget {
                 child: activePlans.isEmpty
                     ? const Center(child: Text('No hay rutinas activas'))
                     : ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 96),
                         itemCount: activePlans.length,
                         itemBuilder: (_, i) {
                           final plan = activePlans[i];
