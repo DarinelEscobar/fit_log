@@ -1,7 +1,3 @@
-// lib/src/features/routines/presentation/pages/start_routine_screen.dart
-//
-// Neutral-toned, shadow-light redesign with fixed compile errors.
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +14,7 @@ import '../widgets/exercise_tile.dart';
 import '../widgets/finish_session_dialog.dart';
 import '../widgets/progress_header.dart';
 import '../widgets/confirm_exit_sheet.dart';
+import '../widgets/session_summary_card.dart';
 import '../../../history/presentation/providers/history_providers.dart';
 import '../providers/exercises_provider.dart';
 import 'select_exercise_screen.dart';
@@ -95,10 +92,6 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
           centerTitle: true,
           actions: [
             IconButton(
-              icon: Icon(_showBest ? Icons.star : Icons.star_border),
-              onPressed: () => setState(() => _showBest = !_showBest),
-            ),
-            IconButton(
               icon: const Icon(Icons.add),
               onPressed: addExercise,
             ),
@@ -170,9 +163,20 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                 return Column(
                   children: [
                     ProgressHeader(completed: done, total: list.length),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: SessionSummaryCard(
+                        duration: WorkoutSessionHelper.formatDuration(
+                          notifier.sessionDuration,
+                        ),
+                        completion: '$done/${list.length}',
+                        showBest: _showBest,
+                        onToggleBest: () => setState(() => _showBest = !_showBest),
+                      ),
+                    ),
                     Expanded(
                       child: ListView(
-                        padding: const EdgeInsets.fromLTRB(12, 100, 12, 80),
+                        padding: const EdgeInsets.fromLTRB(12, 16, 12, 80),
                         children: [
                           for (var entry in list.asMap().entries)
                             Consumer(builder: (context, ref, _) {
@@ -259,5 +263,4 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     );
   }
 
- 
 }

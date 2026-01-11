@@ -24,6 +24,7 @@ class AddRoutineButton extends ConsumerWidget {
                 Text('Nueva Rutina'),
               ],
             ),
+            contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -31,12 +32,14 @@ class AddRoutineButton extends ConsumerWidget {
                   controller: nameController,
                   decoration: const InputDecoration(labelText: 'Nombre de rutina'),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: frequencyController,
                   decoration: const InputDecoration(labelText: 'Frecuencia'),
                 ),
               ],
             ),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             actions: [
               TextButton.icon(
                 onPressed: () => Navigator.pop(context),
