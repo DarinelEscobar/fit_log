@@ -73,17 +73,19 @@ class RoutinesScreen extends ConsumerWidget {
                           final plan = activePlans[i];
                           return Card(
                             child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.primary,
-                                child: Text(
-                                  plan.name.isNotEmpty
-                                      ? plan.name.characters.first
-                                      : 'R',
-                                  style: const TextStyle(
-                                    color: Color(0xFF0F0F10),
-                                    fontWeight: FontWeight.w700,
+                              leading: Container(
+                                height: 44,
+                                width: 44,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2A2A2A),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: const Color(0xFF3A3A3A),
                                   ),
+                                ),
+                                child: const Icon(
+                                  Icons.fitness_center,
+                                  color: Color(0xFF8E8CF8),
                                 ),
                               ),
                               title: Text(plan.name),

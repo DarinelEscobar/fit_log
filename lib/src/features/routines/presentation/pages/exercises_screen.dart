@@ -96,16 +96,19 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
                       final exercise = filtered[i];
                       return Card(
                         child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: colorScheme.primary,
-                            child: Text(
-                              exercise.name.isNotEmpty
-                                  ? exercise.name.characters.first
-                                  : 'E',
-                              style: const TextStyle(
-                                color: Color(0xFF0F0F10),
-                                fontWeight: FontWeight.w700,
+                          leading: Container(
+                            height: 44,
+                            width: 44,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2A2A2A),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFF3A3A3A),
                               ),
+                            ),
+                            child: Icon(
+                              Icons.sports_gymnastics,
+                              color: colorScheme.primary,
                             ),
                           ),
                           title: Text(exercise.name),
