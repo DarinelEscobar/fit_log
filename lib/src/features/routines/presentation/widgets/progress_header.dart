@@ -8,6 +8,7 @@ class ProgressHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final progress = total == 0 ? 0.0 : completed / total;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
       decoration: BoxDecoration(
@@ -24,16 +25,25 @@ class ProgressHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Ejercicios $completed / $total',
-            style: const TextStyle(fontSize: 16, color: Colors.white),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: Text(
+              'Ejercicios $completed / $total',
+              key: ValueKey<String>('progress-$completed-$total'),
+              style: const TextStyle(fontSize: 16, color: Colors.white),
+            ),
           ),
           const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: total == 0 ? 0 : completed / total,
-            minHeight: 6,
-            backgroundColor: Colors.grey.shade700,
-            color: Colors.blueGrey.shade200,
+          TweenAnimationBuilder<double>(
+            duration: const Duration(milliseconds: 450),
+            curve: Curves.easeOutCubic,
+            tween: Tween<double>(begin: 0, end: progress),
+            builder: (_, value, __) => LinearProgressIndicator(
+              value: value,
+              minHeight: 6,
+              backgroundColor: Colors.grey.shade700,
+              color: Colors.blueGrey.shade200,
+            ),
           ),
         ],
       ),

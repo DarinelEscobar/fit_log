@@ -48,6 +48,13 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     super.initState();
     ref.read(workoutLogProvider.notifier).startSession();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sesión iniciada')),
+        );
+      }
+    });
   }
 
   @override
@@ -67,7 +74,14 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     return WillPopScope(
       onWillPop: () async {
         final exit = await showConfirmExitSheet(context);
-        if (exit) notifier.clear();
+        if (exit) {
+          notifier.clear();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Sesión cancelada')),
+            );
+          }
+        }
         return exit;
       },
       child: Scaffold(
@@ -81,13 +95,27 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
               final exit = await showConfirmExitSheet(context);
               if (exit) {
                 notifier.clear();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Sesión cancelada')),
+                  );
+                }
                 if (mounted) Navigator.pop(context);
               }
             },
           ),
-          title: Text(
-            WorkoutSessionHelper.formatDuration(notifier.sessionDuration),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          title: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: Text(
+              WorkoutSessionHelper.formatDuration(notifier.sessionDuration),
+              key: ValueKey<String>(
+                WorkoutSessionHelper.formatDuration(notifier.sessionDuration),
+              ),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
           centerTitle: true,
           actions: [
@@ -127,6 +155,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                 _mood = result.mood;
                 _notesCtl.text = result.notes;
                 notifier.clear();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Sesión finalizada')),
+                  );
+                }
                 if (mounted) Navigator.pop(context);
               },
             ),

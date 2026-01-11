@@ -36,22 +36,36 @@ class MiniLineChart extends StatelessWidget {
           if (last.isNotEmpty)
             LineChartBarData(
               spots: _spots(last),
-              isCurved: false,
+              isCurved: true,
+              barWidth: 2,
               dotData: const FlDotData(show: false),
-              color: Colors.grey,
+              color: Colors.grey.shade600,
             ),
           if (best.isNotEmpty)
             LineChartBarData(
               spots: _spots(best),
-              isCurved: false,
+              isCurved: true,
+              barWidth: 2,
               dotData: const FlDotData(show: false),
-              color: Colors.amber,
+              color: Colors.amber.shade400,
             ),
           LineChartBarData(
             spots: _spots(today),
-            isCurved: false,
+            isCurved: true,
+            barWidth: 3,
             dotData: const FlDotData(show: true),
-            color: Colors.blueAccent,
+            color: Colors.blueAccent.shade200,
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [
+                  Colors.blueAccent.shade200.withOpacity(0.3),
+                  Colors.transparent,
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
           ),
         ],
       ),
