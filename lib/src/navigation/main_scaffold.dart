@@ -26,17 +26,30 @@ class _MainScaffoldState extends State<MainScaffold> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _tabs),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
-          BottomNavigationBarItem(icon: Icon(Icons.fitness_center), label: 'Rutinas'),
-          // BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Logs'),
-          // BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Stats'),
-          // BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
-        ],
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: NavigationBar(
+              selectedIndex: _currentIndex,
+              onDestinationSelected: (i) => setState(() => _currentIndex = i),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home),
+                  label: 'Inicio',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.fitness_center_outlined),
+                  selectedIcon: Icon(Icons.fitness_center),
+                  label: 'Rutinas',
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -47,22 +60,54 @@ class _HomeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Bienvenido a Fit Log'),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DataScreen()),
-              );
-            },
-            child: const Text('Data'),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.auto_awesome, size: 48, color: Color(0xFF8E8CF8)),
+            const SizedBox(height: 16),
+            const Text(
+              'Bienvenido a Fit Log',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Diseño minimalista, métricas claras y control total de tu progreso.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colorScheme.onSurface.withOpacity(0.7),
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DataScreen()),
+                  );
+                },
+                icon: const Icon(Icons.cloud_download_outlined),
+                label: const Text('Datos y respaldo'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
