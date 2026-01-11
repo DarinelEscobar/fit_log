@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/plan_exercise_details_provider.dart';
 import '../state/workout_log_state.dart';
-import '../../domain/entities/workout_log_entry.dart';
 import '../../domain/entities/workout_session.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
