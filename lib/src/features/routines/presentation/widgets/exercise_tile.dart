@@ -490,10 +490,16 @@ class ExerciseTileState extends State<ExerciseTile>
                             const SizedBox(width: 8),
                             _rirBadge(_rirCtl[i]),
                             const Spacer(),
-                            Icon(
-                              done ? Icons.check_circle : Icons.circle,
-                              size: 18,
-                              color: done ? Colors.green : Colors.grey,
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 250),
+                              transitionBuilder: (child, animation) =>
+                                  ScaleTransition(scale: animation, child: child),
+                              child: Icon(
+                                done ? Icons.check_circle : Icons.circle,
+                                key: ValueKey<bool>(done),
+                                size: 18,
+                                color: done ? Colors.green : Colors.grey,
+                              ),
                             ),
                           ],
                         ),
