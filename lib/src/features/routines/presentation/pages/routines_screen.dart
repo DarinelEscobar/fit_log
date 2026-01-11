@@ -41,44 +41,60 @@ class RoutinesScreen extends ConsumerWidget {
                         itemCount: activePlans.length,
                         itemBuilder: (_, i) {
                           final plan = activePlans[i];
-                          return ListTile(
-                            leading: Text(plan.id.toString()),
-                            title: Text(plan.name),
-                            subtitle: Text(plan.frequency),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit),
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            EditRoutineScreen(planId: plan.id),
-                                      ),
-                                    );
-                                  },
+                          return Card(
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.primary,
+                                child: Text(
+                                  plan.name.isNotEmpty
+                                      ? plan.name.characters.first
+                                      : 'R',
+                                  style: const TextStyle(
+                                    color: Color(0xFF0F0F10),
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                                IconButton(
-                                  icon:
-                                      const Icon(Icons.pause_circle_outline),
-                                  tooltip: 'Desactivar rutina',
-                                  onPressed: () => ref
-                                      .read(workoutPlanProvider.notifier)
-                                      .setPlanActive(plan.id, false),
-                                ),
-                              ],
+                              ),
+                              title: Text(plan.name),
+                              subtitle: Text(plan.frequency),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined),
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => EditRoutineScreen(
+                                            planId: plan.id,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.pause_circle_outline,
+                                    ),
+                                    tooltip: 'Desactivar rutina',
+                                    onPressed: () => ref
+                                        .read(workoutPlanProvider.notifier)
+                                        .setPlanActive(plan.id, false),
+                                  ),
+                                ],
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        ExercisesScreen(planId: plan.id),
+                                  ),
+                                );
+                              },
                             ),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      ExercisesScreen(planId: plan.id),
-                                ),
-                              );
-                            },
                           );
                         },
                       ),
