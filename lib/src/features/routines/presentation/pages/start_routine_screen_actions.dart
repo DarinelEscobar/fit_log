@@ -59,7 +59,7 @@ extension StartRoutineActions on _StartRoutineScreenState {
           exerciseId: exercise.id,
           name: exercise.name,
           description: exercise.description,
-          sets: _defaultSets,
+          sets: _StartRoutineScreenState._defaultSets,
           reps: 10,
           weight: 0,
           restSeconds: 90,
