@@ -86,8 +86,15 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return AlertDialog(
-      title: const Text('Editar perfil'),
+      title: Row(
+        children: [
+          Icon(Icons.person, size: 20, color: colorScheme.primary),
+          const SizedBox(width: 8),
+          const Text('Editar perfil'),
+        ],
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -115,11 +122,12 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        TextButton.icon(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
+          icon: const Icon(Icons.close),
+          label: const Text('Cancelar'),
         ),
-        ElevatedButton(
+        ElevatedButton.icon(
           onPressed: () {
             final p = UserProfile(
               id: widget.user.id,
@@ -144,7 +152,8 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
             );
             Navigator.pop(context, p);
           },
-          child: const Text('Guardar'),
+          icon: const Icon(Icons.check),
+          label: const Text('Guardar'),
         ),
       ],
     );

@@ -60,23 +60,31 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
       final index = await showDialog<int>(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Posición del ejercicio'),
+          title: Row(
+            children: const [
+              Icon(Icons.format_list_numbered, size: 20),
+              SizedBox(width: 8),
+              Text('Posición del ejercicio'),
+            ],
+          ),
           content: TextField(
             controller: posCtl,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(labelText: '1 = inicio'),
           ),
           actions: [
-            TextButton(
+            TextButton.icon(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
+              icon: const Icon(Icons.close),
+              label: const Text('Cancelar'),
             ),
-            TextButton(
+            TextButton.icon(
               onPressed: () => Navigator.pop(
                 context,
                 int.tryParse(posCtl.text) ?? current.length + 1,
               ),
-              child: const Text('OK'),
+              icon: const Icon(Icons.check),
+              label: const Text('OK'),
             ),
           ],
         ),

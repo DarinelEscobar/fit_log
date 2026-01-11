@@ -74,11 +74,18 @@ class _FinishSessionDialogState extends State<FinishSessionDialog> {
   @override
   Widget build(BuildContext context) {
     final canFinish = _energy != null && _mood != null;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return AlertDialog(
       backgroundColor: const Color(0xFF1F1F1F),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      title: const Text('Finalizar sesión'),
+      title: Row(
+        children: [
+          Icon(Icons.flag_circle, size: 20, color: colorScheme.primary),
+          const SizedBox(width: 8),
+          const Text('Finalizar sesión'),
+        ],
+      ),
       titleTextStyle: const TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w600,
@@ -121,11 +128,12 @@ class _FinishSessionDialogState extends State<FinishSessionDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        TextButton.icon(
           onPressed: () => Navigator.of(context).pop(null),
-          child: const Text('Cancelar'),
+          icon: const Icon(Icons.close),
+          label: const Text('Cancelar'),
         ),
-        ElevatedButton(
+        ElevatedButton.icon(
           onPressed: canFinish
               ? () => Navigator.of(context).pop((
                     energy: _energy!,
@@ -133,7 +141,8 @@ class _FinishSessionDialogState extends State<FinishSessionDialog> {
                     notes: _notesCtl.text,
                   ))
               : null,
-          child: const Text('Finalizar'),
+          icon: const Icon(Icons.check_circle_outline),
+          label: const Text('Finalizar'),
         ),
       ],
     );

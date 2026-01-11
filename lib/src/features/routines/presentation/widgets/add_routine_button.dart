@@ -17,7 +17,13 @@ class AddRoutineButton extends ConsumerWidget {
         await showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            title: const Text('Nueva Rutina'),
+            title: Row(
+              children: const [
+                Icon(Icons.playlist_add, size: 20),
+                SizedBox(width: 8),
+                Text('Nueva Rutina'),
+              ],
+            ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -32,11 +38,12 @@ class AddRoutineButton extends ConsumerWidget {
               ],
             ),
             actions: [
-              TextButton(
+              TextButton.icon(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
+                icon: const Icon(Icons.close),
+                label: const Text('Cancelar'),
               ),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: () async {
                   final repo = WorkoutPlanRepositoryImpl();
                   final usecase = CreateWorkoutPlanUseCase(repo);
@@ -47,7 +54,8 @@ class AddRoutineButton extends ConsumerWidget {
                   ref.invalidate(workoutPlanProvider); // Refrescar lista
                   Navigator.pop(context);
                 },
-                child: const Text('Guardar'),
+                icon: const Icon(Icons.check),
+                label: const Text('Guardar'),
               ),
             ],
           ),

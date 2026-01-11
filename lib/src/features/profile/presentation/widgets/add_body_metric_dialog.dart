@@ -76,8 +76,15 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
   @override
   Widget build(BuildContext context) {
     final last = widget.last;
+    final colorScheme = Theme.of(context).colorScheme;
     return AlertDialog(
-      title: const Text('Registrar métricas'),
+      title: Row(
+        children: [
+          Icon(Icons.monitor_heart, size: 20, color: colorScheme.secondary),
+          const SizedBox(width: 8),
+          const Text('Registrar métricas'),
+        ],
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -103,11 +110,12 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        TextButton.icon(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
+          icon: const Icon(Icons.close),
+          label: const Text('Cancelar'),
         ),
-        ElevatedButton(
+        ElevatedButton.icon(
           onPressed: () {
             final last = widget.last;
             final metric = BodyMetric(
@@ -129,7 +137,8 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
             );
             Navigator.pop(context, metric);
           },
-          child: const Text('Guardar'),
+          icon: const Icon(Icons.check),
+          label: const Text('Guardar'),
         ),
       ],
     );
