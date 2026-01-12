@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/plan_exercise_details_provider.dart';
 import '../providers/exercises_provider.dart';
-import '../../data/repositories/workout_plan_repository_impl.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/usecases/add_exercise_to_plan_usecase.dart';
@@ -12,6 +11,7 @@ import '../../domain/usecases/create_exercise_usecase.dart';
 import '../../domain/usecases/update_exercise_usecase.dart';
 import 'select_exercise_screen.dart';
 import '../widgets/exercise_json_dialog.dart';
+import '../providers/workout_plan_repository_provider.dart';
 import '../../services/routine_json_codec.dart';
 
 class EditRoutineScreen extends ConsumerStatefulWidget {
@@ -89,7 +89,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
           ],
         ),
       );
-      final repo = WorkoutPlanRepositoryImpl();
+      final repo = ref.read(workoutPlanRepositoryProvider);
       await AddExerciseToPlanUseCase(repo)(
         widget.planId,
         PlanExerciseDetail(
@@ -133,7 +133,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
         _showJsonError('JSON inválido para el ejercicio.');
         return;
       }
-      final repo = WorkoutPlanRepositoryImpl();
+      final repo = ref.read(workoutPlanRepositoryProvider);
       await CreateExerciseUseCase(repo)(
         data.name,
         data.description,
@@ -172,7 +172,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
         _showJsonError('JSON inválido para el ejercicio.');
         return;
       }
-      final repo = WorkoutPlanRepositoryImpl();
+      final repo = ref.read(workoutPlanRepositoryProvider);
       await UpdateExerciseUseCase(repo)(
         ex.id,
         data.name,
@@ -186,13 +186,13 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   }
 
   Future<void> _updateDetail(PlanExerciseDetail detail) async {
-    final repo = WorkoutPlanRepositoryImpl();
+    final repo = ref.read(workoutPlanRepositoryProvider);
     await UpdateExerciseInPlanUseCase(repo)(widget.planId, detail);
     await _refresh();
   }
 
   Future<void> _deleteDetail(int exerciseId) async {
-    final repo = WorkoutPlanRepositoryImpl();
+    final repo = ref.read(workoutPlanRepositoryProvider);
     await DeleteExerciseFromPlanUseCase(repo)(widget.planId, exerciseId);
     await _refresh();
   }

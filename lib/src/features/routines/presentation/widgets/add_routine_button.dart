@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/repositories/workout_plan_repository_impl.dart';
 import '../../domain/usecases/create_workout_plan_usecase.dart';
+import '../providers/workout_plan_repository_provider.dart';
 import '../providers/workout_plan_provider.dart';
 
 class AddRoutineButton extends ConsumerWidget {
@@ -48,7 +48,7 @@ class AddRoutineButton extends ConsumerWidget {
               ),
               ElevatedButton.icon(
                 onPressed: () async {
-                  final repo = WorkoutPlanRepositoryImpl();
+                  final repo = ref.read(workoutPlanRepositoryProvider);
                   final usecase = CreateWorkoutPlanUseCase(repo);
                   await usecase(
                     nameController.text.trim(),
