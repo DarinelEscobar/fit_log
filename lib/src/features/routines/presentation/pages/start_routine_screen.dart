@@ -181,11 +181,17 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                 bool isComplete(PlanExerciseDetail detail) =>
                     _keys[detail.exerciseId]?.currentState?.isComplete(logsMap) ??
                     false;
+                bool isExpanded(PlanExerciseDetail detail) =>
+                    _expandedExerciseId == detail.exerciseId;
+                bool isArchivedComplete(PlanExerciseDetail detail) =>
+                    isComplete(detail) && !isExpanded(detail);
                 final done = entries.where((entry) => isComplete(entry.value)).length;
-                final pendingEntries =
-                    entries.where((entry) => !isComplete(entry.value)).toList();
-                final completedEntries =
-                    entries.where((entry) => isComplete(entry.value)).toList();
+                final pendingEntries = entries
+                    .where((entry) => !isArchivedComplete(entry.value))
+                    .toList();
+                final completedEntries = entries
+                    .where((entry) => isArchivedComplete(entry.value))
+                    .toList();
                 return Column(
                   children: [
                     Padding(
