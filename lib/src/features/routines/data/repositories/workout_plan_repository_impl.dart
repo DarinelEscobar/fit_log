@@ -105,7 +105,12 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   Future<void> _normalizeExerciseIds() {
-    _normalizeFuture ??= _normalizeExerciseIdsInternal();
+    _normalizeFuture ??= _normalizeExerciseIdsInternal().catchError(
+      (error, stackTrace) {
+        _normalizeFuture = null;
+        Error.throwWithStackTrace(error, stackTrace);
+      },
+    );
     return _normalizeFuture!;
   }
 
