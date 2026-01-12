@@ -181,17 +181,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                 bool isComplete(PlanExerciseDetail detail) =>
                     _keys[detail.exerciseId]?.currentState?.isComplete(logsMap) ??
                     false;
-                bool isExpanded(PlanExerciseDetail detail) =>
-                    _expandedExerciseId == detail.exerciseId;
-                bool isArchivedComplete(PlanExerciseDetail detail) =>
-                    isComplete(detail) && !isExpanded(detail);
                 final done = entries.where((entry) => isComplete(entry.value)).length;
-                final pendingEntries = entries
-                    .where((entry) => !isArchivedComplete(entry.value))
-                    .toList();
-                final completedEntries = entries
-                    .where((entry) => isArchivedComplete(entry.value))
-                    .toList();
                 return Column(
                   children: [
                     Padding(
@@ -209,7 +199,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                       child: ListView(
                         padding: const EdgeInsets.fromLTRB(12, 16, 12, 80),
                         children: [
-                          for (final entry in pendingEntries)
+                          for (final entry in entries)
                             SessionExerciseTile(
                               detail: entry.value,
                               index: entry.key,
@@ -229,48 +219,6 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                               planId: widget.planId,
                               showBest: _showBest,
                               onSwap: () => swapExercise(entry.key),
-                            ),
-                          if (completedEntries.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Theme(
-                                data: Theme.of(context).copyWith(
-                                  dividerColor: Colors.transparent,
-                                ),
-                                child: ExpansionTile(
-                                  tilePadding:
-                                      const EdgeInsets.symmetric(horizontal: 4),
-                                  title: Text(
-                                    'Completados (${completedEntries.length})',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  children: [
-                                    for (final entry in completedEntries)
-                                      SessionExerciseTile(
-                                        detail: entry.value,
-                                        index: entry.key,
-                                        expandedExerciseId: _expandedExerciseId,
-                                        onToggle: (exerciseId) => setState(() {
-                                          _expandedExerciseId =
-                                              _expandedExerciseId == exerciseId
-                                                  ? null
-                                                  : exerciseId;
-                                        }),
-                                        keys: _keys,
-                                        logsMap: logsMap,
-                                        highlightDone: isComplete(entry.value),
-                                        onChanged: () => setState(() {}),
-                                        removeLog: notifier.remove,
-                                        updateLog: notifier.update,
-                                        planId: widget.planId,
-                                        showBest: _showBest,
-                                        onSwap: () => swapExercise(entry.key),
-                                      ),
-                                  ],
-                                ),
-                              ),
                             ),
                         ],
                       ),
