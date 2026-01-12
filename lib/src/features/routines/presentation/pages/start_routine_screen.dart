@@ -7,7 +7,6 @@ import '../state/workout_log_state.dart';
 import '../../domain/entities/workout_session.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
-import '../../data/repositories/workout_plan_repository_impl.dart';
 import '../../domain/usecases/save_workout_logs_usecase.dart';
 import '../../domain/usecases/save_workout_session_usecase.dart';
 import '../widgets/exercise_tile.dart';
@@ -16,6 +15,7 @@ import '../widgets/confirm_exit_sheet.dart';
 import '../widgets/session_summary_card.dart';
 import '../widgets/session_exercise_tile.dart';
 import '../providers/exercises_provider.dart';
+import '../providers/workout_plan_repository_provider.dart';
 import 'select_exercise_screen.dart';
 import '../../services/workout_session_helper.dart';
 part 'start_routine_screen_actions.dart';
@@ -34,6 +34,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   int? _expandedExerciseId;
   List<PlanExerciseDetail>? _sessionDetails;
   Map<int, Exercise>? _exerciseMap;
+  final ValueNotifier<Duration> _elapsed = ValueNotifier(Duration.zero);
 
   String? _energy;
   String? _mood;
@@ -45,8 +46,12 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   @override
   void initState() {
     super.initState();
-    ref.read(workoutLogProvider.notifier).startSession();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+    final notifier = ref.read(workoutLogProvider.notifier);
+    notifier.startSession();
+    _elapsed.value = notifier.sessionDuration;
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      _elapsed.value = notifier.sessionDuration;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -59,6 +64,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   @override
   void dispose() {
     _ticker.cancel();
+    _notesCtl.dispose();
+    _elapsed.dispose();
     super.dispose();
   }
 
@@ -126,7 +133,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                   initialNotes: _notesCtl.text,
                 );
                 if (result == null) return;
-                final repo = WorkoutPlanRepositoryImpl();
+                final repo = ref.read(workoutPlanRepositoryProvider);
                 await SaveWorkoutLogsUseCase(repo)(notifier.completedLogs);
                 await SaveWorkoutSessionUseCase(repo)(
                   WorkoutSession(
@@ -182,45 +189,48 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                     _keys[detail.exerciseId]?.currentState?.isComplete(logsMap) ??
                     false;
                 final done = entries.where((entry) => isComplete(entry.value)).length;
+                final completion = '$done/${list.length}';
                 return Column(
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: SessionSummaryCard(
-                        duration: WorkoutSessionHelper.formatDuration(
-                          notifier.sessionDuration,
+                      child: ValueListenableBuilder<Duration>(
+                        valueListenable: _elapsed,
+                        builder: (_, duration, __) => SessionSummaryCard(
+                          duration: WorkoutSessionHelper.formatDuration(duration),
+                          completion: completion,
+                          showBest: _showBest,
+                          onToggleBest: () => setState(() => _showBest = !_showBest),
                         ),
-                        completion: '$done/${list.length}',
-                        showBest: _showBest,
-                        onToggleBest: () => setState(() => _showBest = !_showBest),
                       ),
                     ),
                     Expanded(
-                      child: ListView(
+                      child: ListView.builder(
                         padding: const EdgeInsets.fromLTRB(12, 16, 12, 80),
-                        children: [
-                          for (final entry in entries)
-                            SessionExerciseTile(
-                              detail: entry.value,
-                              index: entry.key,
-                              expandedExerciseId: _expandedExerciseId,
-                              onToggle: (exerciseId) => setState(() {
-                                _expandedExerciseId =
-                                    _expandedExerciseId == exerciseId
-                                        ? null
-                                        : exerciseId;
-                              }),
-                              keys: _keys,
-                              logsMap: logsMap,
-                              highlightDone: isComplete(entry.value),
-                              onChanged: () => setState(() {}),
-                              removeLog: notifier.remove,
-                              updateLog: notifier.update,
-                              planId: widget.planId,
-                              showBest: _showBest,
-                              onSwap: () => swapExercise(entry.key),
-                            ),
-                        ],
+                        itemCount: entries.length,
+                        itemBuilder: (context, index) {
+                          final entry = entries[index];
+                          return SessionExerciseTile(
+                            detail: entry.value,
+                            index: entry.key,
+                            expandedExerciseId: _expandedExerciseId,
+                            onToggle: (exerciseId) => setState(() {
+                              _expandedExerciseId =
+                                  _expandedExerciseId == exerciseId
+                                      ? null
+                                      : exerciseId;
+                            }),
+                            keys: _keys,
+                            logsMap: logsMap,
+                            highlightDone: isComplete(entry.value),
+                            onChanged: () => setState(() {}),
+                            removeLog: notifier.remove,
+                            updateLog: notifier.update,
+                            planId: widget.planId,
+                            showBest: _showBest,
+                            onSwap: () => swapExercise(entry.key),
+                          );
+                        },
                       ),
                     ),
                   ],

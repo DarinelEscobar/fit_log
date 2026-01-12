@@ -12,6 +12,7 @@ import '../../../../data/schema/schemas.dart';
 
 class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   List<Exercise>? _exerciseCache;
+  Future<void>? _normalizeFuture;
   static const int _planActiveColumnIndex = 3;
   Future<File> _getOrCreateFile(String filename) async {
     final dir = await getApplicationDocumentsDirectory();
@@ -103,7 +104,12 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     return insertIndex;
   }
 
-  Future<void> _normalizeExerciseIds() async {
+  Future<void> _normalizeExerciseIds() {
+    _normalizeFuture ??= _normalizeExerciseIdsInternal();
+    return _normalizeFuture!;
+  }
+
+  Future<void> _normalizeExerciseIdsInternal() async {
     final file = await _getOrCreateFile('exercise.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
     final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
@@ -224,16 +230,12 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
   @override
   Future<List<Exercise>> getExercisesForPlan(int planId) async {
-    await _normalizeExerciseIds();
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
-    final exFile = await _getOrCreateFile('exercise.xlsx');
 
     final peSheet = Excel.decodeBytes(await peFile.readAsBytes())[
         kTableSchemas['plan_exercise.xlsx']!.sheetName];
-    final exSheet = Excel.decodeBytes(await exFile.readAsBytes())[
-        kTableSchemas['exercise.xlsx']!.sheetName];
 
-    if (peSheet == null || exSheet == null) return [];
+    if (peSheet == null) return [];
 
     final exerciseIdsForPlan = peSheet.rows
         .skip(1)
@@ -242,22 +244,10 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
         .whereType<int>()
         .toSet();
 
-    return exSheet.rows
-        .skip(1)
-        .where((row) =>
-            row.isNotEmpty &&
-            exerciseIdsForPlan
-                .contains(int.tryParse(row[0]?.value.toString() ?? '')))
-        .map(
-          (row) => Exercise(
-            id: _cast<int>(row[0]) ?? 0,
-            name: _cast<String>(row[1]) ?? '',
-            description: _cast<String>(row[2]) ?? '',
-            category: _cast<String>(row[3]) ?? '',
-            mainMuscleGroup: _cast<String>(row[4]) ?? '',
-          ),
-        )
-        .toList();
+    if (exerciseIdsForPlan.isEmpty) return [];
+
+    final exercises = await getAllExercises();
+    return exercises.where((e) => exerciseIdsForPlan.contains(e.id)).toList();
   }
 
   @override
@@ -362,25 +352,16 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
 
   @override
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) async {
-    await _normalizeExerciseIds();
     final peFile = await _getOrCreateFile('plan_exercise.xlsx');
-    final exFile = await _getOrCreateFile('exercise.xlsx');
 
     final peSheet = Excel.decodeBytes(await peFile.readAsBytes())[
         kTableSchemas['plan_exercise.xlsx']!.sheetName];
-    final exSheet = Excel.decodeBytes(await exFile.readAsBytes())[
-        kTableSchemas['exercise.xlsx']!.sheetName];
 
-    if (peSheet == null || exSheet == null) return [];
+    if (peSheet == null) return [];
 
-    final mapIdName = {
-      for (var r in exSheet.rows.skip(1))
-        if (r.isNotEmpty) _cast<int>(r[0])!: r[1]?.value.toString() ?? '',
-    };
-    final mapIdDescription = {
-      for (var r in exSheet.rows.skip(1))
-        if (r.isNotEmpty) _cast<int>(r[0])!: r[2]?.value.toString() ?? '',
-    };
+    final exercises = await getAllExercises();
+    final mapIdName = {for (var e in exercises) e.id: e.name};
+    final mapIdDescription = {for (var e in exercises) e.id: e.description};
 
     return peSheet.rows
         .skip(1)
