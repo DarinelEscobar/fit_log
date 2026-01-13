@@ -1,6 +1,6 @@
 # Fit Log
 
-Fit Log is a Flutter application for tracking workout routines and logging your training sessions. All data is stored locally in Excel (`.xlsx`) files so you can easily back up or edit them with any spreadsheet program.
+Fit Log is a Flutter application for tracking workout routines and logging your training sessions. Workout plans remain in Excel (`.xlsx`) files for easy backups, while workout sessions and set logs are stored in a local SQLite database for faster writes during session completion.
 
 ## Features
 
@@ -26,7 +26,7 @@ Fit Log is a Flutter application for tracking workout routines and logging your 
    flutter run
    ```
 
-On first launch, the app creates the Excel files defined in `kTableSchemas`. This is triggered by `XlsxInitializer.ensureXlsxFilesExist()` during startup.
+On first launch, the app creates the Excel files defined in `kTableSchemas`. This is triggered by `XlsxInitializer.ensureXlsxFilesExist()` during startup. Workout sessions/logs are stored in SQLite and the app will migrate existing `workout_log.xlsx` and `workout_session.xlsx` data into the database on first use.
 
 ## Project Structure
 
@@ -49,6 +49,7 @@ flutter test
 ## Notes
 
 - Statistics and profile sections are placeholders for future updates.
-- Data is stored in the application documents directory as `.xlsx` files, making it simple to export or edit externally.
+- Workout plans and exercises are stored in the application documents directory as `.xlsx` files, making them simple to export or edit externally.
+- Workout sessions and set logs are stored in SQLite (`fit_log.db`) to avoid blocking the UI when saving a completed routine.
 - When exporting from the Data screen a ZIP file is also copied to your Downloads directory for easy access.
 - The Data screen can import either a full `fitlog_backup.zip` or an individual `.xlsx` table to replace existing data.
