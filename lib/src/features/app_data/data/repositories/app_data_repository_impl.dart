@@ -11,14 +11,14 @@ class AppDataRepositoryImpl implements AppDataRepository {
   @override
   Future<File> exportData() async {
     final dir = await getApplicationDocumentsDirectory();
+    final databaseDir = await getDatabasesPath();
     final archive = Archive();
     for (final filename in kTableSchemas.keys) {
       final file = File(p.join(dir.path, filename));
-      if (await file.exists()) {
-        final bytes = await file.readAsBytes();
-        archive.addFile(ArchiveFile(filename, bytes.length, bytes));
-      }
+      await _addFileToArchive(archive, file, filename);
     }
+    final databaseFile = File(p.join(databaseDir, 'fit_log.db'));
+    await _addFileToArchive(archive, databaseFile, p.basename(databaseFile.path));
     final encoder = ZipEncoder();
     final data = encoder.encode(archive);
     final outFile = File(p.join(dir.path, 'fitlog_backup.zip'));
@@ -44,6 +44,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
   @override
   Future<void> importData(File file) async {
     final dir = await getApplicationDocumentsDirectory();
+    final databaseDir = await getDatabasesPath();
     final ext = p.extension(file.path).toLowerCase();
     if (ext == '.xlsx') {
       final outFile = File(p.join(dir.path, p.basename(file.path)));
@@ -56,9 +57,15 @@ class AppDataRepositoryImpl implements AppDataRepository {
     for (final archived in archive.files) {
       if (!archived.isFile) continue;
       final name = p.basename(archived.name);
-      final outPath = p.join(dir.path, name);
+      final outPath = name == 'fit_log.db' ? p.join(databaseDir, name) : p.join(dir.path, name);
       final outFile = File(outPath);
       await outFile.writeAsBytes(archived.content as List<int>, flush: true);
     }
+  }
+
+  Future<void> _addFileToArchive(Archive archive, File file, String archiveName) async {
+    if (!await file.exists()) return;
+    final bytes = await file.readAsBytes();
+    archive.addFile(ArchiveFile(archiveName, bytes.length, bytes));
   }
 }
