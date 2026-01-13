@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:excel/excel.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../domain/entities/exercise.dart';
@@ -9,6 +10,57 @@ import '../../domain/entities/workout_log_entry.dart';
 import '../../domain/entities/workout_session.dart';
 import '../../domain/repositories/workout_plan_repository.dart';
 import '../../../../data/schema/schemas.dart';
+
+int _getLastIdFromSheet(Sheet sheet) {
+  var maxId = 0;
+  for (var i = 1; i < sheet.rows.length; i++) {
+    final val = sheet.rows[i][0]?.value;
+    final id = int.tryParse(val?.toString() ?? '');
+    if (id != null && id > maxId) maxId = id;
+  }
+  return maxId;
+}
+
+Future<void> _saveWorkoutLogsInIsolate(Map<String, dynamic> args) async {
+  final file = File(args['path'] as String);
+  final rows = (args['rows'] as List<dynamic>)
+      .map((row) => row as List<dynamic>)
+      .toList();
+  final excel = Excel.decodeBytes(await file.readAsBytes());
+  final sheet = excel[kTableSchemas['workout_log.xlsx']!.sheetName]!;
+
+  var id = _getLastIdFromSheet(sheet) + 1;
+  for (final row in rows) {
+    sheet.appendRow([
+      IntCellValue(id++),
+      TextCellValue(row[0] as String),
+      IntCellValue(row[1] as int),
+      IntCellValue(row[2] as int),
+      IntCellValue(row[3] as int),
+      IntCellValue(row[4] as int),
+      DoubleCellValue(row[5] as double),
+      IntCellValue(row[6] as int),
+    ]);
+  }
+  await file.writeAsBytes(excel.save()!);
+}
+
+Future<void> _saveWorkoutSessionInIsolate(Map<String, dynamic> args) async {
+  final file = File(args['path'] as String);
+  final excel = Excel.decodeBytes(await file.readAsBytes());
+  final sheet = excel[kTableSchemas['workout_session.xlsx']!.sheetName]!;
+
+  sheet.appendRow([
+    IntCellValue(_getLastIdFromSheet(sheet) + 1),
+    TextCellValue(args['date'] as String),
+    IntCellValue(args['planId'] as int),
+    TextCellValue(args['fatigueLevel'] as String),
+    IntCellValue(args['durationMinutes'] as int),
+    TextCellValue(args['mood'] as String),
+    TextCellValue(args['notes'] as String),
+  ]);
+  await file.writeAsBytes(excel.save()!);
+}
 
 class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   List<Exercise>? _exerciseCache;
@@ -34,15 +86,7 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     return file;
   }
 
-  int _getLastId(Sheet sheet) {
-    var maxId = 0;
-    for (var i = 1; i < sheet.rows.length; i++) {
-      final val = sheet.rows[i][0]?.value;
-      final id = int.tryParse(val?.toString() ?? '');
-      if (id != null && id > maxId) maxId = id;
-    }
-    return maxId;
-  }
+  int _getLastId(Sheet sheet) => _getLastIdFromSheet(sheet);
 
   bool _parseActiveCell(Data? cell) {
     final value = cell?.value;
@@ -514,40 +558,34 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     if (logs.isEmpty) return;
 
     final file = await _getOrCreateFile('workout_log.xlsx');
-    final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['workout_log.xlsx']!.sheetName]!;
-
-    var id = _getLastId(sheet) + 1;
-    for (final l in logs) {
-      sheet.appendRow([
-        IntCellValue(id++),
-        TextCellValue(l.date.toIso8601String().split('T').first),
-        IntCellValue(l.planId),
-        IntCellValue(l.exerciseId),
-        IntCellValue(l.setNumber),
-        IntCellValue(l.reps),
-        DoubleCellValue(l.weight),
-        IntCellValue(l.rir),
-      ]);
-    }
-    await file.writeAsBytes(excel.save()!);
+    final rows = logs
+        .map((l) => [
+              l.date.toIso8601String().split('T').first,
+              l.planId,
+              l.exerciseId,
+              l.setNumber,
+              l.reps,
+              l.weight,
+              l.rir,
+            ])
+        .toList();
+    await compute(_saveWorkoutLogsInIsolate, {
+      'path': file.path,
+      'rows': rows,
+    });
   }
 
   @override
   Future<void> saveWorkoutSession(WorkoutSession s) async {
     final file = await _getOrCreateFile('workout_session.xlsx');
-    final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['workout_session.xlsx']!.sheetName]!;
-
-    sheet.appendRow([
-      IntCellValue(_getLastId(sheet) + 1),
-      TextCellValue(s.date.toIso8601String().split('T').first),
-      IntCellValue(s.planId),
-      TextCellValue(s.fatigueLevel),
-      IntCellValue(s.durationMinutes),
-      TextCellValue(s.mood),
-      TextCellValue(s.notes),
-    ]);
-    await file.writeAsBytes(excel.save()!);
+    await compute(_saveWorkoutSessionInIsolate, {
+      'path': file.path,
+      'date': s.date.toIso8601String().split('T').first,
+      'planId': s.planId,
+      'fatigueLevel': s.fatigueLevel,
+      'durationMinutes': s.durationMinutes,
+      'mood': s.mood,
+      'notes': s.notes,
+    });
   }
 }
