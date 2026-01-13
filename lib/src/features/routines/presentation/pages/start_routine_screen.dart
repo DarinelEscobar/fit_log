@@ -84,6 +84,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     final logsMap = ref.watch(workoutLogProvider);
     final notifier = ref.read(workoutLogProvider.notifier);
     final cs = Theme.of(context).colorScheme;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final isKeyboardVisible = bottomInset > 0;
 
     return WillPopScope(
       onWillPop: () async {
@@ -159,20 +161,23 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
             ),
           ],
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          backgroundColor: cs.primary,
-          foregroundColor: cs.onPrimary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          icon: const Icon(Icons.check),
-          label: const Text('Registrar serie'),
-          onPressed: () {
-            if (_expandedExerciseId == null) return;
-            _keys[_expandedExerciseId]!
-                .currentState!
-                .logCurrentSet(addOrUpdate: notifier.addOrUpdate);
-            setState(() {});
-          },
-        ),
+        floatingActionButton: isKeyboardVisible
+            ? null
+            : FloatingActionButton.extended(
+                backgroundColor: cs.primary,
+                foregroundColor: cs.onPrimary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                icon: const Icon(Icons.check),
+                label: const Text('Registrar serie'),
+                onPressed: () {
+                  if (_expandedExerciseId == null) return;
+                  _keys[_expandedExerciseId]!
+                      .currentState!
+                      .logCurrentSet(addOrUpdate: notifier.addOrUpdate);
+                  setState(() {});
+                },
+              ),
         body: asyncAll.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('$e')),
@@ -206,7 +211,12 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                     ),
                     Expanded(
                       child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(12, 16, 12, 80),
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          16,
+                          12,
+                          80 + bottomInset,
+                        ),
                         itemCount: entries.length,
                         itemBuilder: (context, index) {
                           final entry = entries[index];
