@@ -10,8 +10,8 @@ import '../../features/routines/domain/entities/workout_session.dart';
 import '../schema/schemas.dart';
 
 class WorkoutStorageService {
-  WorkoutStorageService({DatabaseFactory? databaseFactory})
-      : _databaseFactory = databaseFactory ?? databaseFactoryFromPlatform;
+  WorkoutStorageService({DatabaseFactory? dbFactory})
+      : _databaseFactory = dbFactory ?? databaseFactory;
 
   final DatabaseFactory _databaseFactory;
   Database? _database;
