@@ -43,6 +43,16 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
 
   static const int _defaultSets = 3;
 
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -54,9 +64,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sesión iniciada')),
-        );
+        _showSnackBar('Sesión en marcha. ¡A por todas!');
       }
     });
   }
@@ -83,9 +91,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
         if (exit) {
           notifier.clear();
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Sesión cancelada')),
-            );
+            _showSnackBar('Sesión cancelada. Tu progreso quedó sin guardar.');
           }
         }
         return exit;
@@ -102,9 +108,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
               if (exit) {
                 notifier.clear();
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Sesión cancelada')),
-                  );
+                  _showSnackBar('Sesión cancelada. Tu progreso quedó sin guardar.');
                 }
                 if (mounted) Navigator.pop(context);
               }
@@ -121,9 +125,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
               icon: const Icon(Icons.flag),
               onPressed: () async {
                 if (notifier.completedLogs.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No has completado ninguna serie'))
-                  );
+                  _showSnackBar('Completa al menos una serie antes de finalizar.');
                   return;
                 }
                 final result = await FinishSessionDialog.show(
@@ -150,9 +152,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                 _notesCtl.text = result.notes;
                 notifier.clear();
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Sesión finalizada')),
-                  );
+                  _showSnackBar('Sesión finalizada. ¡Gran trabajo hoy!');
                 }
                 if (mounted) Navigator.pop(context);
               },

@@ -58,6 +58,16 @@ class ExerciseTileState extends State<ExerciseTile>
   @override
   bool get wantKeepAlive => true;
 
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      ),
+    );
+  }
+
   double _tonnage(Iterable<WorkoutLogEntry> logs) =>
       logs.fold(0, (s, e) => s + e.reps * e.weight);
 
@@ -144,8 +154,7 @@ class ExerciseTileState extends State<ExerciseTile>
         completed: true,
       ),
     );
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Serie $current registrada')));
+    _showSnackBar('Serie $current guardada. Descansa y sigue.');
     setState(widget.onChanged);
     _startRestTimer();
   }
