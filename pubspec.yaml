@@ -18,6 +18,8 @@ dependencies:
   # 📦 Local Data Persistence
   path_provider: ^2.1.1
   excel: ^4.0.6 # To read/write .xlsx files
+  sqflite: ^2.3.3
+  path: ^1.9.0
   file_picker: 10.1.2
   permission_handler: ^11.3.0
   archive: ^3.4.9
