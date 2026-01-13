@@ -161,23 +161,26 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
             ),
           ],
         ),
-        floatingActionButton: isKeyboardVisible
-            ? null
-            : FloatingActionButton.extended(
-                backgroundColor: cs.primary,
-                foregroundColor: cs.onPrimary,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-                icon: const Icon(Icons.check),
-                label: const Text('Registrar serie'),
-                onPressed: () {
-                  if (_expandedExerciseId == null) return;
-                  _keys[_expandedExerciseId]!
-                      .currentState!
-                      .logCurrentSet(addOrUpdate: notifier.addOrUpdate);
-                  setState(() {});
-                },
-              ),
+        floatingActionButton: AnimatedPadding(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: isKeyboardVisible ? bottomInset : 0),
+          child: FloatingActionButton.extended(
+            backgroundColor: cs.primary,
+            foregroundColor: cs.onPrimary,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            icon: const Icon(Icons.check),
+            label: const Text('Registrar serie'),
+            onPressed: () {
+              if (_expandedExerciseId == null) return;
+              _keys[_expandedExerciseId]!
+                  .currentState!
+                  .logCurrentSet(addOrUpdate: notifier.addOrUpdate);
+              setState(() {});
+            },
+          ),
+        ),
         body: asyncAll.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('$e')),
