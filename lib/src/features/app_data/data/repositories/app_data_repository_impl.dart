@@ -1,11 +1,15 @@
 import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
+import 'package:excel/excel.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sqflite/sqflite.dart';
+import '../../../../data/services/workout_storage_service.dart';
 import '../../../../data/schema/schemas.dart';
+import '../../../../features/routines/domain/entities/workout_log_entry.dart';
+import '../../../../features/routines/domain/entities/workout_session.dart';
 import '../../domain/repositories/app_data_repository.dart';
 
 class AppDataRepositoryImpl implements AppDataRepository {
@@ -13,6 +17,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
   Future<File> exportData() async {
     final dir = await getApplicationDocumentsDirectory();
     final databaseDir = await getDatabasesPath();
+    await _syncWorkoutExports(dir);
     final archive = Archive();
     for (final filename in kTableSchemas.keys) {
       final file = File(p.join(dir.path, filename));
@@ -69,4 +74,77 @@ class AppDataRepositoryImpl implements AppDataRepository {
     final bytes = await file.readAsBytes();
     archive.addFile(ArchiveFile(archiveName, bytes.length, bytes));
   }
+
+  Future<void> _syncWorkoutExports(Directory directory) async {
+    final storage = WorkoutStorageService();
+    final logs = await storage.fetchAllLogs();
+    final sessions = await storage.fetchAllSessions();
+    await _writeWorkoutLogExport(directory, logs);
+    await _writeWorkoutSessionExport(directory, sessions);
+  }
+
+  Future<void> _writeWorkoutLogExport(
+    Directory directory,
+    List<WorkoutLogEntry> logs,
+  ) async {
+    final schema = kTableSchemas['workout_log.xlsx'];
+    if (schema == null) return;
+    final excel = Excel.createExcel();
+    final defaultSheet = excel.getDefaultSheet();
+    if (defaultSheet != null) {
+      excel.rename(defaultSheet, schema.sheetName);
+    }
+    final sheet = excel[schema.sheetName];
+    sheet.appendRow(schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList());
+    for (var i = 0; i < logs.length; i++) {
+      final log = logs[i];
+      sheet.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(_formatDate(log.date)),
+        IntCellValue(log.planId),
+        IntCellValue(log.exerciseId),
+        IntCellValue(log.setNumber),
+        IntCellValue(log.reps),
+        DoubleCellValue(log.weight),
+        IntCellValue(log.rir),
+      ]);
+    }
+    final bytes = excel.save();
+    if (bytes == null) return;
+    final file = File(p.join(directory.path, 'workout_log.xlsx'));
+    await file.writeAsBytes(bytes, flush: true);
+  }
+
+  Future<void> _writeWorkoutSessionExport(
+    Directory directory,
+    List<WorkoutSession> sessions,
+  ) async {
+    final schema = kTableSchemas['workout_session.xlsx'];
+    if (schema == null) return;
+    final excel = Excel.createExcel();
+    final defaultSheet = excel.getDefaultSheet();
+    if (defaultSheet != null) {
+      excel.rename(defaultSheet, schema.sheetName);
+    }
+    final sheet = excel[schema.sheetName];
+    sheet.appendRow(schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList());
+    for (var i = 0; i < sessions.length; i++) {
+      final session = sessions[i];
+      sheet.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue(_formatDate(session.date)),
+        IntCellValue(session.planId),
+        TextCellValue(session.fatigueLevel),
+        IntCellValue(session.durationMinutes),
+        TextCellValue(session.mood),
+        TextCellValue(session.notes),
+      ]);
+    }
+    final bytes = excel.save();
+    if (bytes == null) return;
+    final file = File(p.join(directory.path, 'workout_session.xlsx'));
+    await file.writeAsBytes(bytes, flush: true);
+  }
+
+  String _formatDate(DateTime date) => date.toIso8601String().split('T').first;
 }
