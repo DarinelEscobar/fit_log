@@ -64,6 +64,16 @@ class WorkoutStorageService {
         notes TEXT NOT NULL
       )
     ''');
+
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_sessions_unique
+      ON workout_sessions(date, plan_id)
+    ''');
+
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_logs_unique
+      ON workout_logs(date, plan_id, exercise_id, set_number, reps, weight, rir)
+    ''');
   }
 
   Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs) async {
@@ -79,21 +89,33 @@ class WorkoutStorageService {
         'reps': log.reps,
         'weight': log.weight,
         'rir': log.rir,
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     await batch.commit(noResult: true);
   }
 
   Future<void> saveWorkoutSession(WorkoutSession session) async {
     final db = await _getDatabase();
-    await db.insert('workout_sessions', {
-      'date': _formatDate(session.date),
-      'plan_id': session.planId,
-      'fatigue_level': session.fatigueLevel,
-      'duration_minutes': session.durationMinutes,
-      'mood': session.mood,
-      'notes': session.notes,
-    });
+    final existing = await db.query(
+      'workout_sessions',
+      columns: ['id'],
+      where: 'date = ? AND plan_id = ?',
+      whereArgs: [_formatDate(session.date), session.planId],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) return;
+    await db.insert(
+      'workout_sessions',
+      {
+        'date': _formatDate(session.date),
+        'plan_id': session.planId,
+        'fatigue_level': session.fatigueLevel,
+        'duration_minutes': session.durationMinutes,
+        'mood': session.mood,
+        'notes': session.notes,
+      },
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
   }
 
   Future<List<WorkoutSession>> fetchAllSessions() async {
