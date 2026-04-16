@@ -348,8 +348,8 @@ class ExerciseTileState extends State<ExerciseTile>
     super.build(context);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF1F1F1F) : Colors.white;
-    final titleColor = isDark ? Colors.white70 : Colors.black87;
+    final cardColor = const Color(0xFF131314);
+    final titleColor = Colors.white;
 
     final lastTon = _tonnage(widget.lastLogs ?? []);
     final todayTon = _todayTonnage;
@@ -381,8 +381,9 @@ class ExerciseTileState extends State<ExerciseTile>
             duration: const Duration(milliseconds: 250),
             margin: const EdgeInsets.symmetric(vertical: 8),
             decoration: BoxDecoration(
-              color: widget.highlightDone ? Colors.blueGrey.shade800 : cardColor,
-              borderRadius: BorderRadius.circular(20),
+              color: widget.highlightDone ? const Color(0xFF1A191B) : cardColor,
+              borderRadius: BorderRadius.circular(16),
+border: widget.highlightDone ? Border.all(color: const Color(0xFFCC97FF).withValues(alpha: 0.2)) : Border.all(color: const Color(0xFF484849).withValues(alpha: 0.1)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.2),
