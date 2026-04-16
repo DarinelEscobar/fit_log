@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../domain/entities/workout_plan.dart';
 import '../providers/exercises_provider.dart';
+import '../providers/workout_plan_provider.dart';
 import 'edit_routine_screen.dart';
 import 'start_routine_screen.dart';
 
@@ -25,6 +27,16 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
   Widget build(BuildContext context) {
     final asyncExercises =
         ref.watch(exercisesForPlanProvider(widget.planId));
+    final asyncPlans = ref.watch(workoutPlanProvider);
+    final WorkoutPlan? currentPlan = asyncPlans.maybeWhen(
+      data: (plans) {
+        for (final plan in plans) {
+          if (plan.id == widget.planId) return plan;
+        }
+        return null;
+      },
+      orElse: () => null,
+    );
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -34,14 +46,16 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
           IconButton(
             icon: const Icon(Icons.tune),
             tooltip: 'Editar rutina',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EditRoutineScreen(planId: widget.planId),
-                ),
-              );
-            },
+            onPressed: currentPlan == null
+                ? null
+                : () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EditRoutineScreen(plan: currentPlan),
+                      ),
+                    );
+                  },
           ),
         ],
       ),

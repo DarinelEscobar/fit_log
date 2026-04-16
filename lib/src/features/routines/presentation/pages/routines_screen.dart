@@ -20,7 +20,14 @@ class RoutinesScreen extends ConsumerWidget {
       floatingActionButton: const AddRoutineButton(), // <- el botón mágico
       body: asyncPlans.when(
         data: (plans) {
-          final activePlans = plans.where((plan) => plan.isActive).toList();
+          final activePlans = plans.where((plan) => plan.isActive).toList()
+            ..sort((a, b) {
+              final nameCompare = a.name.trim().toLowerCase().compareTo(
+                b.name.trim().toLowerCase(),
+              );
+              if (nameCompare != 0) return nameCompare;
+              return a.id.compareTo(b.id);
+            });
           final inactivePlans = plans.where((plan) => !plan.isActive).toList();
           return Column(
             children: [
@@ -100,7 +107,7 @@ class RoutinesScreen extends ConsumerWidget {
                                         context,
                                         MaterialPageRoute(
                                           builder: (_) => EditRoutineScreen(
-                                            planId: plan.id,
+                                            plan: plan,
                                           ),
                                         ),
                                       );
