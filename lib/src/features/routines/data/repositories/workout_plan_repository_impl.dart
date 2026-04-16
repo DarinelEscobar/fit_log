@@ -212,6 +212,31 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   @override
+  Future<void> updateWorkoutPlan(int planId, String name, String frequency) async {
+    final file = await _getOrCreateFile('workout_plan.xlsx');
+    final excel = Excel.decodeBytes(await file.readAsBytes());
+    final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName]!;
+    _ensurePlanActiveColumn(sheet);
+
+    for (var i = 1; i < sheet.rows.length; i++) {
+      final row = sheet.rows[i];
+      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i),
+          TextCellValue(name),
+        );
+        sheet.updateCell(
+          CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i),
+          TextCellValue(frequency),
+        );
+        break;
+      }
+    }
+
+    await file.writeAsBytes(excel.save()!);
+  }
+
+  @override
   Future<void> setWorkoutPlanActive(int planId, bool isActive) async {
     final file = await _getOrCreateFile('workout_plan.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
