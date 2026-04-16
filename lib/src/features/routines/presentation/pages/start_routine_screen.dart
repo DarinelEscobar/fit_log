@@ -84,6 +84,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     final logsMap = ref.watch(workoutLogProvider);
     final notifier = ref.read(workoutLogProvider.notifier);
     final asyncPlans = ref.watch(workoutPlanProvider);
+    final currentVolume = notifier.completedLogs.fold<double>(
+      0.0,
+      (sum, log) => sum + (log.reps * log.weight),
+    );
 
     final currentPlanName = asyncPlans.maybeWhen(
       data: (plans) {
@@ -122,7 +126,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
               if (exit) {
                 notifier.clear();
                 if (mounted) {
-                  _showSnackBar('Sesión cancelada. Tu progreso quedó sin guardar.');
+                  _showSnackBar(
+                      'Sesión cancelada. Tu progreso quedó sin guardar.');
                   Navigator.pop(context);
                 }
               }
@@ -132,7 +137,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
             valueListenable: _elapsed,
             builder: (_, duration, __) {
               final minutes = duration.inMinutes.toString().padLeft(2, '0');
-              final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+              final seconds =
+                  (duration.inSeconds % 60).toString().padLeft(2, '0');
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -160,7 +166,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                 child: GestureDetector(
                   onTap: () async {
                     if (notifier.completedLogs.isEmpty) {
-                      _showSnackBar('Completa al menos una serie antes de finalizar.');
+                      _showSnackBar(
+                          'Completa al menos una serie antes de finalizar.');
                       return;
                     }
                     final result = await FinishSessionDialog.show(
@@ -168,6 +175,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                       initialEnergy: _energy,
                       initialMood: _mood,
                       initialNotes: _notesCtl.text,
+                      durationMinutes: notifier.sessionDuration.inMinutes,
+                      volume: currentVolume,
                     );
                     if (result == null) return;
                     final repo = ref.read(workoutPlanRepositoryProvider);
@@ -192,7 +201,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color(0xFFCC97FF).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(999),
@@ -227,15 +237,13 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                   final list = _sessionDetails!;
                   final entries = list.asMap().entries.toList();
                   bool isComplete(PlanExerciseDetail detail) =>
-                      _keys[detail.exerciseId]?.currentState?.isComplete(logsMap) ??
+                      _keys[detail.exerciseId]
+                          ?.currentState
+                          ?.isComplete(logsMap) ??
                       false;
-                  final done = entries.where((entry) => isComplete(entry.value)).length;
+                  final done =
+                      entries.where((entry) => isComplete(entry.value)).length;
                   final completion = '$done/${list.length}';
-
-                  final double currentVolume = notifier.completedLogs.fold(
-                    0.0,
-                    (sum, log) => sum + (log.reps * log.weight),
-                  );
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -257,10 +265,12 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                       Padding(
                         padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
                         child: SessionSummaryCard(
-                          duration: WorkoutSessionHelper.formatDuration(_elapsed.value),
+                          duration: WorkoutSessionHelper.formatDuration(
+                              _elapsed.value),
                           completion: completion,
                           showBest: _showBest,
-                          onToggleBest: () => setState(() => _showBest = !_showBest),
+                          onToggleBest: () =>
+                              setState(() => _showBest = !_showBest),
                           volume: currentVolume,
                         ),
                       ),
@@ -272,26 +282,33 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                             24,
                             80 + bottomInset,
                           ),
-                          itemCount: entries.length + 1, // +1 for the global actions
+                          itemCount:
+                              entries.length + 1, // +1 for the global actions
                           itemBuilder: (context, index) {
                             if (index == entries.length) {
                               return Padding(
-                                padding: const EdgeInsets.only(top: 16.0, bottom: 32.0),
+                                padding: const EdgeInsets.only(
+                                    top: 16.0, bottom: 32.0),
                                 child: Row(
                                   children: [
                                     Expanded(
                                       child: GestureDetector(
                                         onTap: addExercise,
                                         child: Container(
-                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
                                           decoration: BoxDecoration(
                                             color: const Color(0xFF1A191B),
-                                            borderRadius: BorderRadius.circular(16),
-                                            border: Border.all(color: const Color(0xFF484849).withValues(alpha: 0.1)),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            border: Border.all(
+                                                color: const Color(0xFF484849)
+                                                    .withValues(alpha: 0.1)),
                                           ),
                                           child: const Column(
                                             children: [
-                                              Icon(Icons.add_circle, color: Color(0xFFADAAAB)),
+                                              Icon(Icons.add_circle,
+                                                  color: Color(0xFFADAAAB)),
                                               SizedBox(height: 4),
                                               Text(
                                                 'ADD EXERCISE',

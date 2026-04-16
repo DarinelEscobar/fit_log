@@ -52,6 +52,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     if (widget.plan.id == 0) {
       _future = Future.value([]);
     } else {
+      ref.invalidate(planExerciseDetailsProvider(widget.plan.id));
       _future = ref.read(planExerciseDetailsProvider(widget.plan.id).future);
     }
     if (mounted) setState(() {});
@@ -72,8 +73,9 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
         );
         ref.invalidate(workoutPlanProvider);
         if (mounted) {
-           _showMessage('Rutina creada exitosamente. Regresa y edita para agregar ejercicios.');
-           if (closeOnSave) Navigator.pop(context);
+          _showMessage(
+              'Rutina creada exitosamente. Regresa y edita para agregar ejercicios.');
+          if (closeOnSave) Navigator.pop(context);
         }
         return;
       }
@@ -97,8 +99,8 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
 
   Future<void> _addExercise() async {
     if (widget.plan.id == 0) {
-        _showMessage('Guarda la rutina primero para poder agregar ejercicios.');
-        return;
+      _showMessage('Guarda la rutina primero para poder agregar ejercicios.');
+      return;
     }
     final all = await ref.read(allExercisesProvider.future);
     final exercise = await Navigator.push<Exercise>(
@@ -112,7 +114,8 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
 
     if (exercise == null || !mounted) return;
 
-    final current = await ref.read(planExerciseDetailsProvider(widget.plan.id).future);
+    final current =
+        await ref.read(planExerciseDetailsProvider(widget.plan.id).future);
 
     final repo = ref.read(workoutPlanRepositoryProvider);
     await AddExerciseToPlanUseCase(repo)(
@@ -170,7 +173,8 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     ref.invalidate(allExercisesProvider);
   }
 
-  Future<void> _updateDetail(PlanExerciseDetail detail, PlanExerciseDetail newDetail) async {
+  Future<void> _updateDetail(
+      PlanExerciseDetail detail, PlanExerciseDetail newDetail) async {
     final repo = ref.read(workoutPlanRepositoryProvider);
     await UpdateExerciseInPlanUseCase(repo)(widget.plan.id, newDetail);
     // No full refresh to keep UX smooth, provider handles the update when invalidated
@@ -211,7 +215,8 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
               child: GestureDetector(
                 onTap: _isSavingRoutine ? null : _saveRoutineInfo,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   decoration: BoxDecoration(
                     color: const Color(0xFFCC97FF),
                     borderRadius: BorderRadius.circular(12),
@@ -220,7 +225,8 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                       ? const SizedBox(
                           height: 16,
                           width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF47007C)),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Color(0xFF47007C)),
                         )
                       : const Text(
                           'SAVE CHANGES',
@@ -293,10 +299,17 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                                   ),
                                   decoration: const InputDecoration(
                                     hintText: 'Enter routine name...',
-                                    hintStyle: TextStyle(color: Color(0xFF484849)),
-                                    border: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF484849))),
-                                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF484849))),
-                                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFCC97FF))),
+                                    hintStyle:
+                                        TextStyle(color: Color(0xFF484849)),
+                                    border: UnderlineInputBorder(
+                                        borderSide: BorderSide(
+                                            color: Color(0xFF484849))),
+                                    enabledBorder: UnderlineInputBorder(
+                                        borderSide: BorderSide(
+                                            color: Color(0xFF484849))),
+                                    focusedBorder: UnderlineInputBorder(
+                                        borderSide: BorderSide(
+                                            color: Color(0xFFCC97FF))),
                                     contentPadding: EdgeInsets.only(bottom: 8),
                                     fillColor: Colors.transparent,
                                   ),
@@ -329,16 +342,24 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                                           color: Colors.white,
                                         ),
                                         decoration: const InputDecoration(
-                                          border: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF484849))),
-                                          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF484849))),
-                                          focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFCC97FF))),
-                                          contentPadding: EdgeInsets.only(bottom: 8),
+                                          border: UnderlineInputBorder(
+                                              borderSide: BorderSide(
+                                                  color: Color(0xFF484849))),
+                                          enabledBorder: UnderlineInputBorder(
+                                              borderSide: BorderSide(
+                                                  color: Color(0xFF484849))),
+                                          focusedBorder: UnderlineInputBorder(
+                                              borderSide: BorderSide(
+                                                  color: Color(0xFFCC97FF))),
+                                          contentPadding:
+                                              EdgeInsets.only(bottom: 8),
                                           fillColor: Colors.transparent,
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
-                                    const Icon(Icons.event_repeat, color: Color(0xFF767576)),
+                                    const Icon(Icons.event_repeat,
+                                        color: Color(0xFF767576)),
                                   ],
                                 ),
                               ],
@@ -349,16 +370,15 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 32),
-
                 if (widget.plan.id != 0) ...[
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(
                         children: const [
-                          Icon(Icons.format_list_numbered, color: Color(0xFFCC97FF)),
+                          Icon(Icons.format_list_numbered,
+                              color: Color(0xFFCC97FF)),
                           SizedBox(width: 8),
                           Text(
                             'EXERCISES',
@@ -373,7 +393,8 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFF1A191B),
                           borderRadius: BorderRadius.circular(999),
@@ -391,12 +412,15 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-
                   ...details.map((detail) {
-                    final setsCtl = TextEditingController(text: '${detail.sets}');
-                    final repsCtl = TextEditingController(text: '${detail.reps}');
-                    final weightCtl = TextEditingController(text: '${detail.weight}');
-                    final restCtl = TextEditingController(text: '${detail.restSeconds}');
+                    final setsCtl =
+                        TextEditingController(text: '${detail.sets}');
+                    final repsCtl =
+                        TextEditingController(text: '${detail.reps}');
+                    final weightCtl =
+                        TextEditingController(text: '${detail.weight}');
+                    final restCtl =
+                        TextEditingController(text: '${detail.restSeconds}');
                     final rirCtl = TextEditingController(text: '${detail.rir}');
                     final tempoCtl = TextEditingController(text: detail.tempo);
 
@@ -425,9 +449,11 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                             alignment: Alignment.topCenter,
                             decoration: const BoxDecoration(
                               color: Color(0xFF201F21),
-                              borderRadius: BorderRadius.horizontal(left: Radius.circular(16)),
+                              borderRadius: BorderRadius.horizontal(
+                                  left: Radius.circular(16)),
                             ),
-                            child: const Icon(Icons.drag_indicator, color: Color(0xFF767576)),
+                            child: const Icon(Icons.drag_indicator,
+                                color: Color(0xFF767576)),
                           ),
                           Expanded(
                             child: Padding(
@@ -435,12 +461,15 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                               child: Column(
                                 children: [
                                   Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Expanded(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Text(
                                               detail.name,
@@ -465,29 +494,81 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                                         ),
                                       ),
                                       IconButton(
-                                        icon: const Icon(Icons.delete, color: Color(0xFF767576)),
-                                        onPressed: () => _deleteDetail(detail.exerciseId),
+                                        icon: const Icon(Icons.delete,
+                                            color: Color(0xFF767576)),
+                                        onPressed: () =>
+                                            _deleteDetail(detail.exerciseId),
                                       ),
                                     ],
                                   ),
                                   const SizedBox(height: 20),
                                   Row(
                                     children: [
-                                      Expanded(child: _buildParamInput('SETS', setsCtl, isHighlight: true, onChanged: (v) => _updateDetail(detail, detail.copyWith(sets: int.tryParse(v) ?? detail.sets)))),
+                                      Expanded(
+                                          child: _buildParamInput(
+                                              'SETS', setsCtl,
+                                              isHighlight: true,
+                                              onChanged: (v) => _updateDetail(
+                                                  detail,
+                                                  detail.copyWith(
+                                                      sets: int.tryParse(v) ??
+                                                          detail.sets)))),
                                       const SizedBox(width: 12),
-                                      Expanded(child: _buildParamInput('REPS', repsCtl, isHighlight: true, onChanged: (v) => _updateDetail(detail, detail.copyWith(reps: int.tryParse(v) ?? detail.reps)))),
+                                      Expanded(
+                                          child: _buildParamInput(
+                                              'REPS', repsCtl,
+                                              isHighlight: true,
+                                              onChanged: (v) => _updateDetail(
+                                                  detail,
+                                                  detail.copyWith(
+                                                      reps: int.tryParse(v) ??
+                                                          detail.reps)))),
                                       const SizedBox(width: 12),
-                                      Expanded(child: _buildParamInput('WEIGHT', weightCtl, isHighlight: true, onChanged: (v) => _updateDetail(detail, detail.copyWith(weight: double.tryParse(v) ?? detail.weight)))),
+                                      Expanded(
+                                          child: _buildParamInput(
+                                              'WEIGHT', weightCtl,
+                                              isHighlight: true,
+                                              onChanged: (v) => _updateDetail(
+                                                  detail,
+                                                  detail.copyWith(
+                                                      weight:
+                                                          double.tryParse(v) ??
+                                                              detail.weight)))),
                                     ],
                                   ),
                                   const SizedBox(height: 12),
                                   Row(
                                     children: [
-                                      Expanded(child: _buildParamInput('REST(s)', restCtl, isHighlight: false, onChanged: (v) => _updateDetail(detail, detail.copyWith(restSeconds: int.tryParse(v) ?? detail.restSeconds)))),
+                                      Expanded(
+                                          child: _buildParamInput(
+                                              'REST(s)', restCtl,
+                                              isHighlight: false,
+                                              onChanged: (v) => _updateDetail(
+                                                  detail,
+                                                  detail.copyWith(
+                                                      restSeconds: int.tryParse(
+                                                              v) ??
+                                                          detail
+                                                              .restSeconds)))),
                                       const SizedBox(width: 12),
-                                      Expanded(child: _buildParamInput('RIR', rirCtl, isHighlight: false, isTertiary: true, onChanged: (v) => _updateDetail(detail, detail.copyWith(rir: int.tryParse(v) ?? detail.rir)))),
+                                      Expanded(
+                                          child: _buildParamInput('RIR', rirCtl,
+                                              isHighlight: false,
+                                              isTertiary: true,
+                                              onChanged: (v) => _updateDetail(
+                                                  detail,
+                                                  detail.copyWith(
+                                                      rir: int.tryParse(v) ??
+                                                          detail.rir)))),
                                       const SizedBox(width: 12),
-                                      Expanded(child: _buildParamInput('TEMPO', tempoCtl, isHighlight: false, isString: true, onChanged: (v) => _updateDetail(detail, detail.copyWith(tempo: v)))),
+                                      Expanded(
+                                          child: _buildParamInput(
+                                              'TEMPO', tempoCtl,
+                                              isHighlight: false,
+                                              isString: true,
+                                              onChanged: (v) => _updateDetail(
+                                                  detail,
+                                                  detail.copyWith(tempo: v)))),
                                     ],
                                   ),
                                 ],
@@ -498,9 +579,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                       ),
                     );
                   }).toList(),
-
                   const SizedBox(height: 16),
-
                   Row(
                     children: [
                       Expanded(
@@ -511,7 +590,9 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFF201F21),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFF484849).withValues(alpha: 0.1)),
+                              border: Border.all(
+                                  color: const Color(0xFF484849)
+                                      .withValues(alpha: 0.1)),
                             ),
                             child: Row(
                               children: [
@@ -519,17 +600,29 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                                   width: 40,
                                   height: 40,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFCC97FF).withValues(alpha: 0.1),
+                                    color: const Color(0xFFCC97FF)
+                                        .withValues(alpha: 0.1),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.library_add, color: Color(0xFFCC97FF)),
+                                  child: const Icon(Icons.library_add,
+                                      color: Color(0xFFCC97FF)),
                                 ),
                                 const SizedBox(width: 12),
                                 const Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Add Existing', style: TextStyle(fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                                    Text('SELECT FROM LIBRARY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Color(0xFFADAAAB))),
+                                    Text('Add Existing',
+                                        style: TextStyle(
+                                            fontFamily: 'Space Grotesk',
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white)),
+                                    Text('SELECT FROM LIBRARY',
+                                        style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.5,
+                                            color: Color(0xFFADAAAB))),
                                   ],
                                 ),
                               ],
@@ -546,7 +639,9 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFF201F21),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFF484849).withValues(alpha: 0.1)),
+                              border: Border.all(
+                                  color: const Color(0xFF484849)
+                                      .withValues(alpha: 0.1)),
                             ),
                             child: Row(
                               children: [
@@ -554,17 +649,30 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                                   width: 40,
                                   height: 40,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF3DD6C6).withValues(alpha: 0.2), // secondary container approx
+                                    color: const Color(0xFF3DD6C6).withValues(
+                                        alpha:
+                                            0.2), // secondary container approx
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.add_circle, color: Color(0xFF3DD6C6)),
+                                  child: const Icon(Icons.add_circle,
+                                      color: Color(0xFF3DD6C6)),
                                 ),
                                 const SizedBox(width: 12),
                                 const Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Create New', style: TextStyle(fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                                    Text('DEFINE NEW EXERCISE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Color(0xFFADAAAB))),
+                                    Text('Create New',
+                                        style: TextStyle(
+                                            fontFamily: 'Space Grotesk',
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white)),
+                                    Text('DEFINE NEW EXERCISE',
+                                        style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.5,
+                                            color: Color(0xFFADAAAB))),
                                   ],
                                 ),
                               ],
@@ -574,9 +682,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 64),
-
                   Column(
                     children: [
                       Container(
@@ -584,7 +690,11 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                         width: 96,
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [Colors.transparent, Color(0xFF484849), Colors.transparent],
+                            colors: [
+                              Colors.transparent,
+                              Color(0xFF484849),
+                              Colors.transparent
+                            ],
                           ),
                         ),
                       ),
@@ -592,13 +702,25 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                       GestureDetector(
                         onTap: () => _saveRoutineInfo(closeOnSave: true),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 40, vertical: 12),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(colors: [Color(0xFFCC97FF), Color(0xFF9C48EA)]),
+                            gradient: const LinearGradient(
+                                colors: [Color(0xFFCC97FF), Color(0xFF9C48EA)]),
                             borderRadius: BorderRadius.circular(999),
-                            boxShadow: const [BoxShadow(color: Color.fromRGBO(132, 44, 211, 0.2), blurRadius: 32, offset: Offset(0, 12))],
+                            boxShadow: const [
+                              BoxShadow(
+                                  color: Color.fromRGBO(132, 44, 211, 0.2),
+                                  blurRadius: 32,
+                                  offset: Offset(0, 12))
+                            ],
                           ),
-                          child: const Text('COMPLETE SETUP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFF47007C))),
+                          child: const Text('COMPLETE SETUP',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.5,
+                                  color: Color(0xFF47007C))),
                         ),
                       ),
                     ],
@@ -612,7 +734,11 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     );
   }
 
-  Widget _buildParamInput(String label, TextEditingController controller, {required bool isHighlight, bool isTertiary = false, bool isString = false, required Function(String) onChanged}) {
+  Widget _buildParamInput(String label, TextEditingController controller,
+      {required bool isHighlight,
+      bool isTertiary = false,
+      bool isString = false,
+      required Function(String) onChanged}) {
     Color textColor = Colors.white;
     if (isHighlight) textColor = const Color(0xFFCC97FF);
     if (isTertiary) textColor = const Color(0xFFFF95A0);
@@ -626,11 +752,18 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Color(0xFF484849))),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                  color: Color(0xFF484849))),
           const SizedBox(height: 4),
           TextField(
             controller: controller,
-            keyboardType: isString ? TextInputType.text : const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: isString
+                ? TextInputType.text
+                : const TextInputType.numberWithOptions(decimal: true),
             onChanged: onChanged,
             style: TextStyle(
               fontFamily: 'Space Grotesk',
@@ -655,6 +788,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }
