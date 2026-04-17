@@ -1,15 +1,25 @@
-import 'dart:async';
-import 'mini_line_chart.dart';
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:vibration/vibration.dart';
-import '../../../../utils/notification_service.dart';
-import '../state/workout_log_state.dart';
-import '../../domain/entities/workout_log_entry.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
+import '../../domain/entities/workout_log_entry.dart';
+
+import '../../../../utils/notification_service.dart';
+import 'dart:async';
 
 class ExerciseTile extends StatefulWidget {
+  final PlanExerciseDetail detail;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final Map<String, WorkoutLogEntry> logsMap;
+  final bool highlightDone;
+  final VoidCallback onChanged;
+  final void Function(WorkoutLogEntry) removeLog;
+  final void Function(WorkoutLogEntry) update;
+  final int planId;
+  final List<WorkoutLogEntry>? lastLogs;
+  final List<WorkoutLogEntry>? bestLogs;
+  final bool showBest;
+  final VoidCallback? onSwap;
+
   const ExerciseTile({
     super.key,
     required this.detail,
@@ -27,311 +37,235 @@ class ExerciseTile extends StatefulWidget {
     this.onSwap,
   });
 
-  final PlanExerciseDetail detail;
-  final bool expanded;
-  final VoidCallback onToggle;
-  final Map<String, WorkoutLogEntry> logsMap;
-  final bool highlightDone;
-  final VoidCallback onChanged;
-  final void Function(WorkoutLogEntry) removeLog;
-  final void Function(WorkoutLogEntry) update;
-  final int planId;
-  final List<WorkoutLogEntry>? lastLogs;
-  final List<WorkoutLogEntry>? bestLogs;
-  final bool showBest;
-  final VoidCallback? onSwap;
-
   @override
-  ExerciseTileState createState() => ExerciseTileState();
+  State<ExerciseTile> createState() => ExerciseTileState();
 }
 
-class ExerciseTileState extends State<ExerciseTile>
-    with AutomaticKeepAliveClientMixin {
-  bool _showChart = false;
-  late List<TextEditingController> _repCtl, _kgCtl, _rirCtl;
+class ExerciseTileState extends State<ExerciseTile> {
   int _visibleSets = 0;
-  bool _logsLoaded = false;
-  final Map<int, WorkoutLogEntry> _extraLast = {};
+  final List<TextEditingController> _repCtl = [];
+  final List<TextEditingController> _kgCtl = [];
+  final List<TextEditingController> _rirCtl = [];
+
   Timer? _restTimer;
   int _restRemaining = 0;
+  int _restTotal = 0;
 
-  @override
-  bool get wantKeepAlive => true;
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      ),
-    );
-  }
-
-  double _tonnage(Iterable<WorkoutLogEntry> logs) =>
-      logs.fold(0, (s, e) => s + e.reps * e.weight);
-
-  Iterable<WorkoutLogEntry> get _todayCompletedLogs =>
-      widget.logsMap.values
-          .where((e) => e.exerciseId == widget.detail.exerciseId && e.completed);
-
-  double get _todayTonnage => _tonnage(_todayCompletedLogs);
-
-  int get _restTotal => widget.detail.restSeconds;
 
   @override
   void initState() {
     super.initState();
-    _logsLoaded = widget.lastLogs != null;
-    _build(widget.detail.sets);
+    _syncControllers();
   }
 
   @override
-  void didUpdateWidget(covariant ExerciseTile old) {
-    super.didUpdateWidget(old);
-    final setsChanged = old.detail.sets != widget.detail.sets;
-    final lastArrived = !_logsLoaded && widget.lastLogs != null;
-    if (setsChanged || lastArrived) _build(widget.detail.sets);
+  void didUpdateWidget(covariant ExerciseTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.detail.exerciseId != oldWidget.detail.exerciseId ||
+        widget.planId != oldWidget.planId ||
+        widget.detail.sets != oldWidget.detail.sets ||
+        widget.lastLogs != oldWidget.lastLogs) {
+      _syncControllers();
+    }
   }
 
-  void _build(int sets) {
-    _visibleSets = sets;
-    _repCtl = [];
-    _kgCtl = [];
-    _rirCtl = [];
-    _extraLast.clear();
-    WorkoutLogEntry? lastFor(int set) =>
-        widget.lastLogs?.firstWhereOrNull((l) => l.setNumber == set);
-    for (var i = 0; i < _visibleSets; i++) {
-      final e =
-          widget.logsMap['${widget.detail.exerciseId}-${i + 1}'] ?? lastFor(i + 1);
-      _repCtl.add(TextEditingController(
-          text: e?.reps.toString() ?? widget.detail.reps.toString()));
+  void _syncControllers() {
+    _visibleSets = widget.detail.sets;
+    _initCtl();
+  }
+
+  void _initCtl() {
+    for (final c in [..._repCtl, ..._kgCtl, ..._rirCtl]) {
+      c.dispose();
+    }
+    _repCtl.clear();
+    _kgCtl.clear();
+    _rirCtl.clear();
+
+    final prevCount = widget.lastLogs?.length ?? 0;
+    for (int i = 0; i < _visibleSets; i++) {
+      final key = '${widget.detail.exerciseId}-${i + 1}';
+      final log = widget.logsMap[key];
+
+      int? initReps = log?.reps;
+      double? initKg = log?.weight;
+      int? initRir = log?.rir;
+
+      if (log == null && i < prevCount) {
+        initReps = widget.lastLogs![i].reps;
+        initKg = widget.lastLogs![i].weight;
+        initRir = widget.lastLogs![i].rir;
+      }
+
+      initReps ??= widget.detail.reps;
+      initKg ??= widget.detail.weight;
+      initRir ??= widget.detail.rir;
+
+      _repCtl.add(TextEditingController(text: '$initReps'));
       _kgCtl.add(TextEditingController(
-          text: e?.weight.toStringAsFixed(0) ?? widget.detail.weight.toStringAsFixed(0)));
-      _rirCtl.add(TextEditingController(
-          text: e?.rir.toString() ?? widget.detail.rir.toString()));
+          text: initKg == initKg.truncateToDouble()
+              ? initKg.toInt().toString()
+              : initKg.toString()));
+      _rirCtl.add(TextEditingController(text: '$initRir'));
     }
-    if (widget.lastLogs != null) {
-      for (final l in widget.lastLogs!) {
-        if (l.setNumber > _visibleSets) _extraLast[l.setNumber] = l;
+  }
+
+  bool isComplete(Map<String, WorkoutLogEntry> map) {
+    for (int i = 0; i < _visibleSets; i++) {
+      if (!(map['${widget.detail.exerciseId}-${i + 1}']?.completed ?? false)) {
+        return false;
       }
     }
-    _logsLoaded = widget.lastLogs != null;
+    return true;
   }
 
-  void _persist(int idx, {bool completed = false}) {
-    widget.update(
-      WorkoutLogEntry(
-        date: DateTime.now(),
-        planId: widget.planId,
-        exerciseId: widget.detail.exerciseId,
-        setNumber: idx + 1,
-        reps: int.tryParse(_repCtl[idx].text) ?? widget.detail.reps,
-        weight: double.tryParse(_kgCtl[idx].text) ?? widget.detail.weight,
-        rir: int.tryParse(_rirCtl[idx].text) ?? widget.detail.rir,
-        completed: completed ||
-            (widget.logsMap['${widget.detail.exerciseId}-${idx + 1}']?.completed ??
-                false),
-      ),
-    );
+  List<WorkoutLogEntry> get _todayCompletedLogs {
+    final res = <WorkoutLogEntry>[];
+    for (int i = 0; i < _visibleSets; i++) {
+      final log = widget.logsMap['${widget.detail.exerciseId}-${i + 1}'];
+      if (log != null && log.completed) res.add(log);
+    }
+    return res;
   }
 
-  void logCurrentSet({required void Function(WorkoutLogEntry) addOrUpdate}) {
-    final current = List.generate(_visibleSets, (i) => i + 1).firstWhere(
-      (s) => !(widget.logsMap['${widget.detail.exerciseId}-$s']?.completed ?? false),
-      orElse: () => _visibleSets,
-    );
-    addOrUpdate(
-      WorkoutLogEntry(
-        date: DateTime.now(),
-        planId: widget.planId,
-        exerciseId: widget.detail.exerciseId,
-        setNumber: current,
-        reps: int.tryParse(_repCtl[current - 1].text) ?? widget.detail.reps,
-        weight: double.tryParse(_kgCtl[current - 1].text) ?? widget.detail.weight,
-        rir: int.tryParse(_rirCtl[current - 1].text) ?? widget.detail.rir,
-        completed: true,
-      ),
-    );
-    _showSnackBar('Serie $current guardada. Descansa y sigue.');
-    setState(widget.onChanged);
-    _startRestTimer();
-  }
+  double _tonnage(List<WorkoutLogEntry> logs) =>
+      logs.fold(0, (sum, item) => sum + (item.reps * item.weight));
 
-  bool isComplete(Map<String, WorkoutLogEntry> logs) =>
-      List.generate(_visibleSets, (i) => i + 1)
-          .every((s) => logs['${widget.detail.exerciseId}-$s']?.completed ?? false);
-
-  void _startRestTimer() {
-    _restTimer?.cancel();
-    NotificationService.cancelRest();
-    NotificationService.scheduleRestDone(widget.detail.restSeconds);
-    setState(() => _restRemaining = widget.detail.restSeconds);
-    _restTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (_restRemaining <= 1) {
-        t.cancel();
-        NotificationService.cancelRest();
-        Vibration.vibrate(duration: 1500, amplitude: 255);
-        setState(() => _restRemaining = 0);
-      } else {
-        setState(() => _restRemaining--);
-      }
-    });
-  }
+  double get _todayTonnage => _tonnage(_todayCompletedLogs);
 
   void _add() {
-    final setNum = _visibleSets + 1;
-    final last =
-        widget.logsMap['${widget.detail.exerciseId}-$setNum'] ?? _extraLast[setNum];
     setState(() {
-      _repCtl.add(TextEditingController(
-          text: last?.reps.toString() ?? widget.detail.reps.toString()));
-      _kgCtl.add(TextEditingController(
-          text: last?.weight.toStringAsFixed(0) ?? widget.detail.weight.toStringAsFixed(0)));
-      _rirCtl.add(TextEditingController(
-          text: last?.rir.toString() ?? widget.detail.rir.toString()));
       _visibleSets++;
+      _repCtl.add(TextEditingController(text: '${widget.detail.reps}'));
+      _kgCtl.add(TextEditingController(
+          text: widget.detail.weight == widget.detail.weight.truncateToDouble()
+              ? widget.detail.weight.toInt().toString()
+              : widget.detail.weight.toString()));
+      _rirCtl.add(TextEditingController(text: '${widget.detail.rir}'));
     });
-    _persist(setNum - 1);
-    widget.onChanged();
   }
 
   void _remove() {
-    if (_visibleSets <= 1) return;
-    final removed = _visibleSets;
-    _repCtl.removeLast();
-    _kgCtl.removeLast();
-    _rirCtl.removeLast();
-    _visibleSets--;
-    widget.removeLog(
-      WorkoutLogEntry(
-        date: DateTime.now(),
-        planId: -1,
-        exerciseId: widget.detail.exerciseId,
-        setNumber: removed,
-        reps: 0,
-        weight: 0,
-        rir: 0,
-      ),
-    );
-    setState(widget.onChanged);
+    if (_visibleSets > 1) {
+      setState(() {
+        _visibleSets--;
+        final key = '${widget.detail.exerciseId}-${_visibleSets + 1}';
+        if (widget.logsMap.containsKey(key)) {
+          widget.removeLog(widget.logsMap[key]!);
+        }
+        _repCtl.removeLast().dispose();
+        _kgCtl.removeLast().dispose();
+        _rirCtl.removeLast().dispose();
+        widget.onChanged();
+      });
+    }
   }
 
-  ElevatedButton _actionBtn(IconData ic, VoidCallback fn) => ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          elevation: 4,
-          shape: const CircleBorder(),
-          padding: const EdgeInsets.all(0),
-          backgroundColor: const Color(0xFF2A2A2A),
+  void _startRest() {
+    if (widget.detail.restSeconds <= 0) return;
+    _restTimer?.cancel();
+    NotificationService.cancelRest();
+    setState(() {
+      _restTotal = widget.detail.restSeconds;
+      _restRemaining = _restTotal;
+    });
+
+    NotificationService.scheduleRestDone(_restTotal);
+
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() {
+        if (_restRemaining > 0) {
+          _restRemaining--;
+        } else {
+          t.cancel();
+        }
+      });
+    });
+  }
+
+  void logCurrentSet({required void Function(WorkoutLogEntry) addOrUpdate}) {
+    int target = -1;
+    for (int i = 0; i < _visibleSets; i++) {
+      if (!(widget.logsMap['${widget.detail.exerciseId}-${i + 1}']?.completed ??
+          false)) {
+        target = i;
+        break;
+      }
+    }
+    if (target != -1) {
+      _logSet(target, addOrUpdate);
+    }
+  }
+
+  void _logSet(int i, void Function(WorkoutLogEntry) addOrUpdate) {
+    final reps = int.tryParse(_repCtl[i].text) ?? 0;
+    final kg = double.tryParse(_kgCtl[i].text) ?? 0;
+    final rir = int.tryParse(_rirCtl[i].text) ?? 0;
+
+    final key = '${widget.detail.exerciseId}-${i + 1}';
+    final current = widget.logsMap[key];
+    final newState = !(current?.completed ?? false);
+
+    addOrUpdate(WorkoutLogEntry(
+      date: DateTime.now(),
+      planId: widget.planId,
+      exerciseId: widget.detail.exerciseId,
+      setNumber: i + 1,
+      reps: reps,
+      weight: kg,
+      rir: rir,
+      completed: newState,
+    ));
+
+    if (newState) {
+      _startRest();
+    } else {
+      _restTimer?.cancel();
+      NotificationService.cancelRest();
+      setState(() => _restRemaining = 0);
+    }
+    widget.onChanged();
+  }
+
+  Widget _num(TextEditingController c, double? w, String hint, int i, bool enabled, {bool isLbs = false, bool isDone = false}) {
+    return Container(
+      width: w,
+      height: 40,
+      decoration: BoxDecoration(
+        color: isDone ? Colors.transparent : const Color(0xFF2C2C2D),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: TextField(
+        controller: c,
+        enabled: enabled,
+        keyboardType: isLbs ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.number,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: 'Space Grotesk',
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: isDone ? const Color(0xFFADAAAB) : const Color(0xFFCC97FF),
         ),
-        onPressed: fn,
-        child: Icon(ic, size: 20, color: Colors.white),
-      );
-
-  Widget _num(TextEditingController c, double w, String label, int idx, bool enabled) =>
-      SizedBox(
-        width: w + 24,
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: c,
-                enabled: enabled,
-                onChanged: (_) {
-                  _persist(idx);
-                  widget.onChanged();
-                },
-                onTap: () {
-                  c.selection = TextSelection(
-                    baseOffset: 0,
-                    extentOffset: c.text.length,
-                  );
-                },
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: enabled ? Colors.white : Colors.white38),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-                decoration: InputDecoration(
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 6),
-                  filled: true,
-                  fillColor: enabled ? const Color(0xFF2A2A2A) : Colors.black26,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(label,
-                style: TextStyle(
-                    color: enabled ? Colors.white : Colors.white38, fontSize: 13)),
-          ],
-        ),
-      );
-
-  Widget _info(String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: Colors.white54)),
-            Text(value, style: const TextStyle(fontSize: 12, color: Colors.white70)),
-          ],
-        ),
-      );
-
-  Widget _rirBadge(TextEditingController controller) =>
-      ValueListenableBuilder<TextEditingValue>(
-        valueListenable: controller,
-        builder: (_, value, __) {
-          final parsed = int.tryParse(value.text);
-          final rir = parsed ?? widget.detail.rir;
-          Color color;
-          if (rir <= 1) {
-            color = Colors.redAccent;
-          } else if (rir <= 3) {
-            color = Colors.amber;
-          } else {
-            color = Colors.greenAccent;
-          }
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              'RIR $rir',
-              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
-            ),
-          );
-        },
-      );
-
-  Widget _deltaBadge(int delta, Color color, IconData icon, String tooltip) => Tooltip(
-        message: tooltip,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: color.withOpacity(.15),
-            borderRadius: BorderRadius.circular(12),
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: EdgeInsets.zero,
+          hintText: hint,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: isDone ? InputBorder.none : OutlineInputBorder(
+            borderSide: const BorderSide(color: Color(0xFFCC97FF), width: 2),
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 12, color: color),
-              const SizedBox(width: 2),
-              Text('${delta > 0 ? '+' : ''}$delta%',
-                  style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-            ],
-          ),
+          fillColor: Colors.transparent,
+          filled: true,
         ),
-      );
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -345,216 +279,244 @@ class ExerciseTileState extends State<ExerciseTile>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = const Color(0xFF131314);
-    final titleColor = Colors.white;
 
-    final lastTon = _tonnage(widget.lastLogs ?? []);
-    final todayTon = _todayTonnage;
+    const cardColor = Color(0xFF1A191B);
+    const titleColor = Colors.white;
 
     int? delta;
+    final lastTon = _tonnage(widget.lastLogs ?? []);
+    final todayTon = _todayTonnage;
     if (_todayCompletedLogs.isNotEmpty && lastTon > 0) {
       final raw = ((todayTon - lastTon) / lastTon * 100);
       delta = raw.abs() < 1 ? 0 : raw.round();
     }
 
-    Color deltaColor = Colors.grey.shade400;
-    IconData deltaIcon = Icons.remove;
-    if (delta != null) {
-      if (delta > 0) {
-        deltaColor = const Color(0xFF40CF45);
-        deltaIcon = Icons.arrow_upward;
-      } else if (delta < 0) {
-        deltaColor = const Color(0xFFFF2600);
-        deltaIcon = Icons.arrow_downward;
-      }
-    }
-
     return GestureDetector(
       onTap: widget.onToggle,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: widget.highlightDone ? const Color(0xFF1A191B) : cardColor,
-              borderRadius: BorderRadius.circular(16),
-border: widget.highlightDone ? Border.all(color: const Color(0xFFCC97FF).withValues(alpha: 0.2)) : Border.all(color: const Color(0xFF484849).withValues(alpha: 0.1)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                )
-              ],
-            ),
-            child: Column(
-              children: [
-                ListTile(
-                  contentPadding: const EdgeInsets.only(left: 72, right: 16),
-                  title: Text(widget.detail.name,
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: titleColor,
-                          fontSize: 16)),
-                  subtitle: widget.detail.description.isNotEmpty
-                      ? Text(widget.detail.description,
-                          style: TextStyle(
-                              color: isDark ? Colors.white54 : Colors.black54,
-                              fontSize: 12))
-                      : null,
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(_showChart ? Icons.grid_view : Icons.show_chart, size: 20),
-                        tooltip: _showChart ? 'Ocultar gráfica' : 'Mostrar gráfica',
-                        onPressed: () => setState(() => _showChart = !_showChart),
-                      ),
-                      if (delta != null)
-                        _deltaBadge(delta, deltaColor, deltaIcon, 'vs última sesión'),
-                      if (widget.onSwap != null)
-                        IconButton(icon: const Icon(Icons.swap_horiz), onPressed: widget.onSwap),
-                      Icon(widget.expanded ? Icons.expand_less : Icons.expand_more),
-                    ],
-                  ),
-                ),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: _showChart
-                      ? SizedBox(
-                          key: const ValueKey('chart'),
-                          height: 160,
-                          width: double.infinity,
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            child: MiniLineChart(
-                              today: _todayCompletedLogs
-                                  .map((e) => e.reps * e.weight)
-                                  .toList(),
-                              last: widget.lastLogs
-                                      ?.map((e) => e.reps * e.weight)
-                                      .toList() ??
-                                  [],
-                              best: widget.bestLogs
-                                      ?.map((e) => e.reps * e.weight)
-                                      .toList() ??
-                                  [],
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(key: ValueKey('empty')),
-                ),
-                if (delta != null)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 16, right: 16, bottom: 4),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Tonnage: ${todayTon.toStringAsFixed(0)} kg '
-                        '(${delta > 0 ? '+' : ''}$delta%)',
-                        style: TextStyle(fontSize: 11, color: deltaColor),
-                      ),
-                    ),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: _info(
-                      'Plan',
-                      '${widget.detail.sets}x${widget.detail.reps} '
-                      '@${widget.detail.weight.toStringAsFixed(0)}kg '
-                      '- ${widget.detail.restSeconds}s '
-                      '| Tempo ${widget.detail.tempo} '
-                      '| RIR ${widget.detail.rir}',
-                    ),
-                  ),
-                ),
-                if (widget.expanded) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12, bottom: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: widget.highlightDone
+              ? Border.all(color: const Color(0xFFCC97FF).withValues(alpha: 0.2))
+              : Border.all(color: const Color(0xFF484849).withValues(alpha: 0.1)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _actionBtn(Icons.remove, _remove),
-                        const SizedBox(width: 8),
-                        _actionBtn(Icons.add, _add),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    children: List.generate(_visibleSets, (i) {
-                      final done = widget.logsMap['${widget.detail.exerciseId}-${i + 1}']
-                              ?.completed ??
-                          false;
-                      return Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                        child: Row(
+                        Row(
                           children: [
-                            _num(_repCtl[i], 50, 'r', i, !done),
-                            const SizedBox(width: 12),
-                            _num(_kgCtl[i], 66, 'kg', i, !done),
-                            const SizedBox(width: 12),
-                            _num(_rirCtl[i], 54, 'R', i, !done),
-                            const SizedBox(width: 8),
-                            _rirBadge(_rirCtl[i]),
-                            const Spacer(),
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 250),
-                              transitionBuilder: (child, animation) =>
-                                  ScaleTransition(scale: animation, child: child),
-                              child: Icon(
-                                done ? Icons.check_circle : Icons.circle,
-                                key: ValueKey<bool>(done),
-                                size: 18,
-                                color: done ? Colors.green : Colors.grey,
+                            if (widget.highlightDone)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFCC97FF).withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'IN PROGRESS',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFFCC97FF),
+                                  ),
+                                ),
+                              ),
+                            if (widget.highlightDone) const SizedBox(width: 8),
+                            const Text(
+                              'COMPOUND',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFFADAAAB),
                               ),
                             ),
                           ],
                         ),
-                      );
-                    }),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.detail.name,
+                          style: TextStyle(
+                            fontFamily: 'Space Grotesk',
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: titleColor,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
+                  if (widget.onSwap != null)
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.swap_horiz, color: Color(0xFFADAAAB)),
+                      onPressed: widget.onSwap,
+                    ),
                 ],
-                const SizedBox(height: 8),
-              ],
+              ),
             ),
-          ),
-          if (_restRemaining > 0)
-            Positioned(
-              top: 16,
-              left: 16,
-              child: SizedBox(
-                height: 48,
-                width: 48,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CircularProgressIndicator(
-                      value: 1 - _restRemaining / _restTotal,
-                      strokeWidth: 4,
-                      color: Colors.amber,
-                      backgroundColor: Colors.white12,
-                    ),
-                    Center(
-                      child: Text(
-                        '$_restRemaining',
-                        style: const TextStyle(fontSize: 12, color: Colors.amber),
-                      ),
-                    ),
+
+            if (widget.expanded) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: const [
+                    Expanded(flex: 1, child: Text('SET', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Color(0xFFADAAAB)))),
+                    Expanded(flex: 2, child: Text('PREV', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Color(0xFFADAAAB)))),
+                    Expanded(flex: 2, child: Center(child: Text('LBS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Color(0xFFADAAAB))))),
+                    Expanded(flex: 2, child: Center(child: Text('REPS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Color(0xFFADAAAB))))),
+                    Expanded(flex: 1, child: Align(alignment: Alignment.centerRight, child: Text('RIR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Color(0xFFADAAAB))))),
                   ],
                 ),
               ),
-            ),
-        ],
+              const SizedBox(height: 8),
+              Column(
+                children: List.generate(_visibleSets, (i) {
+                  final done = widget.logsMap['${widget.detail.exerciseId}-${i + 1}']?.completed ?? false;
+
+                  final lastLog = widget.lastLogs != null && widget.lastLogs!.length > i
+                      ? '${widget.lastLogs![i].weight}x${widget.lastLogs![i].reps}'
+                      : '-';
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8, left: 16, right: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: done
+                          ? const Color(0xFF000000).withValues(alpha: 0.4)
+                          : const Color(0xFFCC97FF).withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: !done
+                          ? Border.all(color: const Color(0xFFCC97FF).withValues(alpha: 0.2))
+                          : null,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(flex: 1, child: Text('${i + 1}', style: TextStyle(fontFamily: 'Space Grotesk', fontSize: 16, fontWeight: FontWeight.bold, color: done ? const Color(0xFFADAAAB) : const Color(0xFFCC97FF)))),
+                        Expanded(flex: 2, child: Text(lastLog, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF767576)))),
+                        Expanded(flex: 2, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: _num(_kgCtl[i], null, '', i, !done, isLbs: true, isDone: done))),
+                        Expanded(flex: 2, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: _num(_repCtl[i], null, '', i, !done, isDone: done))),
+                        Expanded(flex: 1, child: Align(alignment: Alignment.centerRight, child: _num(_rirCtl[i], null, '', i, !done, isDone: done))),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+
+              if (delta != null && widget.bestLogs != null && widget.bestLogs!.isNotEmpty && widget.showBest)
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, right: 16, top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6A2785).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF6A2785).withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.trending_up, size: 14, color: Color(0xFFE197FC)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Best: ${widget.bestLogs![0].weight} lbs x ${widget.bestLogs![0].reps} Reps',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFFE197FC), letterSpacing: 0.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          logCurrentSet(addOrUpdate: widget.update);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [Color(0xFFCC97FF), Color(0xFF842CD3)]),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: const [
+                              BoxShadow(color: Color.fromRGBO(204, 151, 255, 0.2), blurRadius: 12),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'REGISTER SET',
+                            style: TextStyle(fontFamily: 'Space Grotesk', fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Color(0xFF47007C)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: _add,
+                      child: Container(
+                        height: 52,
+                        width: 52,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2C2C2D),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF484849).withValues(alpha: 0.1)),
+                        ),
+                        child: const Icon(Icons.add, color: Color(0xFFADAAAB)),
+                      ),
+                    ),
+                    if (_visibleSets > 1) ...[
+                       const SizedBox(width: 12),
+                       GestureDetector(
+                        onTap: _remove,
+                        child: Container(
+                          height: 52,
+                          width: 52,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2C2C2D),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF484849).withValues(alpha: 0.1)),
+                          ),
+                          child: const Icon(Icons.remove, color: Color(0xFFADAAAB)),
+                        ),
+                      ),
+                    ]
+                  ],
+                ),
+              ),
+            ],
+
+            if (!widget.expanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Text(
+                  '${widget.detail.sets} Sets | ${widget.detail.reps} Reps',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
+                    color: Color(0xFFADAAAB),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
