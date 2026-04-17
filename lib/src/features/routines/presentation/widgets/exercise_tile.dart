@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
 import '../../domain/entities/workout_log_entry.dart';
-
+import 'mini_line_chart.dart';
 import '../../../../utils/notification_service.dart';
 import 'dart:async';
 
@@ -416,7 +416,7 @@ class ExerciseTileState extends State<ExerciseTile> {
                 }),
               ),
 
-              if (delta != null && widget.bestLogs != null && widget.bestLogs!.isNotEmpty && widget.showBest)
+              if (widget.bestLogs != null && widget.bestLogs!.isNotEmpty && widget.showBest)
                 Padding(
                   padding: const EdgeInsets.only(left: 16, right: 16, top: 8),
                   child: Container(
@@ -432,10 +432,19 @@ class ExerciseTileState extends State<ExerciseTile> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Best: ${widget.bestLogs![0].weight} lbs x ${widget.bestLogs![0].reps} Reps',
+                            'BEST: ${widget.bestLogs![0].weight} LBS X ${widget.bestLogs![0].reps} REPS (2 WEEKS AGO)', // Using placeholder for date since not in mock
                             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFFE197FC), letterSpacing: 0.5),
                           ),
                         ),
+                        if (widget.bestLogs!.length > 1)
+                          SizedBox(
+                            width: 60,
+                            height: 20,
+                            child: MiniLineChart(
+                              today: const [],
+                              best: widget.bestLogs!.map((l) => l.weight).toList().reversed.toList(),
+                            ),
+                          ),
                       ],
                     ),
                   ),

@@ -19,7 +19,6 @@ class _MainScaffoldState extends State<MainScaffold> {
     final List<Widget> tabs = [
       _HomeTab(onNavigateToRoutines: () => setState(() => _currentIndex = 1)),
       const RoutinesScreen(),
-      const LogsScreen(),
       const _StatsTab(),
       const ProfileScreen(),
     ];
@@ -112,28 +111,6 @@ class _MainScaffoldState extends State<MainScaffold> {
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.5,
                         color: _currentIndex == 1 ? const Color(0xFFCC97FF) : const Color(0xFFADAAAB),
-                      ),
-                    ),
-                  ],
-                ),
-                label: '',
-              ),
-              NavigationDestination(
-                icon: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _currentIndex == 2 ? Icons.history : Icons.history_outlined,
-                      color: _currentIndex == 2 ? const Color(0xFFCC97FF) : const Color(0xFFADAAAB),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'HISTORY',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
-                        color: _currentIndex == 2 ? const Color(0xFFCC97FF) : const Color(0xFFADAAAB),
                       ),
                     ),
                   ],

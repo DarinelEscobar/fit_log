@@ -324,6 +324,44 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          // Note: The history screen is deactivated from the main navigation,
+                                          // but it can still be accessed or functional here if needed,
+                                          // or just acts as a placeholder per the design.
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF1A191B),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            border: Border.all(
+                                                color: const Color(0xFF484849)
+                                                    .withValues(alpha: 0.1)),
+                                          ),
+                                          child: const Column(
+                                            children: [
+                                              Icon(Icons.history,
+                                                  color: Color(0xFFADAAAB)),
+                                              SizedBox(height: 4),
+                                              Text(
+                                                'LOG HISTORY',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  letterSpacing: 1.5,
+                                                  color: Color(0xFFADAAAB),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               );
