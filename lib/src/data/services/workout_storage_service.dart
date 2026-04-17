@@ -11,7 +11,7 @@ import '../schema/schemas.dart';
 
 class WorkoutStorageService {
   WorkoutStorageService({DatabaseFactory? dbFactory})
-      : _databaseFactory = dbFactory ?? databaseFactory;
+    : _databaseFactory = dbFactory ?? databaseFactory;
 
   final DatabaseFactory _databaseFactory;
   Database? _database;
@@ -65,6 +65,8 @@ class WorkoutStorageService {
       )
     ''');
 
+    await _deduplicateWorkoutData(db);
+
     await db.execute('''
       CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_sessions_unique
       ON workout_sessions(date, plan_id)
@@ -73,6 +75,26 @@ class WorkoutStorageService {
     await db.execute('''
       CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_logs_unique
       ON workout_logs(date, plan_id, exercise_id, set_number, reps, weight, rir)
+    ''');
+  }
+
+  Future<void> _deduplicateWorkoutData(Database db) async {
+    await db.execute('''
+      DELETE FROM workout_sessions
+      WHERE id NOT IN (
+        SELECT MIN(id)
+        FROM workout_sessions
+        GROUP BY date, plan_id
+      )
+    ''');
+
+    await db.execute('''
+      DELETE FROM workout_logs
+      WHERE id NOT IN (
+        SELECT MIN(id)
+        FROM workout_logs
+        GROUP BY date, plan_id, exercise_id, set_number, reps, weight, rir
+      )
     ''');
   }
 
@@ -104,18 +126,14 @@ class WorkoutStorageService {
       limit: 1,
     );
     if (existing.isNotEmpty) return;
-    await db.insert(
-      'workout_sessions',
-      {
-        'date': _formatDate(session.date),
-        'plan_id': session.planId,
-        'fatigue_level': session.fatigueLevel,
-        'duration_minutes': session.durationMinutes,
-        'mood': session.mood,
-        'notes': session.notes,
-      },
-      conflictAlgorithm: ConflictAlgorithm.ignore,
-    );
+    await db.insert('workout_sessions', {
+      'date': _formatDate(session.date),
+      'plan_id': session.planId,
+      'fatigue_level': session.fatigueLevel,
+      'duration_minutes': session.durationMinutes,
+      'mood': session.mood,
+      'notes': session.notes,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 
   Future<List<WorkoutSession>> fetchAllSessions() async {
@@ -154,11 +172,13 @@ class WorkoutStorageService {
   }
 
   Future<void> _migrateFromExcelIfNeeded(Database db) async {
-    final logCount = Sqflite.firstIntValue(
+    final logCount =
+        Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM workout_logs'),
         ) ??
         0;
-    final sessionCount = Sqflite.firstIntValue(
+    final sessionCount =
+        Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM workout_sessions'),
         ) ??
         0;
@@ -187,12 +207,15 @@ class WorkoutStorageService {
         'reps': _parseInt(row[5]?.value),
         'weight': _parseDouble(row[6]?.value),
         'rir': _parseInt(row[7]?.value),
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     await batch.commit(noResult: true);
   }
 
-  Future<void> _importSessionsFromExcel(Database db, Directory directory) async {
+  Future<void> _importSessionsFromExcel(
+    Database db,
+    Directory directory,
+  ) async {
     final file = File(path.join(directory.path, 'workout_session.xlsx'));
     if (!await file.exists()) return;
     final excel = Excel.decodeBytes(await file.readAsBytes());
@@ -209,7 +232,7 @@ class WorkoutStorageService {
         'duration_minutes': _parseInt(row[4]?.value),
         'mood': row[5]?.value.toString() ?? '',
         'notes': row[6]?.value.toString() ?? '',
-      });
+      }, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     await batch.commit(noResult: true);
   }

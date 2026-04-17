@@ -1,12 +1,20 @@
 import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
+
 import '../providers/app_data_providers.dart';
 
 class DataScreen extends ConsumerWidget {
   const DataScreen({super.key});
+
+  void _showMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -86,7 +94,9 @@ class DataScreen extends ConsumerWidget {
                           color: const Color(0xFFCC97FF).withValues(alpha: 0.1),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFCC97FF).withValues(alpha: 0.2),
+                              color: const Color(
+                                0xFFCC97FF,
+                              ).withValues(alpha: 0.2),
                               blurRadius: 100,
                               spreadRadius: 20,
                             ),
@@ -97,77 +107,82 @@ class DataScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-
               const SizedBox(height: 32),
-
               _buildActionCard(
                 icon: Icons.download,
                 iconColor: const Color(0xFFCC97FF),
                 title: 'Export Data',
                 badgeText: 'JSON/CSV',
                 badgeColor: const Color(0xFFCC97FF),
-                description: 'Generate a comprehensive archive of your entire workout history and personal bests. Portable and ready for external analysis.',
+                description:
+                    'Generate a comprehensive archive of your entire workout history and personal bests. Portable and ready for external analysis.',
                 actionText: 'START EXPORT',
                 actionColor: const Color(0xFFCC97FF),
                 onTap: () async {
-                  final file = await ref.read(exportDataProvider.future);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Exportado: ${file.path}')),
-                  );
+                  try {
+                    final file = await ref.refresh(exportDataProvider.future);
+                    if (!context.mounted) return;
+                    _showMessage(context, 'Exportado: ${file.path}');
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    _showMessage(context, 'Error al exportar datos: $e');
+                  }
                 },
               ),
-
               const SizedBox(height: 16),
-
               _buildActionCard(
                 icon: Icons.ios_share,
                 iconColor: const Color(0xFFCC97FF),
                 title: 'Share Backup',
                 badgeText: 'SYNC',
                 badgeColor: const Color(0xFFCC97FF),
-                description: 'Quickly send an encrypted backup file to another device or cloud storage to ensure your progress is never lost.',
+                description:
+                    'Quickly send an encrypted backup file to another device or cloud storage to ensure your progress is never lost.',
                 actionText: 'CHOOSE DESTINATION',
                 actionColor: const Color(0xFFCC97FF),
                 onTap: () async {
-                  final file = await ref.read(exportDataProvider.future);
-                  await Share.shareXFiles([XFile(file.path)], text: 'Backup Fit Log');
+                  try {
+                    final file = await ref.refresh(exportDataProvider.future);
+                    await Share.shareXFiles([
+                      XFile(file.path),
+                    ], text: 'Backup Fit Log');
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    _showMessage(context, 'Error al compartir backup: $e');
+                  }
                 },
               ),
-
               const SizedBox(height: 16),
-
               _buildActionCard(
                 icon: Icons.upload_file,
                 iconColor: const Color(0xFFFF6B6B),
                 title: 'Import Data',
                 badgeText: 'DESTRUCTIVE',
                 badgeColor: const Color(0xFFFF6B6B),
-                description: 'Replace your current logs with an external backup file. This action will permanently overwrite all existing data on this device.',
+                description:
+                    'Replace your current logs with an external backup file. This action will permanently overwrite all existing data on this device.',
                 actionText: 'VERIFY & IMPORT',
                 actionColor: const Color(0xFFFF6B6B),
                 isDestructive: true,
                 onTap: () async {
                   final res = await FilePicker.platform.pickFiles();
-                  if (res == null || res.files.single.path == null) return;
-                  final f = File(res.files.single.path!);
+                  if (!context.mounted ||
+                      res == null ||
+                      res.files.single.path == null) {
+                    return;
+                  }
+                  final file = File(res.files.single.path!);
                   try {
-                    await ref.read(importDataProvider(f).future);
+                    await ref.read(importDataProvider(file).future);
                     if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Datos importados')),
-                    );
+                    _showMessage(context, 'Datos importados');
                   } catch (e) {
                     if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error al importar datos: $e')),
-                    );
+                    _showMessage(context, 'Error al importar datos: $e');
                   }
                 },
               ),
-
               const SizedBox(height: 32),
-
               Center(
                 child: Column(
                   children: [
@@ -210,9 +225,15 @@ class DataScreen extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: isDestructive ? const Color(0xFF201F21) : const Color(0xFF1A191B),
+          color: isDestructive
+              ? const Color(0xFF201F21)
+              : const Color(0xFF1A191B),
           borderRadius: BorderRadius.circular(16),
-          border: isDestructive ? Border.all(color: const Color(0xFFFF6B6B).withValues(alpha: 0.1)) : null,
+          border: isDestructive
+              ? Border.all(
+                  color: const Color(0xFFFF6B6B).withValues(alpha: 0.1),
+                )
+              : null,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,7 +264,10 @@ class DataScreen extends ConsumerWidget {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: badgeColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
