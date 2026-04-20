@@ -11,9 +11,12 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../navigation/widgets/kinetic_bottom_nav_bar.dart';
 import '../../../../theme/kinetic_noir.dart';
+import '../../../history/presentation/providers/history_providers.dart';
 import '../../domain/usecases/export_app_data_usecase.dart';
 import '../../domain/usecases/import_app_data_usecase.dart';
 import '../providers/app_data_providers.dart';
+import '../../../routines/presentation/providers/exercises_provider.dart';
+import '../../../routines/presentation/providers/workout_plan_provider.dart';
 
 enum DataScreenResult {
   goHome,
@@ -146,6 +149,11 @@ class _DataScreenState extends ConsumerState<DataScreen> {
       final file = File(result.files.single.path!);
       final repo = ref.read(appDataRepositoryProvider);
       await ImportAppDataUseCase(repo)(file);
+      ref.invalidate(workoutPlanProvider);
+      ref.invalidate(allExercisesProvider);
+      ref.invalidate(workoutLogsProvider);
+      ref.invalidate(workoutSessionsProvider);
+      ref.read(routineLibraryMetadataEpochProvider.notifier).state++;
       if (!mounted) return;
       _showMessage('Data imported');
       await _refreshBackupStatus();

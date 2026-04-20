@@ -1,11 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../data/providers/workout_storage_service_provider.dart';
 import '../../data/repositories/workout_history_repository_impl.dart';
 import '../../domain/usecases/get_workout_sessions_usecase.dart';
 import '../../domain/usecases/get_workout_logs_usecase.dart';
 import '../../../routines/domain/entities/workout_log_entry.dart';
 import '../../../routines/domain/entities/workout_session.dart';
 
-final _repoProvider = Provider((_) => WorkoutHistoryRepositoryImpl());
+final _repoProvider = Provider((ref) {
+  return WorkoutHistoryRepositoryImpl(
+    storageService: ref.watch(workoutStorageServiceProvider),
+  );
+});
 
 // Provides all workout sessions
 final workoutSessionsProvider =

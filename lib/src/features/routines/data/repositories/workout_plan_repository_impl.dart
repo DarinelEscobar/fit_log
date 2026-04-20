@@ -1,311 +1,46 @@
-import 'dart:io';
-import 'package:excel/excel.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
+import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_detail.dart';
+import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
+import 'package:fit_log/src/features/routines/domain/entities/workout_plan.dart';
+import 'package:fit_log/src/features/routines/domain/entities/workout_session.dart';
 
-import '../../domain/entities/exercise.dart';
-import '../../domain/entities/workout_plan.dart';
-import '../../domain/entities/plan_exercise_detail.dart';
-import '../../domain/entities/workout_log_entry.dart';
-import '../../domain/entities/workout_session.dart';
-import '../../domain/repositories/workout_plan_repository.dart';
 import '../../../../data/services/workout_storage_service.dart';
-import '../../../../data/schema/schemas.dart';
+import '../../domain/repositories/workout_plan_repository.dart';
 
 class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
-  List<Exercise>? _exerciseCache;
-  Future<void>? _normalizeFuture;
-  static const int _planActiveColumnIndex = 3;
-  final WorkoutStorageService _workoutStorageService = WorkoutStorageService();
-  Future<File> _getOrCreateFile(String filename) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/$filename');
+  WorkoutPlanRepositoryImpl({WorkoutStorageService? storageService})
+      : _storageService = storageService ?? WorkoutStorageService();
 
-    if (!await file.exists()) {
-      final schema = kTableSchemas[filename]!;
-      final excel = Excel.createExcel();
-      final defaultSheet = excel.getDefaultSheet();
-      if (defaultSheet != null) {
-        excel.rename(defaultSheet, schema.sheetName);
-      }
-      excel[schema.sheetName]!.appendRow(
-        schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList(),
-      );
-      final bytes = excel.save();
-      if (bytes != null) await file.writeAsBytes(bytes);
-    }
-    return file;
-  }
+  final WorkoutStorageService _storageService;
 
-  int _getLastId(Sheet sheet) {
-    var maxId = 0;
-    for (var i = 1; i < sheet.rows.length; i++) {
-      final val = sheet.rows[i][0]?.value;
-      final id = int.tryParse(val?.toString() ?? '');
-      if (id != null && id > maxId) maxId = id;
-    }
-    return maxId;
-  }
-
-  bool _parseActiveCell(Data? cell) {
-    final value = cell?.value;
-    if (value == null) return true;
-    if (value is BoolCellValue) return value.value;
-    if (value is IntCellValue) return value.value != 0;
-    if (value is DoubleCellValue) return value.value != 0;
-    final text = value.toString().toLowerCase();
-    return text != '0' && text != 'false' && text != 'no';
-  }
-
-  void _ensurePlanActiveColumn(Sheet sheet) {
-    if (sheet.rows.isEmpty) return;
-    final header = sheet.rows.first;
-    final hasColumn = header.length > _planActiveColumnIndex &&
-        header[_planActiveColumnIndex]?.value.toString() == 'is_active';
-    if (hasColumn) return;
-
-    sheet.updateCell(
-      CellIndex.indexByColumnRow(columnIndex: _planActiveColumnIndex, rowIndex: 0),
-      TextCellValue('is_active'),
-    );
-    for (var i = 1; i < sheet.rows.length; i++) {
-      sheet.updateCell(
-        CellIndex.indexByColumnRow(
-          columnIndex: _planActiveColumnIndex,
-          rowIndex: i,
-        ),
-        IntCellValue(1),
-      );
-    }
-  }
-  T? _cast<T>(Data? cell) {
-    final v = cell?.value;
-    if (v == null) return null;
-    if (v is T) return v as T;
-    if (T == int) return int.tryParse(v.toString()) as T?;
-    if (T == double) return double.tryParse(v.toString()) as T?;
-    if (T == String) return v.toString() as T;
-    return null;
-  }
-
-  Data? _cellAt(List<Data?> row, int index) =>
-      index < row.length ? row[index] : null;
-
-  int _findInsertIndex(Sheet sheet, int planId, int position) {
-    int insertIndex = sheet.rows.length;
-    int current = 0;
-    for (var i = 1; i < sheet.rows.length; i++) {
-      final r = sheet.rows[i];
-      if (r.isNotEmpty && _cast<int>(r[0]) == planId) {
-        if (current == position) {
-          insertIndex = i;
-          break;
-        }
-        current++;
-      }
-    }
-    return insertIndex;
-  }
-
-  Future<void> _normalizeExerciseIds() {
-    _normalizeFuture ??= _normalizeExerciseIdsInternal().catchError(
-      (error, stackTrace) {
-        _normalizeFuture = null;
-        Error.throwWithStackTrace(error, stackTrace);
-      },
-    );
-    return _normalizeFuture!;
-  }
-
-  Future<void> _normalizeExerciseIdsInternal() async {
-    final file = await _getOrCreateFile('exercise.xlsx');
-    final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
-
-    final seen = <int>{};
-    var maxId = _getLastId(sheet);
-    var changed = false;
-    final idMap = <int, int>{};
-
-    for (var i = 1; i < sheet.rows.length; i++) {
-      final id = _cast<int>(sheet.rows[i][0]);
-      if (id == null) continue;
-      if (seen.contains(id)) {
-        maxId++;
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: i),
-          IntCellValue(maxId),
-        );
-        idMap[id] = maxId;
-        changed = true;
-      } else {
-        seen.add(id);
-        if (id > maxId) maxId = id;
-      }
-    }
-
-    if (changed) {
-      await file.writeAsBytes(excel.save()!);
-
-      if (idMap.isNotEmpty) {
-        final peFile = await _getOrCreateFile('plan_exercise.xlsx');
-        final peExcel = Excel.decodeBytes(await peFile.readAsBytes());
-        final peSheet =
-            peExcel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
-        for (var i = 1; i < peSheet.rows.length; i++) {
-          final eid = _cast<int>(peSheet.rows[i][1]);
-          final newId = idMap[eid];
-          if (newId != null) {
-            peSheet.updateCell(
-              CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i),
-              IntCellValue(newId),
-            );
-          }
-        }
-        await peFile.writeAsBytes(peExcel.save()!);
-      }
-
-      _exerciseCache = null;
-    }
+  @override
+  Future<List<WorkoutPlan>> getAllPlans() {
+    return _storageService.fetchWorkoutPlans();
   }
 
   @override
-  Future<List<WorkoutPlan>> getAllPlans() async {
-    final file = await _getOrCreateFile('workout_plan.xlsx');
-    final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName];
-    if (sheet == null) return [];
-
-    return sheet.rows
-        .skip(1)
-        .where((row) => row.isNotEmpty)
-        .map((row) {
-          final id = int.tryParse(row[0]?.value.toString() ?? '0') ?? 0;
-          final name = row[1]?.value.toString() ?? '';
-          final frequency = row[2]?.value.toString() ?? '';
-          final isActive = row.length > _planActiveColumnIndex
-              ? _parseActiveCell(row[_planActiveColumnIndex])
-              : true;
-          return WorkoutPlan(
-            id: id,
-            name: name,
-            frequency: frequency,
-            isActive: isActive,
-          );
-        })
-        .toList();
+  Future<void> createWorkoutPlan(String name, String frequency) {
+    return _storageService.createWorkoutPlan(name, frequency);
   }
 
   @override
-  Future<void> createWorkoutPlan(String name, String frequency) async {
-    final file = await _getOrCreateFile('workout_plan.xlsx');
-    final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName]!;
-    _ensurePlanActiveColumn(sheet);
-
-    sheet.appendRow([
-      IntCellValue(_getLastId(sheet) + 1),
-      TextCellValue(name),
-      TextCellValue(frequency),
-      IntCellValue(1),
-    ]);
-    await file.writeAsBytes(excel.save()!);
+  Future<void> updateWorkoutPlan(int planId, String name, String frequency) {
+    return _storageService.updateWorkoutPlan(planId, name, frequency);
   }
 
   @override
-  Future<void> updateWorkoutPlan(int planId, String name, String frequency) async {
-    final file = await _getOrCreateFile('workout_plan.xlsx');
-    final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName]!;
-    _ensurePlanActiveColumn(sheet);
-
-    for (var i = 1; i < sheet.rows.length; i++) {
-      final row = sheet.rows[i];
-      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i),
-          TextCellValue(name),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i),
-          TextCellValue(frequency),
-        );
-        break;
-      }
-    }
-
-    await file.writeAsBytes(excel.save()!);
+  Future<void> setWorkoutPlanActive(int planId, bool isActive) {
+    return _storageService.setWorkoutPlanActive(planId, isActive);
   }
 
   @override
-  Future<void> setWorkoutPlanActive(int planId, bool isActive) async {
-    final file = await _getOrCreateFile('workout_plan.xlsx');
-    final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['workout_plan.xlsx']!.sheetName]!;
-    _ensurePlanActiveColumn(sheet);
-
-    for (var i = 1; i < sheet.rows.length; i++) {
-      final row = sheet.rows[i];
-      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(
-            columnIndex: _planActiveColumnIndex,
-            rowIndex: i,
-          ),
-          IntCellValue(isActive ? 1 : 0),
-        );
-        break;
-      }
-    }
-
-    await file.writeAsBytes(excel.save()!);
+  Future<List<Exercise>> getExercisesForPlan(int planId) {
+    return _storageService.fetchExercisesForPlan(planId);
   }
 
   @override
-  Future<List<Exercise>> getExercisesForPlan(int planId) async {
-    final peFile = await _getOrCreateFile('plan_exercise.xlsx');
-
-    final peSheet = Excel.decodeBytes(await peFile.readAsBytes())[
-        kTableSchemas['plan_exercise.xlsx']!.sheetName];
-
-    if (peSheet == null) return [];
-
-    final exerciseIdsForPlan = peSheet.rows
-        .skip(1)
-        .where((row) => row.isNotEmpty && _cast<int>(row[0]) == planId)
-        .map((row) => _cast<int>(row[1]))
-        .whereType<int>()
-        .toSet();
-
-    if (exerciseIdsForPlan.isEmpty) return [];
-
-    final exercises = await getAllExercises();
-    return exercises.where((e) => exerciseIdsForPlan.contains(e.id)).toList();
-  }
-
-  @override
-  Future<List<Exercise>> getAllExercises() async {
-    if (_exerciseCache != null) return _exerciseCache!;
-
-    await _normalizeExerciseIds();
-    final exFile = await _getOrCreateFile('exercise.xlsx');
-    final exSheet =
-        Excel.decodeBytes(await exFile.readAsBytes())[kTableSchemas['exercise.xlsx']!.sheetName];
-    if (exSheet == null) return [];
-
-    _exerciseCache = exSheet.rows
-        .skip(1)
-        .where((row) => row.isNotEmpty)
-        .map(
-          (row) => Exercise(
-            id: _cast<int>(row[0]) ?? 0,
-            name: _cast<String>(row[1]) ?? '',
-            description: _cast<String>(row[2]) ?? '',
-            category: _cast<String>(row[3]) ?? '',
-            mainMuscleGroup: _cast<String>(row[4]) ?? '',
-          ),
-        )
-        .toList();
-    return _exerciseCache!;
+  Future<List<Exercise>> getAllExercises() {
+    return _storageService.fetchAllExercises();
   }
 
   @override
@@ -314,22 +49,13 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     String description,
     String category,
     String mainMuscleGroup,
-  ) async {
-    await _normalizeExerciseIds();
-    final exFile = await _getOrCreateFile('exercise.xlsx');
-    final excel = Excel.decodeBytes(await exFile.readAsBytes());
-    final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
-
-    sheet.appendRow([
-      IntCellValue(_getLastId(sheet) + 1),
-      TextCellValue(name),
-      TextCellValue(description),
-      TextCellValue(category),
-      TextCellValue(mainMuscleGroup),
-    ]);
-
-    await exFile.writeAsBytes(excel.save()!);
-    _exerciseCache = null; // reset cache
+  ) {
+    return _storageService.createExercise(
+      name,
+      description,
+      category,
+      mainMuscleGroup,
+    );
   }
 
   @override
@@ -339,82 +65,24 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     String description,
     String category,
     String mainMuscleGroup,
-  ) async {
-    await _normalizeExerciseIds();
-    final file = await _getOrCreateFile('exercise.xlsx');
-    final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['exercise.xlsx']!.sheetName]!;
-
-    for (var i = 1; i < sheet.rows.length; i++) {
-      final row = sheet.rows[i];
-      if (row.isNotEmpty && _cast<int>(row[0]) == id) {
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: i),
-          TextCellValue(name),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i),
-          TextCellValue(description),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i),
-          TextCellValue(category),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: i),
-          TextCellValue(mainMuscleGroup),
-        );
-        break;
-      }
-    }
-
-    await file.writeAsBytes(excel.save()!);
-    _exerciseCache = null; // reset cache
+  ) {
+    return _storageService.updateExercise(
+      id,
+      name,
+      description,
+      category,
+      mainMuscleGroup,
+    );
   }
 
   @override
-  Future<List<Exercise>> getSimilarExercises(int exerciseId) async {
-    final all = await getAllExercises();
-    final base = all.firstWhere((e) => e.id == exerciseId, orElse: () => Exercise(id: 0, name: '', description: '', category: '', mainMuscleGroup: ''));
-    if (base.id == 0) return [];
-    return all
-        .where((e) => e.id != exerciseId && (e.category == base.category || e.mainMuscleGroup == base.mainMuscleGroup))
-        .toList();
+  Future<List<Exercise>> getSimilarExercises(int exerciseId) {
+    return _storageService.fetchSimilarExercises(exerciseId);
   }
 
   @override
-  Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) async {
-    final peFile = await _getOrCreateFile('plan_exercise.xlsx');
-
-    final peSheet = Excel.decodeBytes(await peFile.readAsBytes())[
-        kTableSchemas['plan_exercise.xlsx']!.sheetName];
-
-    if (peSheet == null) return [];
-
-    final exercises = await getAllExercises();
-    final mapIdName = {for (var e in exercises) e.id: e.name};
-    final mapIdDescription = {for (var e in exercises) e.id: e.description};
-
-    return peSheet.rows
-        .skip(1)
-        .where((r) =>
-            r.isNotEmpty &&
-            _cast<int>(r[0]) == planId)
-        .map((r) {
-          final id = _cast<int>(r[1]) ?? 0;
-          return PlanExerciseDetail(
-            exerciseId: id,
-            name: mapIdName[id] ?? 'Unknown',
-            description: mapIdDescription[id] ?? '',
-            sets: _cast<int>(_cellAt(r, 2)) ?? 0,
-            reps: _cast<int>(_cellAt(r, 3)) ?? 0,
-            weight: _cast<double>(_cellAt(r, 4)) ?? 0,
-            restSeconds: _cast<int>(_cellAt(r, 5)) ?? 0,
-            rir: _cast<int>(_cellAt(r, 6)) ?? 2,
-            tempo: _cast<String>(_cellAt(r, 7)) ?? '3-1-1-0',
-          );
-        })
-        .toList();
+  Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) {
+    return _storageService.fetchPlanExerciseDetails(planId);
   }
 
   @override
@@ -422,127 +90,31 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
     int planId,
     PlanExerciseDetail detail, {
     int? position,
-  }) async {
-    final file = await _getOrCreateFile('plan_exercise.xlsx');
-    final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
-
-    int? existingRow;
-    for (var i = 1; i < sheet.rows.length; i++) {
-      final row = sheet.rows[i];
-      if (row.isNotEmpty &&
-          _cast<int>(row[0]) == planId &&
-          _cast<int>(row[1]) == detail.exerciseId) {
-        existingRow = i;
-        break;
-      }
-    }
-
-    if (existingRow != null) {
-      sheet.removeRow(existingRow);
-    }
-
-    // Count current exercises for this plan after removal
-    int count = 0;
-    for (var i = 1; i < sheet.rows.length; i++) {
-      final row = sheet.rows[i];
-      if (row.isNotEmpty && _cast<int>(row[0]) == planId) {
-        count++;
-      }
-    }
-
-    final insertIndex = _findInsertIndex(
-      sheet,
+  }) {
+    return _storageService.addExerciseToPlan(
       planId,
-      (position ?? count).clamp(0, count),
+      detail,
+      position: position,
     );
-
-    final rowData = [
-      IntCellValue(planId),
-      IntCellValue(detail.exerciseId),
-      IntCellValue(detail.sets),
-      IntCellValue(detail.reps),
-      DoubleCellValue(detail.weight),
-      IntCellValue(detail.restSeconds),
-      IntCellValue(detail.rir),
-      TextCellValue(detail.tempo),
-      TextCellValue(''),
-    ];
-
-    sheet.insertRowIterables(rowData, insertIndex);
-
-    await file.writeAsBytes(excel.save()!);
   }
 
   @override
-  Future<void> updateExerciseInPlan(int planId, PlanExerciseDetail detail) async {
-    final file = await _getOrCreateFile('plan_exercise.xlsx');
-    final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
-
-    for (var i = 1; i < sheet.rows.length; i++) {
-      final row = sheet.rows[i];
-      if (row.isNotEmpty &&
-          _cast<int>(row[0]) == planId &&
-          _cast<int>(row[1]) == detail.exerciseId) {
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: i),
-          IntCellValue(detail.sets),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: i),
-          IntCellValue(detail.reps),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: i),
-          DoubleCellValue(detail.weight),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: i),
-          IntCellValue(detail.restSeconds),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: i),
-          IntCellValue(detail.rir),
-        );
-        sheet.updateCell(
-          CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: i),
-          TextCellValue(detail.tempo),
-        );
-        break;
-      }
-    }
-
-    await file.writeAsBytes(excel.save()!);
+  Future<void> updateExerciseInPlan(int planId, PlanExerciseDetail detail) {
+    return _storageService.updateExerciseInPlan(planId, detail);
   }
 
   @override
-  Future<void> deleteExerciseFromPlan(int planId, int exerciseId) async {
-    final file = await _getOrCreateFile('plan_exercise.xlsx');
-    final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['plan_exercise.xlsx']!.sheetName]!;
-
-    for (var i = sheet.rows.length - 1; i >= 1; i--) {
-      final r = sheet.rows[i];
-      if (r.isNotEmpty &&
-          _cast<int>(r[0]) == planId &&
-          _cast<int>(r[1]) == exerciseId) {
-        sheet.removeRow(i);
-        break;
-      }
-    }
-
-    await file.writeAsBytes(excel.save()!);
-  }
-
-
-  @override
-  Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs) async {
-    await _workoutStorageService.saveWorkoutLogs(logs);
+  Future<void> deleteExerciseFromPlan(int planId, int exerciseId) {
+    return _storageService.deleteExerciseFromPlan(planId, exerciseId);
   }
 
   @override
-  Future<void> saveWorkoutSession(WorkoutSession s) async {
-    await _workoutStorageService.saveWorkoutSession(s);
+  Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs) {
+    return _storageService.saveWorkoutLogs(logs);
+  }
+
+  @override
+  Future<void> saveWorkoutSession(WorkoutSession session) {
+    return _storageService.saveWorkoutSession(session);
   }
 }
