@@ -6,9 +6,14 @@ import '../../domain/entities/exercise.dart';
 import '../providers/exercises_provider.dart';
 
 class SelectExerciseScreen extends ConsumerStatefulWidget {
-  const SelectExerciseScreen({required this.groups, super.key});
+  const SelectExerciseScreen({
+    required this.groups,
+    this.initialExercises,
+    super.key,
+  });
 
   final Set<String> groups;
+  final List<Exercise>? initialExercises;
 
   @override
   ConsumerState<SelectExerciseScreen> createState() =>
@@ -16,21 +21,43 @@ class SelectExerciseScreen extends ConsumerStatefulWidget {
 }
 
 class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
-  late String _group;
-  String _query = '';
+  late final TextEditingController _searchController;
+  late final ValueNotifier<String> _queryNotifier;
+  late final ValueNotifier<String> _groupNotifier;
+  late Future<List<Exercise>> _loadFuture;
+  List<Exercise>? _cachedExercises;
 
   @override
   void initState() {
     super.initState();
-    _group = 'All';
+    _searchController = TextEditingController();
+    _queryNotifier = ValueNotifier('');
+    _groupNotifier = ValueNotifier('All');
+    _cachedExercises = widget.initialExercises == null
+        ? null
+        : (List<Exercise>.from(widget.initialExercises!)
+          ..sort((a, b) => a.name.compareTo(b.name)));
+    _loadFuture = _cachedExercises != null
+        ? Future.value(_cachedExercises)
+        : ref.read(allExercisesProvider.future);
+    _searchController.addListener(() {
+      _queryNotifier.value = _searchController.text.trim().toLowerCase();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _queryNotifier.dispose();
+    _groupNotifier.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final asyncExercises = ref.watch(allExercisesProvider);
     final groupsList = [
       'All',
-      ...widget.groups.where((g) => g.trim().isNotEmpty)
+      ...widget.groups.where((group) => group.trim().isNotEmpty),
     ];
 
     return Scaffold(
@@ -52,120 +79,203 @@ class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
           ),
         ),
       ),
-      body: asyncExercises.when(
-        data: (allExercises) {
-          final filtered = allExercises.where((exercise) {
-            final matchesGroup =
-                _group == 'All' || exercise.mainMuscleGroup == _group;
-            final matchesQuery = exercise.name
-                .toLowerCase()
-                .contains(_query.trim().toLowerCase());
-            return matchesGroup && matchesQuery;
-          }).toList()
+      body: FutureBuilder<List<Exercise>>(
+        future: _loadFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(
+              child: CircularProgressIndicator(
+                color: KineticNoirPalette.primary,
+              ),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Unable to load library.\n${snapshot.error}',
+                textAlign: TextAlign.center,
+                style: KineticNoirTypography.body(
+                  size: 15,
+                  weight: FontWeight.w600,
+                  color: KineticNoirPalette.onSurfaceVariant,
+                ),
+              ),
+            );
+          }
+
+          _cachedExercises ??= List<Exercise>.from(snapshot.data ?? const [])
             ..sort((a, b) => a.name.compareTo(b.name));
 
           return Column(
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Select an existing exercise to add it to the routine.',
-                      style: KineticNoirTypography.body(
-                        size: 14,
-                        weight: FontWeight.w600,
-                        color: KineticNoirPalette.onSurfaceVariant,
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    TextField(
-                      onChanged: (value) => setState(() => _query = value),
-                      decoration: InputDecoration(
-                        hintText: 'Search exercise...',
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        filled: true,
-                        fillColor: KineticNoirPalette.surfaceLow,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 16,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    if (groupsList.length > 1) ...[
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        height: 40,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: groupsList.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
-                          itemBuilder: (context, index) {
-                            final group = groupsList[index];
-                            final selected = _group == group;
-                            return ChoiceChip(
-                              label: Text(group),
-                              selected: selected,
-                              onSelected: (_) => setState(() => _group = group),
-                              labelStyle: KineticNoirTypography.body(
-                                size: 12,
-                                weight: FontWeight.w800,
-                                color: selected
-                                    ? KineticNoirPalette.primary
-                                    : KineticNoirPalette.onSurfaceVariant,
-                              ),
-                              selectedColor: KineticNoirPalette.primary
-                                  .withValues(alpha: 0.12),
-                              backgroundColor: KineticNoirPalette.surfaceLow,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
+                child: _SelectExerciseHeader(
+                  searchController: _searchController,
+                  groupsList: groupsList,
+                  selectedGroupListenable: _groupNotifier,
                 ),
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: filtered.isEmpty
-                    ? const _SelectExerciseEmptyState()
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final exercise = filtered[index];
-                          return _ExerciseLibraryCard(exercise: exercise);
-                        },
-                      ),
+                child: ValueListenableBuilder<String>(
+                  valueListenable: _queryNotifier,
+                  builder: (context, query, _) {
+                    return ValueListenableBuilder<String>(
+                      valueListenable: _groupNotifier,
+                      builder: (context, group, __) {
+                        final filtered = _filterExercises(
+                          _cachedExercises!,
+                          query: query,
+                          group: group,
+                        );
+
+                        if (filtered.isEmpty) {
+                          return const _SelectExerciseEmptyState();
+                        }
+
+                        return ListView.builder(
+                          cacheExtent: 500,
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                bottom: index == filtered.length - 1 ? 0 : 12,
+                              ),
+                              child: RepaintBoundary(
+                                child: _ExerciseLibraryCard(
+                                  exercise: filtered[index],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           );
         },
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: KineticNoirPalette.primary),
+      ),
+    );
+  }
+
+  List<Exercise> _filterExercises(
+    List<Exercise> exercises, {
+    required String query,
+    required String group,
+  }) {
+    return exercises.where((exercise) {
+      final matchesGroup = group == 'All' || exercise.mainMuscleGroup == group;
+      final matchesQuery = exercise.name.toLowerCase().contains(query);
+      return matchesGroup && matchesQuery;
+    }).toList(growable: false);
+  }
+}
+
+class _SelectExerciseHeader extends StatelessWidget {
+  const _SelectExerciseHeader({
+    required this.searchController,
+    required this.groupsList,
+    required this.selectedGroupListenable,
+  });
+
+  final TextEditingController searchController;
+  final List<String> groupsList;
+  final ValueNotifier<String> selectedGroupListenable;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Select an existing exercise to add it to the routine.',
+          style: KineticNoirTypography.body(
+            size: 14,
+            weight: FontWeight.w600,
+            color: KineticNoirPalette.onSurfaceVariant,
+            height: 1.5,
+          ),
         ),
-        error: (error, _) => Center(
-          child: Text(
-            'Unable to load library.\n$error',
-            textAlign: TextAlign.center,
-            style: KineticNoirTypography.body(
-              size: 15,
-              weight: FontWeight.w600,
-              color: KineticNoirPalette.onSurfaceVariant,
+        const SizedBox(height: 18),
+        TextField(
+          controller: searchController,
+          decoration: InputDecoration(
+            hintText: 'Search exercise...',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: searchController,
+              builder: (context, value, _) {
+                if (value.text.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: searchController.clear,
+                );
+              },
+            ),
+            filled: true,
+            fillColor: KineticNoirPalette.surfaceLow,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 16,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
             ),
           ),
         ),
-      ),
+        if (groupsList.length > 1) ...[
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 40,
+            child: ValueListenableBuilder<String>(
+              valueListenable: selectedGroupListenable,
+              builder: (context, selectedGroup, _) {
+                return ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: groupsList.length,
+                  itemBuilder: (context, index) {
+                    final group = groupsList[index];
+                    final selected = selectedGroup == group;
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        right: index == groupsList.length - 1 ? 0 : 8,
+                      ),
+                      child: ChoiceChip(
+                        label: Text(group),
+                        selected: selected,
+                        onSelected: (_) =>
+                            selectedGroupListenable.value = group,
+                        labelStyle: KineticNoirTypography.body(
+                          size: 12,
+                          weight: FontWeight.w800,
+                          color: selected
+                              ? KineticNoirPalette.primary
+                              : KineticNoirPalette.onSurfaceVariant,
+                        ),
+                        selectedColor:
+                            KineticNoirPalette.primary.withValues(alpha: 0.12),
+                        backgroundColor: KineticNoirPalette.surfaceLow,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

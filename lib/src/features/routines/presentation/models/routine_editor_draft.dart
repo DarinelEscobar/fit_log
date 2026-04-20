@@ -5,9 +5,11 @@ import '../../domain/entities/plan_exercise_detail.dart';
 
 class RoutineEditorDraft {
   RoutineEditorDraft({
-    required this.originalExercise,
-    required this.originalDetail,
-  })  : nameController = TextEditingController(text: originalExercise.name),
+    required Exercise originalExercise,
+    required PlanExerciseDetail originalDetail,
+  })  : _originalExercise = originalExercise,
+        _originalDetail = originalDetail,
+        nameController = TextEditingController(text: originalExercise.name),
         categoryController =
             TextEditingController(text: originalExercise.category),
         mainMuscleController =
@@ -26,8 +28,8 @@ class RoutineEditorDraft {
             TextEditingController(text: originalDetail.rir.toString()),
         tempoController = TextEditingController(text: originalDetail.tempo);
 
-  final Exercise originalExercise;
-  final PlanExerciseDetail originalDetail;
+  Exercise _originalExercise;
+  PlanExerciseDetail _originalDetail;
 
   final TextEditingController nameController;
   final TextEditingController categoryController;
@@ -40,6 +42,8 @@ class RoutineEditorDraft {
   final TextEditingController rirController;
   final TextEditingController tempoController;
 
+  Exercise get originalExercise => _originalExercise;
+  PlanExerciseDetail get originalDetail => _originalDetail;
   int get exerciseId => originalDetail.exerciseId;
 
   Exercise buildExercise() {
@@ -83,6 +87,13 @@ class RoutineEditorDraft {
         updated.restSeconds != originalDetail.restSeconds ||
         updated.rir != originalDetail.rir ||
         updated.tempo != originalDetail.tempo;
+  }
+
+  bool get hasAnyChanges => hasExerciseChanges || hasDetailChanges;
+
+  void commit() {
+    _originalExercise = buildExercise();
+    _originalDetail = buildDetail();
   }
 
   void dispose() {
