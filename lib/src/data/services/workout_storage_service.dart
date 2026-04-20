@@ -65,6 +65,8 @@ class WorkoutStorageService {
       )
     ''');
 
+    await _deduplicateWorkoutData(db);
+
     await db.execute('''
       CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_sessions_unique
       ON workout_sessions(date, plan_id)
@@ -76,20 +78,44 @@ class WorkoutStorageService {
     ''');
   }
 
+  Future<void> _deduplicateWorkoutData(Database db) async {
+    await db.execute('''
+      DELETE FROM workout_sessions
+      WHERE id NOT IN (
+        SELECT MIN(id)
+        FROM workout_sessions
+        GROUP BY date, plan_id
+      )
+    ''');
+
+    await db.execute('''
+      DELETE FROM workout_logs
+      WHERE id NOT IN (
+        SELECT MIN(id)
+        FROM workout_logs
+        GROUP BY date, plan_id, exercise_id, set_number, reps, weight, rir
+      )
+    ''');
+  }
+
   Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs) async {
     if (logs.isEmpty) return;
     final db = await _getDatabase();
     final batch = db.batch();
     for (final log in logs) {
-      batch.insert('workout_logs', {
-        'date': _formatDate(log.date),
-        'plan_id': log.planId,
-        'exercise_id': log.exerciseId,
-        'set_number': log.setNumber,
-        'reps': log.reps,
-        'weight': log.weight,
-        'rir': log.rir,
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      batch.insert(
+        'workout_logs',
+        {
+          'date': _formatDate(log.date),
+          'plan_id': log.planId,
+          'exercise_id': log.exerciseId,
+          'set_number': log.setNumber,
+          'reps': log.reps,
+          'weight': log.weight,
+          'rir': log.rir,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
     }
     await batch.commit(noResult: true);
   }
@@ -179,20 +205,25 @@ class WorkoutStorageService {
     final batch = db.batch();
     for (final row in sheet.rows.skip(1)) {
       if (row.isEmpty) continue;
-      batch.insert('workout_logs', {
-        'date': row[1]?.value.toString() ?? '',
-        'plan_id': _parseInt(row[2]?.value),
-        'exercise_id': _parseInt(row[3]?.value),
-        'set_number': _parseInt(row[4]?.value),
-        'reps': _parseInt(row[5]?.value),
-        'weight': _parseDouble(row[6]?.value),
-        'rir': _parseInt(row[7]?.value),
-      });
+      batch.insert(
+        'workout_logs',
+        {
+          'date': row[1]?.value.toString() ?? '',
+          'plan_id': _parseInt(row[2]?.value),
+          'exercise_id': _parseInt(row[3]?.value),
+          'set_number': _parseInt(row[4]?.value),
+          'reps': _parseInt(row[5]?.value),
+          'weight': _parseDouble(row[6]?.value),
+          'rir': _parseInt(row[7]?.value),
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
     }
     await batch.commit(noResult: true);
   }
 
-  Future<void> _importSessionsFromExcel(Database db, Directory directory) async {
+  Future<void> _importSessionsFromExcel(
+      Database db, Directory directory) async {
     final file = File(path.join(directory.path, 'workout_session.xlsx'));
     if (!await file.exists()) return;
     final excel = Excel.decodeBytes(await file.readAsBytes());
@@ -202,14 +233,18 @@ class WorkoutStorageService {
     final batch = db.batch();
     for (final row in sheet.rows.skip(1)) {
       if (row.isEmpty) continue;
-      batch.insert('workout_sessions', {
-        'date': row[1]?.value.toString() ?? '',
-        'plan_id': _parseInt(row[2]?.value),
-        'fatigue_level': row[3]?.value.toString() ?? '',
-        'duration_minutes': _parseInt(row[4]?.value),
-        'mood': row[5]?.value.toString() ?? '',
-        'notes': row[6]?.value.toString() ?? '',
-      });
+      batch.insert(
+        'workout_sessions',
+        {
+          'date': row[1]?.value.toString() ?? '',
+          'plan_id': _parseInt(row[2]?.value),
+          'fatigue_level': row[3]?.value.toString() ?? '',
+          'duration_minutes': _parseInt(row[4]?.value),
+          'mood': row[5]?.value.toString() ?? '',
+          'notes': row[6]?.value.toString() ?? '',
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
     }
     await batch.commit(noResult: true);
   }
