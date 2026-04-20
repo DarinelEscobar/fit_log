@@ -36,6 +36,7 @@ dependencies:
   intl: ^0.19.0
   table_calendar: ^3.0.9
   fl_chart: ^0.64.0
+  google_fonts: ^6.2.1
 
   # 🔔 Feedback
   flutter_local_notifications: ^19.2.1
