@@ -2,46 +2,48 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../theme/kinetic_noir.dart';
-import '../../domain/entities/exercise.dart';
-import '../../domain/entities/plan_exercise_detail.dart';
 import '../../domain/entities/workout_plan.dart';
-import '../providers/exercises_provider.dart';
-import '../providers/plan_exercise_details_provider.dart';
-import '../providers/workout_plan_provider.dart';
+import '../models/edit_routine_result.dart';
+import '../models/exercise_list_view_data.dart';
+import '../providers/exercise_list_view_provider.dart';
 import 'edit_routine_screen.dart';
 import 'start_routine_screen.dart';
 
 class ExercisesScreen extends ConsumerStatefulWidget {
-  const ExercisesScreen({required this.planId, super.key});
+  const ExercisesScreen({required this.plan, super.key});
 
-  final int planId;
+  final WorkoutPlan plan;
 
   @override
   ConsumerState<ExercisesScreen> createState() => _ExercisesScreenState();
 }
 
 class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
-  final TextEditingController _searchController = TextEditingController();
+  late final TextEditingController _searchController;
+  late final ValueNotifier<String> _queryNotifier;
+  late WorkoutPlan _currentPlan;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentPlan = widget.plan;
+    _queryNotifier = ValueNotifier('');
+    _searchController = TextEditingController()
+      ..addListener(() {
+        _queryNotifier.value = _searchController.text.trim().toLowerCase();
+      });
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _queryNotifier.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final asyncExercises = ref.watch(exercisesForPlanProvider(widget.planId));
-    final asyncDetails = ref.watch(planExerciseDetailsProvider(widget.planId));
-    final asyncPlans = ref.watch(workoutPlanProvider);
-
-    final currentPlan = asyncPlans.maybeWhen(
-      data: (plans) => plans.cast<WorkoutPlan?>().firstWhere(
-            (plan) => plan?.id == widget.planId,
-            orElse: () => null,
-          ),
-      orElse: () => null,
-    );
+    final asyncData = ref.watch(exerciseListViewProvider(_currentPlan.id));
 
     return Scaffold(
       backgroundColor: KineticNoirPalette.background,
@@ -66,16 +68,7 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
             icon: const Icon(Icons.edit_rounded),
             color: KineticNoirPalette.onSurfaceVariant,
             tooltip: 'Edit routine',
-            onPressed: currentPlan == null
-                ? null
-                : () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => EditRoutineScreen(plan: currentPlan),
-                      ),
-                    );
-                  },
+            onPressed: _openEditor,
           ),
           const SizedBox(width: 6),
           const Icon(
@@ -85,105 +78,68 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
           const SizedBox(width: 10),
         ],
       ),
-      body: asyncExercises.when(
-        data: (exercises) => asyncDetails.when(
-          data: (details) {
-            final items = _buildItems(exercises, details);
-            final query = _searchController.text.trim().toLowerCase();
-            final filtered = query.isEmpty
-                ? items
-                : items
-                    .where(
-                      (item) => item.name.toLowerCase().contains(query),
-                    )
-                    .toList();
+      body: asyncData.when(
+        data: (data) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+              child: _ExerciseListHero(
+                plan: _currentPlan,
+                searchController: _searchController,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: ValueListenableBuilder<String>(
+                valueListenable: _queryNotifier,
+                builder: (context, query, _) {
+                  final filteredItems = _filterItems(data.items, query);
+                  if (filteredItems.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24),
+                      child: _ExerciseEmptyState(),
+                    );
+                  }
 
-            return Column(
-              children: [
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-                    children: [
-                      Text(
-                        'CURRENT ROUTINE',
-                        style: KineticNoirTypography.body(
-                          size: 10,
-                          weight: FontWeight.w800,
-                          color: KineticNoirPalette.primary,
-                          letterSpacing: 2.0,
+                  return ListView.builder(
+                    key: const Key('exercise-list-results'),
+                    cacheExtent: 500,
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                    itemCount: filteredItems.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          bottom: index == filteredItems.length - 1 ? 0 : 14,
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        currentPlan?.name ?? 'Routine',
-                        key: const Key('exercise-list-title'),
-                        style: KineticNoirTypography.headline(
-                          size: 38,
-                          weight: FontWeight.w700,
-                          height: 0.95,
+                        child: RepaintBoundary(
+                          child: _ExerciseCard(item: filteredItems[index]),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Review your programmed exercises and launch the session when you are ready.',
-                        style: KineticNoirTypography.body(
-                          size: 15,
-                          weight: FontWeight.w600,
-                          color: KineticNoirPalette.onSurfaceVariant,
-                          height: 1.55,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      TextField(
-                        controller: _searchController,
-                        onChanged: (_) => setState(() {}),
-                        style: KineticNoirTypography.body(
-                          size: 15,
-                          weight: FontWeight.w600,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Search exercises...',
-                          prefixIcon: const Icon(Icons.search_rounded),
-                          suffixIcon: query.isEmpty
-                              ? null
-                              : IconButton(
-                                  icon: const Icon(Icons.close_rounded),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() {});
-                                  },
-                                ),
-                          filled: true,
-                          fillColor: KineticNoirPalette.surfaceLow,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 16,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      if (filtered.isEmpty)
-                        const _ExerciseEmptyState()
-                      else
-                        for (final item in filtered) ...[
-                          _ExerciseCard(item: item),
-                          const SizedBox(height: 14),
-                        ],
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-          loading: _buildLoading,
-          error: _buildError,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
-        loading: _buildLoading,
-        error: _buildError,
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: KineticNoirPalette.primary),
+        ),
+        error: (error, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              'Unable to load exercises.\n$error',
+              textAlign: TextAlign.center,
+              style: KineticNoirTypography.body(
+                size: 15,
+                weight: FontWeight.w600,
+                color: KineticNoirPalette.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ),
       ),
       bottomNavigationBar: SafeArea(
         top: false,
@@ -195,9 +151,9 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: KineticNoirPalette.shadow.withValues(alpha: 0.25),
-                  blurRadius: 32,
-                  offset: const Offset(0, 12),
+                  color: KineticNoirPalette.shadow.withValues(alpha: 0.16),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
@@ -206,7 +162,7 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => StartRoutineScreen(planId: widget.planId),
+                  builder: (_) => StartRoutineScreen(planId: _currentPlan.id),
                 ),
               ),
               style: FilledButton.styleFrom(
@@ -235,61 +191,135 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
     );
   }
 
-  Widget _buildLoading() {
-    return const Center(
-      child: CircularProgressIndicator(color: KineticNoirPalette.primary),
-    );
+  List<ExerciseListItemView> _filterItems(
+    List<ExerciseListItemView> items,
+    String query,
+  ) {
+    if (query.isEmpty) {
+      return items;
+    }
+
+    return items.where((item) {
+      return item.name.toLowerCase().contains(query) ||
+          item.category.toLowerCase().contains(query) ||
+          item.mainMuscleGroup.toLowerCase().contains(query);
+    }).toList(growable: false);
   }
 
-  Widget _buildError(Object error, StackTrace _) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Text(
-          'Unable to load exercises.\n$error',
-          textAlign: TextAlign.center,
+  Future<void> _openEditor() async {
+    final result = await Navigator.push<EditRoutineResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditRoutineScreen(plan: _currentPlan),
+      ),
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _currentPlan = result.plan;
+    });
+  }
+}
+
+class _ExerciseListHero extends StatelessWidget {
+  const _ExerciseListHero({
+    required this.plan,
+    required this.searchController,
+  });
+
+  final WorkoutPlan plan;
+  final TextEditingController searchController;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'CURRENT ROUTINE',
+          style: KineticNoirTypography.body(
+            size: 10,
+            weight: FontWeight.w800,
+            color: KineticNoirPalette.primary,
+            letterSpacing: 2.0,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          plan.name,
+          key: const Key('exercise-list-title'),
+          style: KineticNoirTypography.headline(
+            size: 38,
+            weight: FontWeight.w700,
+            height: 0.95,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          plan.frequency.toUpperCase(),
+          style: KineticNoirTypography.body(
+            size: 11,
+            weight: FontWeight.w800,
+            color: KineticNoirPalette.onSurfaceVariant,
+            letterSpacing: 1.8,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Review your programmed exercises and launch the session when you are ready.',
           style: KineticNoirTypography.body(
             size: 15,
             weight: FontWeight.w600,
             color: KineticNoirPalette.onSurfaceVariant,
-            height: 1.5,
+            height: 1.55,
           ),
         ),
-      ),
-    );
-  }
-
-  List<_ExerciseListItem> _buildItems(
-    List<Exercise> exercises,
-    List<PlanExerciseDetail> details,
-  ) {
-    final exerciseMap = {
-      for (final exercise in exercises) exercise.id: exercise,
-    };
-
-    return details
-        .map(
-          (detail) => _ExerciseListItem(
-            exerciseId: detail.exerciseId,
-            name: detail.name,
-            description: detail.description,
-            category: exerciseMap[detail.exerciseId]?.category ?? '',
-            mainMuscleGroup:
-                exerciseMap[detail.exerciseId]?.mainMuscleGroup ?? '',
-            sets: detail.sets,
-            reps: detail.reps,
-            restSeconds: detail.restSeconds,
-            weight: detail.weight,
+        const SizedBox(height: 24),
+        TextField(
+          controller: searchController,
+          style: KineticNoirTypography.body(
+            size: 15,
+            weight: FontWeight.w600,
           ),
-        )
-        .toList();
+          decoration: InputDecoration(
+            hintText: 'Search exercises...',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: searchController,
+              builder: (context, value, _) {
+                if (value.text.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: searchController.clear,
+                );
+              },
+            ),
+            filled: true,
+            fillColor: KineticNoirPalette.surfaceLow,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 16,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
 class _ExerciseCard extends StatelessWidget {
   const _ExerciseCard({required this.item});
 
-  final _ExerciseListItem item;
+  final ExerciseListItemView item;
 
   @override
   Widget build(BuildContext context) {
@@ -358,19 +388,19 @@ class _ExerciseCard extends StatelessWidget {
               _MetricSummary(label: 'SETS', value: '${item.sets}'),
               _MetricSummary(label: 'REPS', value: '${item.reps}'),
               _MetricSummary(label: 'REST', value: '${item.restSeconds}s'),
+              if (item.weight > 0)
+                _MetricSummary(label: 'LOAD', value: '${item.weight}'),
             ],
           ),
-          if (item.description.isNotEmpty) ...[
-            const SizedBox(height: 16),
+          if (item.description.trim().isNotEmpty) ...[
+            const SizedBox(height: 18),
             Text(
               item.description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
               style: KineticNoirTypography.body(
                 size: 14,
                 weight: FontWeight.w600,
                 color: KineticNoirPalette.onSurfaceVariant,
-                height: 1.5,
+                height: 1.55,
               ),
             ),
           ],
@@ -401,15 +431,16 @@ class _MetricSummary extends StatelessWidget {
               size: 10,
               weight: FontWeight.w800,
               color: KineticNoirPalette.onSurfaceVariant,
-              letterSpacing: 1.6,
+              letterSpacing: 1.4,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             value,
             style: KineticNoirTypography.headline(
-              size: 24,
+              size: 18,
               weight: FontWeight.w700,
+              color: KineticNoirPalette.primary,
             ),
           ),
         ],
@@ -432,7 +463,7 @@ class _TagChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(999),
@@ -443,7 +474,7 @@ class _TagChip extends StatelessWidget {
           size: 9,
           weight: FontWeight.w800,
           color: foregroundColor,
-          letterSpacing: 1.1,
+          letterSpacing: 1.2,
         ),
       ),
     );
@@ -455,64 +486,43 @@ class _ExerciseEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: KineticNoirPalette.surfaceLow,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.search_off_rounded,
-            size: 34,
-            color: KineticNoirPalette.primary,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No exercises match this search',
-            style: KineticNoirTypography.headline(
-              size: 24,
-              weight: FontWeight.w700,
+    return Center(
+      child: Container(
+        decoration: BoxDecoration(
+          color: KineticNoirPalette.surfaceLow,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.search_off_rounded,
+              size: 34,
+              color: KineticNoirPalette.primary,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Clear the query or return to the routine editor to adjust the setup.',
-            textAlign: TextAlign.center,
-            style: KineticNoirTypography.body(
-              size: 14,
-              weight: FontWeight.w600,
-              color: KineticNoirPalette.onSurfaceVariant,
-              height: 1.5,
+            const SizedBox(height: 12),
+            Text(
+              'No exercises match the filter',
+              style: KineticNoirTypography.headline(
+                size: 24,
+                weight: FontWeight.w700,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Clear the search field to inspect the full routine setup.',
+              textAlign: TextAlign.center,
+              style: KineticNoirTypography.body(
+                size: 14,
+                weight: FontWeight.w600,
+                color: KineticNoirPalette.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-}
-
-class _ExerciseListItem {
-  const _ExerciseListItem({
-    required this.exerciseId,
-    required this.name,
-    required this.description,
-    required this.category,
-    required this.mainMuscleGroup,
-    required this.sets,
-    required this.reps,
-    required this.restSeconds,
-    required this.weight,
-  });
-
-  final int exerciseId;
-  final String name;
-  final String description;
-  final String category;
-  final String mainMuscleGroup;
-  final int sets;
-  final int reps;
-  final int restSeconds;
-  final double weight;
 }

@@ -5,11 +5,13 @@ import '../models/routine_editor_draft.dart';
 
 class RoutineEditorExerciseCard extends StatelessWidget {
   const RoutineEditorExerciseCard({
+    required this.compactLayout,
     required this.draft,
     required this.onDelete,
     super.key,
   });
 
+  final bool compactLayout;
   final RoutineEditorDraft draft;
   final VoidCallback onDelete;
 
@@ -83,30 +85,25 @@ class RoutineEditorExerciseCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 14),
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              final compact = constraints.maxWidth < 360;
-                              return Wrap(
-                                spacing: 12,
-                                runSpacing: 12,
-                                children: [
-                                  SizedBox(
-                                    width: compact ? constraints.maxWidth : 180,
-                                    child: _FilledField(
-                                      label: 'Category',
-                                      controller: draft.categoryController,
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: compact ? constraints.maxWidth : 180,
-                                    child: _FilledField(
-                                      label: 'Primary Muscle',
-                                      controller: draft.mainMuscleController,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              SizedBox(
+                                width: compactLayout ? 220 : 180,
+                                child: _FilledField(
+                                  label: 'Category',
+                                  controller: draft.categoryController,
+                                ),
+                              ),
+                              SizedBox(
+                                width: compactLayout ? 220 : 180,
+                                child: _FilledField(
+                                  label: 'Primary Muscle',
+                                  controller: draft.mainMuscleController,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -133,66 +130,49 @@ class RoutineEditorExerciseCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 360;
-                    return Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        _MetricField(
-                          width: compact
-                              ? (constraints.maxWidth - 10) / 2
-                              : (constraints.maxWidth - 50) / 3,
-                          label: 'Sets',
-                          controller: draft.setsController,
-                          keyboardType: TextInputType.number,
-                        ),
-                        _MetricField(
-                          width: compact
-                              ? (constraints.maxWidth - 10) / 2
-                              : (constraints.maxWidth - 50) / 3,
-                          label: 'Reps',
-                          controller: draft.repsController,
-                          keyboardType: TextInputType.number,
-                        ),
-                        _MetricField(
-                          width: compact
-                              ? (constraints.maxWidth - 10) / 2
-                              : (constraints.maxWidth - 50) / 3,
-                          label: 'Weight',
-                          controller: draft.weightController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                        ),
-                        _MetricField(
-                          width: compact
-                              ? (constraints.maxWidth - 10) / 2
-                              : (constraints.maxWidth - 50) / 3,
-                          label: 'Rest',
-                          controller: draft.restController,
-                          keyboardType: TextInputType.number,
-                        ),
-                        _MetricField(
-                          width: compact
-                              ? (constraints.maxWidth - 10) / 2
-                              : (constraints.maxWidth - 50) / 3,
-                          label: 'RIR',
-                          controller: draft.rirController,
-                          keyboardType: TextInputType.number,
-                          accentColor: KineticNoirPalette.error,
-                        ),
-                        _MetricField(
-                          width: compact
-                              ? (constraints.maxWidth - 10) / 2
-                              : (constraints.maxWidth - 50) / 3,
-                          label: 'Tempo',
-                          controller: draft.tempoController,
-                        ),
-                      ],
-                    );
-                  },
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _MetricField(
+                      width: compactLayout ? 112 : 96,
+                      label: 'Sets',
+                      controller: draft.setsController,
+                      keyboardType: TextInputType.number,
+                    ),
+                    _MetricField(
+                      width: compactLayout ? 112 : 96,
+                      label: 'Reps',
+                      controller: draft.repsController,
+                      keyboardType: TextInputType.number,
+                    ),
+                    _MetricField(
+                      width: compactLayout ? 112 : 96,
+                      label: 'Weight',
+                      controller: draft.weightController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                    ),
+                    _MetricField(
+                      width: compactLayout ? 112 : 96,
+                      label: 'Rest',
+                      controller: draft.restController,
+                      keyboardType: TextInputType.number,
+                    ),
+                    _MetricField(
+                      width: compactLayout ? 112 : 96,
+                      label: 'RIR',
+                      controller: draft.rirController,
+                      keyboardType: TextInputType.number,
+                      accentColor: KineticNoirPalette.error,
+                    ),
+                    _MetricField(
+                      width: compactLayout ? 112 : 96,
+                      label: 'Tempo',
+                      controller: draft.tempoController,
+                    ),
+                  ],
                 ),
               ],
             ),

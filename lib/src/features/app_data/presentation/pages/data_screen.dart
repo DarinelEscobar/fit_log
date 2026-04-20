@@ -11,6 +11,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../navigation/widgets/kinetic_bottom_nav_bar.dart';
 import '../../../../theme/kinetic_noir.dart';
+import '../../domain/usecases/export_app_data_usecase.dart';
+import '../../domain/usecases/import_app_data_usecase.dart';
 import '../providers/app_data_providers.dart';
 
 enum DataScreenResult {
@@ -104,7 +106,8 @@ class _DataScreenState extends ConsumerState<DataScreen> {
 
   Future<void> _exportData() async {
     try {
-      final file = await ref.read(exportDataProvider.future);
+      final repo = ref.read(appDataRepositoryProvider);
+      final file = await ExportAppDataUseCase(repo)();
       if (!mounted) return;
       _showMessage('Export ready: ${file.path}');
       await _refreshBackupStatus();
@@ -116,7 +119,8 @@ class _DataScreenState extends ConsumerState<DataScreen> {
 
   Future<void> _shareBackup() async {
     try {
-      final file = await ref.read(exportDataProvider.future);
+      final repo = ref.read(appDataRepositoryProvider);
+      final file = await ExportAppDataUseCase(repo)();
       await Share.shareXFiles([XFile(file.path)], text: 'Backup Fit Log');
       if (!mounted) return;
       _showMessage('Backup ready to share');
@@ -140,7 +144,8 @@ class _DataScreenState extends ConsumerState<DataScreen> {
       }
 
       final file = File(result.files.single.path!);
-      await ref.read(importDataProvider(file).future);
+      final repo = ref.read(appDataRepositoryProvider);
+      await ImportAppDataUseCase(repo)(file);
       if (!mounted) return;
       _showMessage('Data imported');
       await _refreshBackupStatus();

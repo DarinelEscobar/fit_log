@@ -42,7 +42,8 @@ void main() {
 
   testWidgets('routines flow opens exercise list and routine editor',
       (tester) async {
-    await _pumpApp(tester);
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpApp(tester, repo: repo);
 
     await tester.pumpAndSettle();
 
@@ -51,6 +52,7 @@ void main() {
 
     expect(find.text('My Routines'), findsOneWidget);
     expect(find.text('ACTIVE ROUTINES'), findsOneWidget);
+    expect(repo.getAllExercisesCalls, 1);
 
     await tester.tap(find.byKey(const Key('routine-card-1')));
     await tester.pumpAndSettle();
@@ -66,17 +68,48 @@ void main() {
     expect(find.text('EXERCISES'), findsOneWidget);
     expect(find.text('EXERCISE NAME'), findsWidgets);
   });
+
+  testWidgets('activating a routine keeps routines content visible',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository(
+      setPlanActiveDelay: const Duration(milliseconds: 180),
+    );
+    await _pumpApp(tester, repo: repo);
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('home-view-routines')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('INACTIVE ROUTINES'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Activate'));
+    await tester.pump();
+
+    expect(find.text('My Routines'), findsOneWidget);
+    expect(find.text('ACTIVE ROUTINES'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 220));
+    await tester.pumpAndSettle();
+
+    expect(repo.setPlanActiveCalls, 1);
+    expect(find.text('3 ACTIVE'), findsOneWidget);
+  });
 }
 
-Future<void> _pumpApp(WidgetTester tester) async {
+Future<void> _pumpApp(
+  WidgetTester tester, {
+  _FakeWorkoutPlanRepository? repo,
+}) async {
   await tester.binding.setSurfaceSize(const Size(430, 1000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
+  final effectiveRepo = repo ?? _FakeWorkoutPlanRepository();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         workoutPlanRepositoryProvider.overrideWithValue(
-          _FakeWorkoutPlanRepository(),
+          effectiveRepo,
         ),
       ],
       child: const MyApp(),
@@ -85,16 +118,23 @@ Future<void> _pumpApp(WidgetTester tester) async {
 }
 
 class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
-  final List<WorkoutPlan> _plans = [
-    WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
-    WorkoutPlan(id: 2, name: 'Lower Strength', frequency: 'Tue / Fri'),
-    WorkoutPlan(
-      id: 3,
-      name: 'Mobility Reset',
-      frequency: 'Daily',
-      isActive: false,
-    ),
-  ];
+  _FakeWorkoutPlanRepository({
+    this.setPlanActiveDelay = Duration.zero,
+  }) : _plans = [
+          WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
+          WorkoutPlan(id: 2, name: 'Lower Strength', frequency: 'Tue / Fri'),
+          WorkoutPlan(
+            id: 3,
+            name: 'Mobility Reset',
+            frequency: 'Daily',
+            isActive: false,
+          ),
+        ];
+
+  final Duration setPlanActiveDelay;
+  final List<WorkoutPlan> _plans;
+  int getAllExercisesCalls = 0;
+  int setPlanActiveCalls = 0;
 
   final List<Exercise> _exercises = [
     Exercise(
@@ -180,10 +220,14 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   Future<void> deleteExerciseFromPlan(int planId, int exerciseId) async {}
 
   @override
-  Future<List<Exercise>> getAllExercises() async => _exercises;
+  Future<List<Exercise>> getAllExercises() async {
+    getAllExercisesCalls++;
+    return _exercises;
+  }
 
   @override
-  Future<List<WorkoutPlan>> getAllPlans() async => _plans;
+  Future<List<WorkoutPlan>> getAllPlans() async =>
+      List<WorkoutPlan>.from(_plans);
 
   @override
   Future<List<Exercise>> getExercisesForPlan(int planId) async {
@@ -208,7 +252,25 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   Future<void> saveWorkoutSession(WorkoutSession session) async {}
 
   @override
-  Future<void> setWorkoutPlanActive(int planId, bool isActive) async {}
+  Future<void> setWorkoutPlanActive(int planId, bool isActive) async {
+    setPlanActiveCalls++;
+    if (setPlanActiveDelay > Duration.zero) {
+      await Future<void>.delayed(setPlanActiveDelay);
+    }
+
+    final index = _plans.indexWhere((plan) => plan.id == planId);
+    if (index == -1) {
+      return;
+    }
+
+    final plan = _plans[index];
+    _plans[index] = WorkoutPlan(
+      id: plan.id,
+      name: plan.name,
+      frequency: plan.frequency,
+      isActive: isActive,
+    );
+  }
 
   @override
   Future<void> updateExercise(

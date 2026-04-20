@@ -74,9 +74,9 @@ BoxDecoration get kineticFloatingNavDecoration => BoxDecoration(
       ),
       boxShadow: [
         BoxShadow(
-          color: KineticNoirPalette.shadow.withValues(alpha: 0.06),
-          blurRadius: 32,
-          offset: const Offset(0, -12),
+          color: KineticNoirPalette.shadow.withValues(alpha: 0.04),
+          blurRadius: 18,
+          offset: const Offset(0, -6),
         ),
       ],
     );
