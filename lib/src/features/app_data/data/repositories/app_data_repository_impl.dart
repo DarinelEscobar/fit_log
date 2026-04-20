@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:excel/excel.dart';
@@ -6,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sqflite/sqflite.dart';
+
 import '../../../../data/services/workout_storage_service.dart';
 import '../../../../data/schema/schemas.dart';
 import '../../../../features/routines/domain/entities/workout_log_entry.dart';
@@ -13,10 +15,16 @@ import '../../../../features/routines/domain/entities/workout_session.dart';
 import '../../domain/repositories/app_data_repository.dart';
 
 class AppDataRepositoryImpl implements AppDataRepository {
+  AppDataRepositoryImpl({WorkoutStorageService? storageService})
+      : _storageService = storageService ?? WorkoutStorageService();
+
+  final WorkoutStorageService _storageService;
+
   @override
   Future<File> exportData() async {
     final dir = await getApplicationDocumentsDirectory();
     final databaseDir = await getDatabasesPath();
+    await _storageService.exportRoutineRuntimeToXlsxFiles(dir);
     await _syncWorkoutExports(dir);
     final archive = Archive();
     for (final filename in kTableSchemas.keys) {
@@ -24,7 +32,8 @@ class AppDataRepositoryImpl implements AppDataRepository {
       await _addFileToArchive(archive, file, filename);
     }
     final databaseFile = File(p.join(databaseDir, 'fit_log.db'));
-    await _addFileToArchive(archive, databaseFile, p.basename(databaseFile.path));
+    await _addFileToArchive(
+        archive, databaseFile, p.basename(databaseFile.path));
     final encoder = ZipEncoder();
     final data = encoder.encode(archive);
     final outFile = File(p.join(dir.path, 'fitlog_backup.zip'));
@@ -33,9 +42,11 @@ class AppDataRepositoryImpl implements AppDataRepository {
     // Try to also copy the backup to external storage so the user can access it
     try {
       if (await Permission.storage.request().isGranted) {
-        final downloads = await getExternalStorageDirectories(type: StorageDirectory.downloads);
+        final downloads = await getExternalStorageDirectories(
+            type: StorageDirectory.downloads);
         if (downloads != null && downloads.isNotEmpty) {
-          final extFile = File(p.join(downloads.first.path, 'fitlog_backup.zip'));
+          final extFile =
+              File(p.join(downloads.first.path, 'fitlog_backup.zip'));
           await outFile.copy(extFile.path);
           return extFile;
         }
@@ -52,35 +63,102 @@ class AppDataRepositoryImpl implements AppDataRepository {
     final dir = await getApplicationDocumentsDirectory();
     final databaseDir = await getDatabasesPath();
     final ext = p.extension(file.path).toLowerCase();
+
     if (ext == '.xlsx') {
-      final outFile = File(p.join(dir.path, p.basename(file.path)));
-      await outFile.writeAsBytes(await file.readAsBytes(), flush: true);
+      await _importSpreadsheet(file, dir);
       return;
     }
 
+    await _storageService.close();
+
+    var restoredDatabase = false;
+    var restoredRoutineSheet = false;
+    var restoredLogSheet = false;
+    var restoredSessionSheet = false;
+
     final bytes = await file.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
+
     for (final archived in archive.files) {
-      if (!archived.isFile) continue;
+      if (!archived.isFile) {
+        continue;
+      }
+
       final name = p.basename(archived.name);
-      final outPath = name == 'fit_log.db' ? p.join(databaseDir, name) : p.join(dir.path, name);
+      final outPath = name == 'fit_log.db'
+          ? p.join(databaseDir, name)
+          : p.join(dir.path, name);
       final outFile = File(outPath);
-      await outFile.writeAsBytes(archived.content as List<int>, flush: true);
+      await outFile.writeAsBytes(
+        archived.content as List<int>,
+        flush: true,
+      );
+
+      if (name == 'fit_log.db') {
+        restoredDatabase = true;
+      } else if (name == 'workout_plan.xlsx' ||
+          name == 'exercise.xlsx' ||
+          name == 'plan_exercise.xlsx') {
+        restoredRoutineSheet = true;
+      } else if (name == 'workout_log.xlsx') {
+        restoredLogSheet = true;
+      } else if (name == 'workout_session.xlsx') {
+        restoredSessionSheet = true;
+      }
+    }
+
+    await _storageService.reopenIfNeeded();
+
+    if (!restoredDatabase) {
+      if (restoredLogSheet) {
+        await _storageService.replaceWorkoutLogsFromCurrentXlsxFiles();
+      }
+      if (restoredSessionSheet) {
+        await _storageService.replaceWorkoutSessionsFromCurrentXlsxFiles();
+      }
+    }
+
+    if (restoredRoutineSheet || restoredDatabase) {
+      await _storageService.warmUpRoutineRuntimeCache(
+        force: !restoredDatabase,
+      );
     }
   }
 
-  Future<void> _addFileToArchive(Archive archive, File file, String archiveName) async {
+  Future<void> _addFileToArchive(
+      Archive archive, File file, String archiveName) async {
     if (!await file.exists()) return;
     final bytes = await file.readAsBytes();
     archive.addFile(ArchiveFile(archiveName, bytes.length, bytes));
   }
 
   Future<void> _syncWorkoutExports(Directory directory) async {
-    final storage = WorkoutStorageService();
-    final logs = await storage.fetchAllLogs();
-    final sessions = await storage.fetchAllSessions();
+    final logs = await _storageService.fetchAllLogs();
+    final sessions = await _storageService.fetchAllSessions();
     await _writeWorkoutLogExport(directory, logs);
     await _writeWorkoutSessionExport(directory, sessions);
+  }
+
+  Future<void> _importSpreadsheet(File file, Directory directory) async {
+    final filename = p.basename(file.path);
+    final outFile = File(p.join(directory.path, filename));
+    await outFile.writeAsBytes(await file.readAsBytes(), flush: true);
+
+    switch (filename) {
+      case 'workout_plan.xlsx':
+      case 'exercise.xlsx':
+      case 'plan_exercise.xlsx':
+        await _storageService.warmUpRoutineRuntimeCache(force: true);
+        return;
+      case 'workout_log.xlsx':
+        await _storageService.replaceWorkoutLogsFromCurrentXlsxFiles();
+        return;
+      case 'workout_session.xlsx':
+        await _storageService.replaceWorkoutSessionsFromCurrentXlsxFiles();
+        return;
+      default:
+        return;
+    }
   }
 
   Future<void> _writeWorkoutLogExport(
@@ -95,7 +173,8 @@ class AppDataRepositoryImpl implements AppDataRepository {
       excel.rename(defaultSheet, schema.sheetName);
     }
     final sheet = excel[schema.sheetName];
-    sheet.appendRow(schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList());
+    sheet.appendRow(
+        schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList());
     for (var i = 0; i < logs.length; i++) {
       final log = logs[i];
       sheet.appendRow([
@@ -127,7 +206,8 @@ class AppDataRepositoryImpl implements AppDataRepository {
       excel.rename(defaultSheet, schema.sheetName);
     }
     final sheet = excel[schema.sheetName];
-    sheet.appendRow(schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList());
+    sheet.appendRow(
+        schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList());
     for (var i = 0; i < sessions.length; i++) {
       final session = sessions[i];
       sheet.appendRow([
