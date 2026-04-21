@@ -6,7 +6,9 @@ import 'package:timezone/data/latest_all.dart' as tz;
 
 class NotificationService {
   NotificationService._();
-  static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  static final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
+  static bool _isInitialized = false;
 
   static Future<void> init() async {
     tz.initializeTimeZones();
@@ -15,10 +17,15 @@ class NotificationService {
       iOS: DarwinInitializationSettings(),
     );
     await _plugin.initialize(initializationSettings);
+    _isInitialized = true;
   }
 
   static Future<void> scheduleRestDone(int seconds) async {
-    final scheduledDate = tz.TZDateTime.now(tz.local).add(Duration(seconds: seconds));
+    if (!_isInitialized) {
+      return;
+    }
+    final scheduledDate =
+        tz.TZDateTime.now(tz.local).add(Duration(seconds: seconds));
     final androidDetails = AndroidNotificationDetails(
       'rest_timer',
       'Rest Timer',
@@ -28,8 +35,9 @@ class NotificationService {
       enableVibration: true,
       vibrationPattern: Int64List.fromList([0, 800, 200, 800]),
     );
-    final iosDetails = DarwinNotificationDetails(presentSound: false);
-    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+    const iosDetails = DarwinNotificationDetails(presentSound: false);
+    final details =
+        NotificationDetails(android: androidDetails, iOS: iosDetails);
     await _plugin.zonedSchedule(
       0,
       'Descanso finalizado',
@@ -41,6 +49,9 @@ class NotificationService {
   }
 
   static Future<void> cancelRest() async {
+    if (!_isInitialized) {
+      return;
+    }
     await _plugin.cancel(0);
   }
 }

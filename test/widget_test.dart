@@ -5,10 +5,16 @@ import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.
 import 'package:fit_log/src/features/routines/domain/entities/workout_plan.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_session.dart';
 import 'package:fit_log/src/features/routines/domain/repositories/workout_plan_repository.dart';
+import 'package:fit_log/src/features/routines/presentation/pages/start_routine_screen.dart';
 import 'package:fit_log/src/features/routines/presentation/providers/workout_plan_repository_provider.dart';
-import 'package:flutter/widgets.dart';
+import 'package:fit_log/src/features/routines/presentation/widgets/active_session_exercise_card.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+const _notificationsChannel =
+    MethodChannel('dexterous.com/flutter/local_notifications');
 
 void main() {
   testWidgets('home dashboard is the default entry view', (tester) async {
@@ -95,6 +101,170 @@ void main() {
     expect(repo.setPlanActiveCalls, 1);
     expect(find.text('3 ACTIVE'), findsOneWidget);
   });
+
+  testWidgets('active workout session shows the redesigned shell', (
+    tester,
+  ) async {
+    await _pumpStartRoutine(tester);
+
+    expect(find.byKey(const Key('active-session-title')), findsOneWidget);
+    expect(
+        find.byKey(const Key('active-session-register-set')), findsOneWidget);
+    expect(find.textContaining('LBS'), findsNothing);
+    expect(find.textContaining('LOG HISTORY'), findsNothing);
+  });
+
+  testWidgets('numeric workout inputs select all current text on tap', (
+    tester,
+  ) async {
+    await _pumpStartRoutine(tester);
+
+    final inputFinder = find.byKey(const Key('active-set-1-1-kg'));
+    await tester.tap(inputFinder);
+    await tester.pump();
+
+    final editableFinder = find.descendant(
+      of: inputFinder,
+      matching: find.byType(EditableText),
+    );
+    final editableState = tester.state<EditableTextState>(editableFinder);
+
+    expect(editableState.textEditingValue.selection.baseOffset, 0);
+    expect(
+      editableState.textEditingValue.selection.extentOffset,
+      editableState.textEditingValue.text.length,
+    );
+  });
+
+  testWidgets('add and remove set update the visible set rows', (tester) async {
+    await _pumpStartRoutine(tester);
+
+    expect(find.byKey(const Key('active-set-row-1-5')), findsNothing);
+
+    await _scrollUntilVisible(
+        tester, find.byKey(const Key('active-set-add-1')));
+    await tester.tap(find.byKey(const Key('active-set-add-1')));
+    await tester.pump();
+
+    expect(find.byKey(const Key('active-set-row-1-5')), findsOneWidget);
+
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(const Key('active-set-remove-1')),
+    );
+    await tester.tap(find.byKey(const Key('active-set-remove-1')));
+    await tester.pump();
+
+    expect(find.byKey(const Key('active-set-row-1-5')), findsNothing);
+  });
+
+  testWidgets('finish summary resumes with edited notes applied back', (
+    tester,
+  ) async {
+    await _pumpStartRoutine(tester);
+
+    await tester.enterText(
+      find.byKey(const Key('active-session-notes')),
+      'Real session note',
+    );
+    await tester.pump();
+
+    await _completeFirstSet(tester);
+
+    await tester.tap(find.byKey(const Key('active-session-finish')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('finish-session-title')), findsOneWidget);
+    expect(find.text('Real session note'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('finish-session-notes')),
+      'Edited from summary',
+    );
+    await tester.pump();
+
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(const Key('finish-resume-button')),
+    );
+    await tester.tap(find.byKey(const Key('finish-resume-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('active-session-title')), findsOneWidget);
+    expect(find.text('Edited from summary'), findsOneWidget);
+  });
+
+  testWidgets('finish summary discard keeps active-session notes unchanged', (
+    tester,
+  ) async {
+    await _pumpStartRoutine(tester);
+
+    await tester.enterText(
+      find.byKey(const Key('active-session-notes')),
+      'Original active note',
+    );
+    await tester.pump();
+
+    await _completeFirstSet(tester);
+
+    await tester.tap(find.byKey(const Key('active-session-finish')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('finish-session-notes')),
+      'Changed only in summary',
+    );
+    await tester.pump();
+
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(const Key('finish-discard-button')),
+    );
+    await tester.tap(find.byKey(const Key('finish-discard-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Original active note'), findsOneWidget);
+    expect(find.text('Changed only in summary'), findsNothing);
+  });
+
+  testWidgets('save and finish persists logs and summary values', (
+    tester,
+  ) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutine(tester, repo: repo);
+
+    await tester.enterText(
+      find.byKey(const Key('active-session-notes')),
+      'Initial active note',
+    );
+    await tester.pump();
+
+    await _completeFirstSet(tester);
+
+    await tester.tap(find.byKey(const Key('active-session-finish')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('finish-session-notes')),
+      'Saved from summary',
+    );
+    await _scrollUntilVisible(tester, find.byKey(const Key('finish-energy-8')));
+    await tester.tap(find.byKey(const Key('finish-energy-8')));
+    await tester.pump();
+    await _scrollUntilVisible(tester, find.byKey(const Key('finish-mood-4')));
+    await tester.tap(find.byKey(const Key('finish-mood-4')));
+    await tester.pump();
+    await _scrollUntilVisible(
+        tester, find.byKey(const Key('finish-save-button')));
+    await tester.tap(find.byKey(const Key('finish-save-button')));
+    await tester.pumpAndSettle();
+
+    expect(repo.savedLogs, isNotEmpty);
+    expect(repo.savedSessions, hasLength(1));
+    expect(repo.savedSessions.single.notes, 'Saved from summary');
+    expect(repo.savedSessions.single.fatigueLevel, '8');
+    expect(repo.savedSessions.single.mood, '4');
+  });
 }
 
 Future<void> _pumpApp(
@@ -117,6 +287,63 @@ Future<void> _pumpApp(
   );
 }
 
+Future<void> _pumpStartRoutine(
+  WidgetTester tester, {
+  _FakeWorkoutPlanRepository? repo,
+}) async {
+  await tester.binding.setSurfaceSize(const Size(430, 1000));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(_notificationsChannel, (call) async {
+    return null;
+  });
+  addTearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_notificationsChannel, null);
+  });
+
+  final effectiveRepo = repo ?? _FakeWorkoutPlanRepository();
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        workoutPlanRepositoryProvider.overrideWithValue(effectiveRepo),
+      ],
+      child: MaterialApp(
+        home: StartRoutineScreen(
+          plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
+        ),
+      ),
+    ),
+  );
+
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 50));
+
+  final messengerState =
+      tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger));
+  messengerState.removeCurrentSnackBar(reason: SnackBarClosedReason.remove);
+  await tester.pump();
+}
+
+Future<void> _completeFirstSet(WidgetTester tester) async {
+  final firstCardState = tester.state<ActiveSessionExerciseCardState>(
+    find.byType(ActiveSessionExerciseCard).first,
+  );
+
+  expect(firstCardState.logCurrentSet(), isTrue);
+  await tester.pump();
+}
+
+Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
+  await tester.scrollUntilVisible(
+    finder,
+    200,
+    scrollable: find.byType(Scrollable).last,
+  );
+  await tester.pump();
+}
+
 class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   _FakeWorkoutPlanRepository({
     this.setPlanActiveDelay = Duration.zero,
@@ -135,6 +362,8 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   final List<WorkoutPlan> _plans;
   int getAllExercisesCalls = 0;
   int setPlanActiveCalls = 0;
+  final List<WorkoutLogEntry> savedLogs = [];
+  final List<WorkoutSession> savedSessions = [];
 
   final List<Exercise> _exercises = [
     Exercise(
@@ -246,10 +475,16 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   Future<List<Exercise>> getSimilarExercises(int exerciseId) async => const [];
 
   @override
-  Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs) async {}
+  Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs) async {
+    savedLogs
+      ..clear()
+      ..addAll(logs);
+  }
 
   @override
-  Future<void> saveWorkoutSession(WorkoutSession session) async {}
+  Future<void> saveWorkoutSession(WorkoutSession session) async {
+    savedSessions.add(session);
+  }
 
   @override
   Future<void> setWorkoutPlanActive(int planId, bool isActive) async {
