@@ -25,21 +25,24 @@ import 'select_exercise_screen.dart';
 class StartRoutineScreen extends ConsumerStatefulWidget {
   const StartRoutineScreen({
     required this.plan,
+    this.now = DateTime.now,
     super.key,
   });
 
   final WorkoutPlan plan;
+  final DateTime Function() now;
 
   @override
   ConsumerState<StartRoutineScreen> createState() => _StartRoutineScreenState();
 }
 
-class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
+class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
+    with WidgetsBindingObserver {
   static const int _defaultSets = 3;
 
   late final DateTime _sessionStartedAt;
   late final Timer _ticker;
-  final ValueNotifier<Duration> _elapsed = ValueNotifier(Duration.zero);
+  late DateTime _now;
   final TextEditingController _notesCtl = TextEditingController();
   final FocusNode _notesFocusNode = FocusNode();
 
@@ -57,10 +60,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   @override
   void initState() {
     super.initState();
-    _sessionStartedAt = DateTime.now();
-    _elapsed.value = _sessionDuration;
+    WidgetsBinding.instance.addObserver(this);
+    _now = widget.now();
+    _sessionStartedAt = _now;
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      _elapsed.value = _sessionDuration;
+      _refreshClock(syncRestTimers: true, vibrateOnCompletion: true);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -71,14 +75,53 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ticker.cancel();
-    _elapsed.dispose();
     _notesCtl.dispose();
     _notesFocusNode.dispose();
     super.dispose();
   }
 
-  Duration get _sessionDuration => DateTime.now().difference(_sessionStartedAt);
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshClock(syncRestTimers: true, vibrateOnCompletion: false);
+    }
+  }
+
+  Duration _sessionDurationAt(DateTime now) =>
+      now.difference(_sessionStartedAt);
+
+  void _refreshClock({
+    bool syncRestTimers = false,
+    required bool vibrateOnCompletion,
+  }) {
+    if (!mounted) {
+      return;
+    }
+
+    final now = widget.now();
+    setState(() {
+      _now = now;
+    });
+    if (syncRestTimers) {
+      _syncRestTimers(now, vibrateOnCompletion: vibrateOnCompletion);
+    }
+  }
+
+  void _syncRestTimers(
+    DateTime now, {
+    required bool vibrateOnCompletion,
+  }) {
+    for (final key in _cardKeys.values) {
+      unawaited(
+        key.currentState?.syncRestTimer(
+          now,
+          vibrateOnCompletion: vibrateOnCompletion,
+        ),
+      );
+    }
+  }
 
   List<WorkoutLogEntry> get _completedLogs {
     return _sessionLogs.values
@@ -271,11 +314,14 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
       return;
     }
 
+    final now = widget.now();
+    final duration = _sessionDurationAt(now);
+
     final result = await FinishSessionSummaryScreen.show(
       context,
       draft: FinishSessionSummaryDraft(
         planName: widget.plan.name,
-        duration: _sessionDuration,
+        duration: duration,
         volumeKg: _volumeKg,
         completedSets: _completedSetCount,
         totalSets: _totalSetCount,
@@ -305,9 +351,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
         await SaveWorkoutSessionUseCase(repo)(
           WorkoutSession(
             planId: widget.plan.id,
-            date: DateTime.now(),
+            date: now,
             fatigueLevel: result.energy!,
-            durationMinutes: _sessionDuration.inMinutes,
+            durationMinutes: duration.inMinutes,
             mood: result.mood!,
             notes: result.notes,
           ),
@@ -322,6 +368,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final now = _now;
+    final sessionDuration = _sessionDurationAt(now);
     final asyncDetails = ref.watch(planExerciseDetailsProvider(widget.plan.id));
     final asyncExercises = ref.watch(allExercisesProvider);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
@@ -348,43 +396,38 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
             onPressed: _handleExitAttempt,
           ),
           titleSpacing: 0,
-          title: ValueListenableBuilder<Duration>(
-            valueListenable: _elapsed,
-            builder: (context, duration, _) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.plan.name,
+                key: const Key('active-session-title'),
+                style: KineticNoirTypography.headline(
+                  size: 20,
+                  weight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
                 children: [
-                  Text(
-                    widget.plan.name,
-                    key: const Key('active-session-title'),
-                    style: KineticNoirTypography.headline(
-                      size: 20,
-                      weight: FontWeight.w700,
-                    ),
+                  _HeaderMetaChip(
+                    label: WorkoutSessionHelper.formatDuration(sessionDuration),
                   ),
-                  const SizedBox(height: 2),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      _HeaderMetaChip(
-                        label: WorkoutSessionHelper.formatDuration(duration),
-                      ),
-                      _HeaderMetaChip(
-                        label: '$_completedSetCount/$_totalSetCount sets',
-                      ),
-                      _HeaderMetaChip(
-                        label: '${_volumeKg.toStringAsFixed(0)} KG',
-                      ),
-                      _HeaderMetaChip(
-                        label: '${(_completionRatio * 100).round()}%',
-                        isHighlighted: true,
-                      ),
-                    ],
+                  _HeaderMetaChip(
+                    label: '$_completedSetCount/$_totalSetCount sets',
+                  ),
+                  _HeaderMetaChip(
+                    label: '${_volumeKg.toStringAsFixed(0)} KG',
+                  ),
+                  _HeaderMetaChip(
+                    label: '${(_completionRatio * 100).round()}%',
+                    isHighlighted: true,
                   ),
                 ],
-              );
-            },
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -517,6 +560,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
                                 _exerciseMap?[sessionDetails[index].exerciseId],
                             planId: widget.plan.id,
                             exerciseNumber: index + 1,
+                            now: now,
                             expanded: _expandedExerciseId ==
                                 sessionDetails[index].exerciseId,
                             logsMap: _sessionLogs,

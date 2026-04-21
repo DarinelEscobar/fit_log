@@ -57,6 +57,7 @@ dev_dependencies:
   freezed: ^2.4.6
   json_serializable: ^6.7.0
   flutter_lints: ^4.0.0
+  vibration_platform_interface: ^0.1.0
 
 
 flutter:

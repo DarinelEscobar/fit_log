@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
+import 'package:vibration/vibration_presets.dart';
 
 import '../../../../theme/kinetic_noir.dart';
 import '../../../../utils/notification_service.dart';
@@ -17,6 +18,7 @@ class ActiveSessionExerciseCard extends StatefulWidget {
     required this.detail,
     required this.planId,
     required this.exerciseNumber,
+    required this.now,
     required this.expanded,
     required this.logsMap,
     required this.onToggle,
@@ -33,6 +35,7 @@ class ActiveSessionExerciseCard extends StatefulWidget {
   final Exercise? exercise;
   final int planId;
   final int exerciseNumber;
+  final DateTime now;
   final bool expanded;
   final Map<String, WorkoutLogEntry> logsMap;
   final VoidCallback onToggle;
@@ -54,8 +57,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
   final List<TextEditingController> _rirControllers = [];
 
   int _visibleSets = 0;
-  Timer? _restTimer;
-  int _restRemaining = 0;
+  DateTime? _restEndsAt;
   bool _showAdjustActions = false;
 
   @override
@@ -72,6 +74,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.detail.exerciseId != widget.detail.exerciseId) {
       _showAdjustActions = false;
+      _clearRestTimer(cancelNotification: true);
       _resetControllers(widget.detail.sets);
       return;
     }
@@ -94,8 +97,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     ]) {
       controller.dispose();
     }
-    _restTimer?.cancel();
-    NotificationService.cancelRest();
+    _clearRestTimer(cancelNotification: true);
     super.dispose();
   }
 
@@ -107,7 +109,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
 
     widget.completeLog(
       WorkoutLogEntry(
-        date: DateTime.now(),
+        date: widget.now,
         planId: widget.planId,
         exerciseId: widget.detail.exerciseId,
         setNumber: nextSet,
@@ -118,7 +120,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
         completed: true,
       ),
     );
-    _startRestTimer();
+    _startRestTimer(widget.now);
     setState(() {});
     return true;
   }
@@ -186,7 +188,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     final current = _logFor(setNumber);
     widget.saveDraftLog(
       WorkoutLogEntry(
-        date: DateTime.now(),
+        date: widget.now,
         planId: widget.planId,
         exerciseId: widget.detail.exerciseId,
         setNumber: setNumber,
@@ -224,7 +226,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     widget.onSetCountChanged(_visibleSets);
     widget.saveDraftLog(
       WorkoutLogEntry(
-        date: DateTime.now(),
+        date: widget.now,
         planId: widget.planId,
         exerciseId: widget.detail.exerciseId,
         setNumber: _visibleSets,
@@ -252,7 +254,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     widget.onSetCountChanged(_visibleSets);
     widget.removeLog(
       WorkoutLogEntry(
-        date: DateTime.now(),
+        date: widget.now,
         planId: widget.planId,
         exerciseId: widget.detail.exerciseId,
         setNumber: removedSet,
@@ -264,25 +266,60 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     );
   }
 
-  void _startRestTimer() {
-    _restTimer?.cancel();
-    NotificationService.cancelRest();
-    NotificationService.scheduleRestDone(widget.detail.restSeconds);
-    setState(() => _restRemaining = widget.detail.restSeconds);
-    _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (_restRemaining <= 1) {
-        timer.cancel();
-        NotificationService.cancelRest();
-        if (await Vibration.hasVibrator()) {
-          Vibration.vibrate(duration: 800, amplitude: 180);
-        }
-        if (mounted) {
-          setState(() => _restRemaining = 0);
-        }
-      } else if (mounted) {
-        setState(() => _restRemaining--);
-      }
+  Future<void> syncRestTimer(
+    DateTime now, {
+    required bool vibrateOnCompletion,
+  }) async {
+    final restEndsAt = _restEndsAt;
+    if (restEndsAt == null) {
+      return;
+    }
+
+    if (now.isBefore(restEndsAt)) {
+      return;
+    }
+
+    _clearRestTimer(cancelNotification: true);
+    if (mounted) {
+      setState(() {});
+    }
+
+    if (vibrateOnCompletion && await Vibration.hasVibrator()) {
+      await Vibration.vibrate(preset: VibrationPreset.countdownTimerAlert);
+    }
+  }
+
+  void _startRestTimer(DateTime now) {
+    final notificationId = _notificationId;
+    unawaited(
+      NotificationService.scheduleRestDone(
+        widget.detail.restSeconds,
+        notificationId: notificationId,
+        scheduledAt: now,
+      ),
+    );
+    setState(() {
+      _restEndsAt = now.add(Duration(seconds: widget.detail.restSeconds));
     });
+  }
+
+  void _clearRestTimer({required bool cancelNotification}) {
+    _restEndsAt = null;
+    if (cancelNotification) {
+      unawaited(
+          NotificationService.cancelRest(notificationId: _notificationId));
+    }
+  }
+
+  int get _notificationId => widget.planId * 1000 + widget.exerciseNumber;
+
+  int get restRemainingSeconds {
+    final restEndsAt = _restEndsAt;
+    if (restEndsAt == null) {
+      return 0;
+    }
+    final remaining = restEndsAt.difference(widget.now).inSeconds;
+    return remaining > 0 ? remaining : 0;
   }
 
   @override
@@ -537,7 +574,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                 ],
               ),
             ),
-            if (_restRemaining > 0)
+            if (restRemainingSeconds > 0)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Container(
@@ -562,7 +599,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                         ),
                         child: Center(
                           child: Text(
-                            '$_restRemaining',
+                            '$restRemainingSeconds',
                             style: KineticNoirTypography.body(
                               size: 12,
                               weight: FontWeight.w800,

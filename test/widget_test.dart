@@ -8,16 +8,44 @@ import 'package:fit_log/src/features/routines/domain/repositories/workout_plan_r
 import 'package:fit_log/src/features/routines/presentation/pages/start_routine_screen.dart';
 import 'package:fit_log/src/features/routines/presentation/providers/workout_plan_repository_provider.dart';
 import 'package:fit_log/src/features/routines/presentation/widgets/active_session_exercise_card.dart';
+import 'package:fit_log/src/utils/notification_service.dart';
 import 'package:fit_log/src/navigation/widgets/kinetic_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vibration/vibration_presets.dart';
+import 'package:vibration_platform_interface/vibration_platform_interface.dart';
 
 const _notificationsChannel =
     MethodChannel('dexterous.com/flutter/local_notifications');
+final List<MethodCall> _notificationCalls = <MethodCall>[];
+final _fakeVibrationPlatform = _FakeVibrationPlatform();
+late VibrationPlatform _originalVibrationPlatform;
 
 void main() {
+  setUpAll(() {
+    _originalVibrationPlatform = VibrationPlatform.instance;
+  });
+
+  setUp(() async {
+    _notificationCalls.clear();
+    _fakeVibrationPlatform.reset();
+    VibrationPlatform.instance = _fakeVibrationPlatform;
+    FlutterLocalNotificationsPlatform.instance =
+        AndroidFlutterLocalNotificationsPlugin();
+    _setUpRoutineChannels();
+    await NotificationService.init();
+    _notificationCalls.clear();
+  });
+
+  tearDownAll(() {
+    VibrationPlatform.instance = _originalVibrationPlatform;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_notificationsChannel, null);
+  });
+
   testWidgets('home dashboard is the default entry view', (tester) async {
     await _pumpApp(tester);
 
@@ -172,6 +200,91 @@ void main() {
     expect(find.byKey(const Key('active-set-row-1-5')), findsNothing);
   });
 
+  testWidgets(
+      'rest timer schedules a stable notification id and strong completion vibration',
+      (tester) async {
+    var currentNow = DateTime.now().add(const Duration(minutes: 5));
+    await _pumpStartRoutine(
+      tester,
+      now: () => currentNow,
+    );
+
+    await _completeFirstSet(tester);
+
+    const scheduledNotificationId = 1001;
+    final scheduleCall = _notificationCalls.singleWhere(
+      (call) => call.method == 'zonedSchedule',
+    );
+    final cancelCalls = _notificationCalls
+        .where((call) => call.method == 'cancel')
+        .toList(growable: false);
+    final cancelIds = cancelCalls
+        .map((call) => (call.arguments as Map<dynamic, dynamic>)['id'] as int)
+        .toList(growable: false);
+    final scheduleArguments = scheduleCall.arguments as Map<dynamic, dynamic>;
+
+    expect(cancelIds, contains(scheduledNotificationId));
+    expect(scheduleArguments['id'], scheduledNotificationId);
+
+    expect(find.textContaining('Rest timer running'), findsOneWidget);
+
+    currentNow = currentNow.add(const Duration(seconds: 91));
+    final cardState = tester.state<ActiveSessionExerciseCardState>(
+      find.byType(ActiveSessionExerciseCard).first,
+    );
+    await cardState.syncRestTimer(
+      currentNow,
+      vibrateOnCompletion: true,
+    );
+    await tester.pump();
+
+    expect(find.textContaining('Rest timer running'), findsNothing);
+    expect(cardState.restRemainingSeconds, 0);
+    expect(_notificationCalls.where((call) => call.method == 'cancel'),
+        hasLength(2));
+    expect(_fakeVibrationPlatform.vibrateCalls, hasLength(1));
+    expect(
+      _fakeVibrationPlatform.vibrateCalls.single.pattern,
+      presets[VibrationPreset.countdownTimerAlert]!.pattern,
+    );
+    expect(
+      _fakeVibrationPlatform.vibrateCalls.single.intensities,
+      presets[VibrationPreset.countdownTimerAlert]!.intensities,
+    );
+  });
+
+  testWidgets(
+      'resuming after background clears an expired rest timer without relying on the ticker',
+      (tester) async {
+    var currentNow = DateTime.now().add(const Duration(minutes: 5));
+    await _pumpStartRoutine(
+      tester,
+      now: () => currentNow,
+    );
+
+    await _completeFirstSet(tester);
+    expect(find.textContaining('Rest timer running'), findsOneWidget);
+
+    currentNow = currentNow.add(const Duration(minutes: 2));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    final cardState = tester.state<ActiveSessionExerciseCardState>(
+      find.byType(ActiveSessionExerciseCard).first,
+    );
+
+    expect(find.textContaining('Rest timer running'), findsNothing);
+    expect(cardState.restRemainingSeconds, 0);
+    final cancelIds = _notificationCalls
+        .where((call) => call.method == 'cancel')
+        .map((call) => (call.arguments as Map<dynamic, dynamic>)['id'] as int)
+        .toList(growable: false);
+
+    expect(cancelIds, contains(1001));
+    expect(_fakeVibrationPlatform.vibrateCalls, isEmpty);
+  });
+
   testWidgets('finish summary resumes with edited notes applied back', (
     tester,
   ) async {
@@ -248,7 +361,12 @@ void main() {
     tester,
   ) async {
     final repo = _FakeWorkoutPlanRepository();
-    await _pumpStartRoutine(tester, repo: repo);
+    var currentNow = DateTime.now().add(const Duration(minutes: 5));
+    await _pumpStartRoutine(
+      tester,
+      repo: repo,
+      now: () => currentNow,
+    );
 
     await _openNotesComposer(tester);
     await tester.enterText(
@@ -258,6 +376,8 @@ void main() {
     await tester.pump();
 
     await _completeFirstSet(tester);
+
+    currentNow = currentNow.add(const Duration(minutes: 2));
 
     await tester.tap(find.byKey(const Key('active-session-finish')));
     await tester.pumpAndSettle();
@@ -282,6 +402,7 @@ void main() {
     expect(repo.savedSessions.single.notes, 'Saved from summary');
     expect(repo.savedSessions.single.fatigueLevel, '8');
     expect(repo.savedSessions.single.mood, '4');
+    expect(repo.savedSessions.single.durationMinutes, 2);
   });
 
   testWidgets('system back opens exit confirmation and stay keeps session open',
@@ -340,6 +461,7 @@ Future<void> _pumpApp(
 Future<void> _pumpStartRoutine(
   WidgetTester tester, {
   _FakeWorkoutPlanRepository? repo,
+  DateTime Function()? now,
 }) async {
   await tester.binding.setSurfaceSize(const Size(430, 1000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -354,6 +476,7 @@ Future<void> _pumpStartRoutine(
       child: MaterialApp(
         home: StartRoutineScreen(
           plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
+          now: now ?? DateTime.now,
         ),
       ),
     ),
@@ -371,6 +494,7 @@ Future<void> _pumpStartRoutine(
 Future<void> _pumpStartRoutineInHost(
   WidgetTester tester, {
   _FakeWorkoutPlanRepository? repo,
+  DateTime Function()? now,
 }) async {
   await tester.binding.setSurfaceSize(const Size(430, 1000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -382,7 +506,9 @@ Future<void> _pumpStartRoutineInHost(
       overrides: [
         workoutPlanRepositoryProvider.overrideWithValue(effectiveRepo),
       ],
-      child: const MaterialApp(home: _RoutineHost()),
+      child: MaterialApp(
+        home: _RoutineHost(now: now ?? DateTime.now),
+      ),
     ),
   );
 
@@ -395,10 +521,85 @@ Future<void> _pumpStartRoutineInHost(
   await tester.pump();
 }
 
+class _FakeVibrationPlatform extends VibrationPlatform {
+  final List<_VibrationCall> vibrateCalls = <_VibrationCall>[];
+  int hasVibratorCalls = 0;
+
+  void reset() {
+    vibrateCalls.clear();
+    hasVibratorCalls = 0;
+  }
+
+  @override
+  Future<bool> hasVibrator() async {
+    hasVibratorCalls++;
+    return true;
+  }
+
+  @override
+  Future<bool> hasAmplitudeControl() async => false;
+
+  @override
+  Future<bool> hasCustomVibrationsSupport() async => true;
+
+  @override
+  Future<void> vibrate({
+    int duration = 500,
+    List<int> pattern = const [],
+    int repeat = -1,
+    List<int> intensities = const [],
+    int amplitude = -1,
+    double sharpness = 0.5,
+  }) async {
+    vibrateCalls.add(
+      _VibrationCall(
+        duration: duration,
+        pattern: List<int>.from(pattern),
+        repeat: repeat,
+        intensities: List<int>.from(intensities),
+        amplitude: amplitude,
+        sharpness: sharpness,
+      ),
+    );
+  }
+
+  @override
+  Future<void> cancel() async {}
+}
+
+class _VibrationCall {
+  const _VibrationCall({
+    required this.duration,
+    required this.pattern,
+    required this.repeat,
+    required this.intensities,
+    required this.amplitude,
+    required this.sharpness,
+  });
+
+  final int duration;
+  final List<int> pattern;
+  final int repeat;
+  final List<int> intensities;
+  final int amplitude;
+  final double sharpness;
+}
+
 void _setUpRoutineChannels() {
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(_notificationsChannel, (call) async {
-    return null;
+    _notificationCalls.add(call);
+    switch (call.method) {
+      case 'initialize':
+      case 'requestNotificationsPermission':
+      case 'requestExactAlarmsPermission':
+      case 'requestPermissions':
+      case 'requestFullScreenIntentPermission':
+      case 'requestNotificationPolicyAccess':
+        return true;
+      default:
+        return null;
+    }
   });
 }
 
@@ -426,7 +627,11 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
 }
 
 class _RoutineHost extends StatelessWidget {
-  const _RoutineHost();
+  const _RoutineHost({
+    this.now = DateTime.now,
+  });
+
+  final DateTime Function() now;
 
   @override
   Widget build(BuildContext context) {
@@ -439,6 +644,7 @@ class _RoutineHost extends StatelessWidget {
               builder: (_) => StartRoutineScreen(
                 plan:
                     WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
+                now: now,
               ),
             ),
           ),
