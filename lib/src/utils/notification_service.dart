@@ -10,7 +10,7 @@ class NotificationService {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   static bool _isInitialized = false;
-  static const String _restChannelId = 'rest_timer_v2';
+  static const String _restChannelId = 'rest_timer_v3_alarm';
   static const String _restChannelName = 'Rest Timer';
   static const String _restChannelDescription = 'Workout rest timer alerts';
 
@@ -66,8 +66,11 @@ class NotificationService {
       channelDescription: _restChannelDescription,
       importance: Importance.max,
       priority: Priority.high,
-      playSound: false,
+      playSound: true,
       enableVibration: true,
+      visibility: NotificationVisibility.public,
+      category: AndroidNotificationCategory.alarm,
+      audioAttributesUsage: AudioAttributesUsage.alarm,
       vibrationPattern: Int64List.fromList([0, 1200, 250, 1200, 250, 1800]),
     );
     const iosDetails = DarwinNotificationDetails(

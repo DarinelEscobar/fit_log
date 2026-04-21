@@ -222,9 +222,34 @@ void main() {
         .map((call) => (call.arguments as Map<dynamic, dynamic>)['id'] as int)
         .toList(growable: false);
     final scheduleArguments = scheduleCall.arguments as Map<dynamic, dynamic>;
+    final platformSpecifics =
+        scheduleArguments['platformSpecifics'] as Map<dynamic, dynamic>;
+    final vibrationPattern =
+        (platformSpecifics['vibrationPattern'] as List<dynamic>)
+            .cast<int>()
+            .toList(growable: false);
 
     expect(cancelIds, contains(scheduledNotificationId));
     expect(scheduleArguments['id'], scheduledNotificationId);
+    expect(platformSpecifics['channelId'], 'rest_timer_v3_alarm');
+    expect(platformSpecifics['scheduleMode'], 'exactAllowWhileIdle');
+    expect(platformSpecifics['importance'], Importance.max.value);
+    expect(platformSpecifics['priority'], Priority.high.value);
+    expect(platformSpecifics['playSound'], isTrue);
+    expect(platformSpecifics['enableVibration'], isTrue);
+    expect(
+      platformSpecifics['visibility'],
+      NotificationVisibility.public.index,
+    );
+    expect(
+      platformSpecifics['category'],
+      AndroidNotificationCategory.alarm.name,
+    );
+    expect(
+      platformSpecifics['audioAttributesUsage'],
+      AudioAttributesUsage.alarm.value,
+    );
+    expect(vibrationPattern, [0, 1200, 250, 1200, 250, 1800]);
 
     expect(find.textContaining('Rest timer running'), findsOneWidget);
 
