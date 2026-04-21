@@ -1094,7 +1094,7 @@ packages:
     source: hosted
     version: "3.1.3"
   vibration_platform_interface:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: vibration_platform_interface
       sha256: "03e9deaa4df48a1a6212e281bfee5f610d62e9247929dd2f26f4efd4fa5e225c"
