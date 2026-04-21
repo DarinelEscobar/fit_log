@@ -122,6 +122,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
       await _storageService.warmUpRoutineRuntimeCache(
         force: !restoredDatabase,
       );
+      await _storageService.exportRoutineRuntimeToXlsxFiles(dir);
     }
   }
 
@@ -149,6 +150,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
       case 'exercise.xlsx':
       case 'plan_exercise.xlsx':
         await _storageService.warmUpRoutineRuntimeCache(force: true);
+        await _storageService.exportRoutineRuntimeToXlsxFiles(directory);
         return;
       case 'workout_log.xlsx':
         await _storageService.replaceWorkoutLogsFromCurrentXlsxFiles();
