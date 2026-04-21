@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:excel/excel.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -468,9 +468,7 @@ class WorkoutStorageService {
   Future<void> replaceWorkoutLogsFromCurrentXlsxFiles() async {
     final db = await _getDatabase();
     final directory = await getApplicationDocumentsDirectory();
-    final rows = await Isolate.run(
-      () => _parseWorkoutLogSeed(directory.path),
-    );
+    final rows = await compute(_parseWorkoutLogSeed, directory.path);
 
     await db.transaction((txn) async {
       await txn.delete('workout_logs');
@@ -490,9 +488,7 @@ class WorkoutStorageService {
   Future<void> replaceWorkoutSessionsFromCurrentXlsxFiles() async {
     final db = await _getDatabase();
     final directory = await getApplicationDocumentsDirectory();
-    final rows = await Isolate.run(
-      () => _parseWorkoutSessionSeed(directory.path),
-    );
+    final rows = await compute(_parseWorkoutSessionSeed, directory.path);
 
     await db.transaction((txn) async {
       await txn.delete('workout_sessions');
@@ -530,9 +526,7 @@ class WorkoutStorageService {
     }
 
     final directory = await getApplicationDocumentsDirectory();
-    final payload = await Isolate.run(
-      () => _parseRoutineRuntimeSeed(directory.path),
-    );
+    final payload = await compute(_parseRoutineRuntimeSeed, directory.path);
 
     final plans =
         payload[_routineSeedPlansKey] ?? const <Map<String, Object?>>[];
@@ -737,8 +731,7 @@ class WorkoutStorageService {
 
     final directory = await getApplicationDocumentsDirectory();
     if (logCount == 0) {
-      final logs =
-          await Isolate.run(() => _parseWorkoutLogSeed(directory.path));
+      final logs = await compute(_parseWorkoutLogSeed, directory.path);
       final batch = db.batch();
       for (final row in logs) {
         batch.insert(
@@ -751,8 +744,7 @@ class WorkoutStorageService {
     }
 
     if (sessionCount == 0) {
-      final sessions =
-          await Isolate.run(() => _parseWorkoutSessionSeed(directory.path));
+      final sessions = await compute(_parseWorkoutSessionSeed, directory.path);
       final batch = db.batch();
       for (final row in sessions) {
         batch.insert(
