@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'navigation/main_scaffold.dart';
 
+import 'system_ui/fullscreen_controller.dart';
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = const ColorScheme(
+    const colorScheme = ColorScheme(
       brightness: Brightness.dark,
       primary: Color(0xFF8E8CF8),
       onPrimary: Color(0xFF0F0F10),
@@ -38,6 +40,7 @@ class MyApp extends StatelessWidget {
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
+          systemOverlayStyle: kineticFullscreenOverlayStyle,
           titleTextStyle: TextStyle(
             color: Color(0xFFF2F2F2),
             fontSize: 18,
