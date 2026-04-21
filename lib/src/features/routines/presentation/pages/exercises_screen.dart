@@ -162,7 +162,7 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => StartRoutineScreen(planId: _currentPlan.id),
+                  builder: (_) => StartRoutineScreen(plan: _currentPlan),
                 ),
               ),
               style: FilledButton.styleFrom(
