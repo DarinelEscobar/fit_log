@@ -519,7 +519,7 @@ class WorkoutStorageService {
         _countRows(db, 'exercises'),
         _countRows(db, 'plan_exercises'),
       ]);
-      if (counts.any((count) => count > 0)) {
+      if (counts.every((count) => count > 0)) {
         await _setMeta(db, _routineRuntimeSeededKey, '1');
         return;
       }
@@ -950,9 +950,15 @@ Map<String, List<Map<String, Object?>>> _parseRoutineRuntimeSeed(
     normalizedExercises.add(row);
   }
 
+  final exerciseDescriptionsById = <int, String>{
+    for (final row in normalizedExercises)
+      _intValue(row['exercise_id']): _stringValue(row['description']),
+  };
+
   final normalizedPlanExercises = _parsePlanExerciseSeed(
     directoryPath,
     idRemap: idRemap,
+    exerciseDescriptionsById: exerciseDescriptionsById,
   );
 
   return {
@@ -967,20 +973,28 @@ List<Map<String, Object?>> _parseWorkoutPlanSeed(String directoryPath) {
     path.join(directoryPath, 'workout_plan.xlsx'),
     kTableSchemas['workout_plan.xlsx']!.sheetName,
   );
-  if (sheet == null) {
+  if (sheet == null || sheet.rows.isEmpty) {
     return const [];
   }
 
-  return [
-    for (final row in sheet.rows.skip(1))
-      if (row.isNotEmpty)
-        {
-          'plan_id': _intValue(_excelValueAt(row, 0)),
-          'name': _stringValue(_excelValueAt(row, 1)),
-          'frequency': _stringValue(_excelValueAt(row, 2)),
-          'is_active': _boolValue(_excelValueAt(row, 3)) ? 1 : 0,
-        },
-  ];
+  final headers = _headerIndexMap(sheet.rows.first);
+  final rows = <Map<String, Object?>>[];
+  for (final row in sheet.rows.skip(1)) {
+    final planId = _intValueOrNull(_headerValue(row, headers, ['plan_id']));
+    if (planId == null || planId <= 0) {
+      continue;
+    }
+
+    rows.add({
+      'plan_id': planId,
+      'name': _stringValue(_headerValue(row, headers, ['name'])),
+      'frequency': _stringValue(_headerValue(row, headers, ['frequency'])),
+      'is_active': _boolValue(_headerValue(row, headers, ['is_active']))
+          ? 1
+          : 0,
+    });
+  }
+  return rows;
 }
 
 List<Map<String, Object?>> _parseExerciseSeed(String directoryPath) {
@@ -988,61 +1002,92 @@ List<Map<String, Object?>> _parseExerciseSeed(String directoryPath) {
     path.join(directoryPath, 'exercise.xlsx'),
     kTableSchemas['exercise.xlsx']!.sheetName,
   );
-  if (sheet == null) {
+  if (sheet == null || sheet.rows.isEmpty) {
     return const [];
   }
 
-  return [
-    for (final row in sheet.rows.skip(1))
-      if (row.isNotEmpty)
-        {
-          'exercise_id': _intValue(_excelValueAt(row, 0)),
-          'name': _stringValue(_excelValueAt(row, 1)),
-          'description': _stringValue(_excelValueAt(row, 2)),
-          'category': _stringValue(_excelValueAt(row, 3)),
-          'main_muscle_group': _stringValue(_excelValueAt(row, 4)),
-        },
-  ];
+  final headers = _headerIndexMap(sheet.rows.first);
+  final rows = <Map<String, Object?>>[];
+  for (final row in sheet.rows.skip(1)) {
+    final exerciseId =
+        _intValueOrNull(_headerValue(row, headers, ['exercise_id']));
+    if (exerciseId == null || exerciseId <= 0) {
+      continue;
+    }
+
+    rows.add({
+      'exercise_id': exerciseId,
+      'name': _stringValue(_headerValue(row, headers, ['name'])),
+      'description': _stringValue(_headerValue(row, headers, ['description'])),
+      'category': _stringValue(_headerValue(row, headers, ['category'])),
+      'main_muscle_group':
+          _stringValue(_headerValue(row, headers, ['main_muscle_group'])),
+    });
+  }
+  return rows;
 }
 
 List<Map<String, Object?>> _parsePlanExerciseSeed(
   String directoryPath, {
   required Map<int, int> idRemap,
+  required Map<int, String> exerciseDescriptionsById,
 }) {
   final sheet = _readSheet(
     path.join(directoryPath, 'plan_exercise.xlsx'),
     kTableSchemas['plan_exercise.xlsx']!.sheetName,
   );
-  if (sheet == null) {
+  if (sheet == null || sheet.rows.isEmpty) {
     return const [];
   }
 
+  final headers = _headerIndexMap(sheet.rows.first);
   final positionsByPlan = <int, int>{};
-  return [
-    for (final row in sheet.rows.skip(1))
-      if (row.isNotEmpty)
-        () {
-          final planId = _intValue(_excelValueAt(row, 0));
-          final originalExerciseId = _intValue(_excelValueAt(row, 1));
-          final nextPosition = positionsByPlan.update(
-            planId,
-            (value) => value + 1,
-            ifAbsent: () => 0,
-          );
-          return {
-            'plan_id': planId,
-            'exercise_id': idRemap[originalExerciseId] ?? originalExerciseId,
-            'position': nextPosition,
-            'suggested_sets': _intValue(_excelValueAt(row, 2)),
-            'suggested_reps': _intValue(_excelValueAt(row, 3)),
-            'estimated_weight': _doubleValue(_excelValueAt(row, 4)),
-            'rest_seconds': _intValue(_excelValueAt(row, 5)),
-            'rir': _intValue(_excelValueAt(row, 6)),
-            'tempo': _stringValue(_excelValueAt(row, 7)),
-            'image_path': _stringValue(_excelValueAt(row, 8)),
-          };
-        }(),
-  ];
+  final rows = <Map<String, Object?>>[];
+  for (final row in sheet.rows.skip(1)) {
+    final planId = _intValueOrNull(_headerValue(row, headers, ['plan_id']));
+    final originalExerciseId =
+        _intValueOrNull(_headerValue(row, headers, ['exercise_id']));
+    if (planId == null || planId <= 0 || originalExerciseId == null ||
+        originalExerciseId <= 0) {
+      continue;
+    }
+
+    final exerciseId = idRemap[originalExerciseId] ?? originalExerciseId;
+    final nextPosition = positionsByPlan.update(
+      planId,
+      (value) => value + 1,
+      ifAbsent: () => 0,
+    );
+    final exerciseDescription = exerciseDescriptionsById[exerciseId] ?? '';
+
+    rows.add({
+      'plan_id': planId,
+      'exercise_id': exerciseId,
+      'position': nextPosition,
+      'suggested_sets': _intValue(_headerValue(row, headers, ['suggested_sets'])),
+      'suggested_reps':
+          _intValue(_headerValue(row, headers, ['suggested_reps'])),
+      'estimated_weight':
+          _doubleValue(_headerValue(row, headers, ['estimated_weight'])),
+      'rest_seconds': _intValue(_headerValue(row, headers, ['rest_seconds'])),
+      'rir': _resolveRoutineRir(
+        canonicalRirValue: _headerValue(row, headers, ['rir']),
+        legacyTargetRirValue: _headerValue(row, headers, ['target_rir']),
+        legacyImagePathValue: _headerValue(row, headers, ['image_path']),
+        exerciseDescription: exerciseDescription,
+      ),
+      'tempo': _resolveRoutineTempo(
+        canonicalTempoValue: _headerValue(row, headers, ['tempo']),
+        legacyTargetRirValue: _headerValue(row, headers, ['target_rir']),
+        legacyImagePathValue: _headerValue(row, headers, ['image_path']),
+        exerciseDescription: exerciseDescription,
+      ),
+      'image_path':
+          _resolveRoutineImagePath(_headerValue(row, headers, ['image_path'])),
+    });
+  }
+
+  return rows;
 }
 
 List<Map<String, Object?>> _parseWorkoutLogSeed(String directoryPath) {
@@ -1107,6 +1152,40 @@ Sheet? _readSheet(String filePath, String sheetName) {
   return excel[sheetName];
 }
 
+Map<String, int> _headerIndexMap(List<Data?> headerRow) {
+  final headers = <String, int>{};
+  for (var index = 0; index < headerRow.length; index++) {
+    final header = _normalizeHeaderName(_stringValue(_excelValueAt(headerRow, index)));
+    if (header.isEmpty || headers.containsKey(header)) {
+      continue;
+    }
+    headers[header] = index;
+  }
+  return headers;
+}
+
+Object? _headerValue(
+  List<Data?> row,
+  Map<String, int> headers,
+  List<String> candidateHeaders,
+) {
+  for (final candidate in candidateHeaders) {
+    final index = headers[_normalizeHeaderName(candidate)];
+    if (index != null) {
+      return _excelValueAt(row, index);
+    }
+  }
+  return null;
+}
+
+String _normalizeHeaderName(String value) {
+  return value
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+}
+
 Object? _excelValueAt(List<Data?> row, int index) {
   if (index >= row.length) {
     return null;
@@ -1146,6 +1225,23 @@ CellValue _toCellValue(Object? value) {
 
 String _formatDate(DateTime date) => date.toIso8601String().split('T').first;
 
+int? _intValueOrNull(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  final text = value.toString().trim();
+  if (text.isEmpty) {
+    return null;
+  }
+  return int.tryParse(text);
+}
+
 int _intValue(Object? value) {
   if (value is int) {
     return value;
@@ -1168,6 +1264,14 @@ double _doubleValue(Object? value) {
 
 String _stringValue(Object? value) => value?.toString() ?? '';
 
+String? _stringValueOrNull(Object? value) {
+  final text = _stringValue(value).trim();
+  if (text.isEmpty) {
+    return null;
+  }
+  return text;
+}
+
 bool _boolValue(Object? value) {
   if (value == null) {
     return true;
@@ -1184,4 +1288,139 @@ bool _boolValue(Object? value) {
     return true;
   }
   return text != '0' && text != 'false' && text != 'no';
+}
+
+int _resolveRoutineRir({
+  required Object? canonicalRirValue,
+  required Object? legacyTargetRirValue,
+  required Object? legacyImagePathValue,
+  required String exerciseDescription,
+}) {
+  final canonicalRir = _intValueOrNull(canonicalRirValue);
+  if (canonicalRir != null) {
+    return canonicalRir;
+  }
+
+  final legacyTargetRir = _intValueOrNull(legacyTargetRirValue);
+  if (legacyTargetRir != null) {
+    return legacyTargetRir;
+  }
+
+  final legacyImagePathRir = _intValueOrNull(legacyImagePathValue);
+  if (legacyImagePathRir != null) {
+    return legacyImagePathRir;
+  }
+
+  final descriptionRir = _extractRirFromDescription(exerciseDescription);
+  if (descriptionRir != null) {
+    return descriptionRir;
+  }
+
+  return 2;
+}
+
+String _resolveRoutineTempo({
+  required Object? canonicalTempoValue,
+  required Object? legacyTargetRirValue,
+  required Object? legacyImagePathValue,
+  required String exerciseDescription,
+}) {
+  final canonicalTempo = _normalizeTempoValue(canonicalTempoValue);
+  if (canonicalTempo != null) {
+    return canonicalTempo;
+  }
+
+  final legacyTargetRirTempo = _normalizeTempoValue(legacyTargetRirValue);
+  if (legacyTargetRirTempo != null) {
+    return legacyTargetRirTempo;
+  }
+
+  final legacyImagePathTempo = _normalizeTempoValue(legacyImagePathValue);
+  if (legacyImagePathTempo != null) {
+    return legacyImagePathTempo;
+  }
+
+  final descriptionTempo = _extractTempoFromDescription(exerciseDescription);
+  return descriptionTempo ?? '3-1-1-0';
+}
+
+String _resolveRoutineImagePath(Object? value) {
+  final imagePath = _stringValueOrNull(value);
+  if (imagePath == null) {
+    return '';
+  }
+
+  if (_looksLikePath(imagePath)) {
+    return imagePath;
+  }
+
+  return '';
+}
+
+String? _normalizeTempoValue(Object? value) {
+  final text = _stringValueOrNull(value);
+  if (text == null) {
+    return null;
+  }
+
+  final normalized = text.toLowerCase().replaceAll('–', '-');
+  final match = RegExp(
+    r'(?:tempo\s*)?([0-9]+\s*-\s*[0-9]+\s*-\s*[0-9]+\s*-\s*[0-9]+)',
+  ).firstMatch(normalized);
+  if (match == null) {
+    return null;
+  }
+
+  return _normalizeTempoString(match.group(1)!);
+}
+
+String? _extractTempoFromDescription(String description) {
+  if (description.trim().isEmpty) {
+    return null;
+  }
+
+  final tempo = _normalizeTempoValue(description);
+  if (tempo != null) {
+    return tempo;
+  }
+
+  final fallback = RegExp(
+    r'([0-9]+\s*-\s*[0-9]+\s*-\s*[0-9]+\s*-\s*[0-9]+)',
+  ).firstMatch(description.toLowerCase().replaceAll('–', '-'));
+  if (fallback == null) {
+    return null;
+  }
+
+  return _normalizeTempoString(fallback.group(1)!);
+}
+
+int? _extractRirFromDescription(String description) {
+  if (description.trim().isEmpty) {
+    return null;
+  }
+
+  final match = RegExp(r'(?:target\s*)?rir[^0-9]*([0-9]+)')
+      .firstMatch(description.toLowerCase());
+  if (match != null) {
+    return int.tryParse(match.group(1)!);
+  }
+
+  return null;
+}
+
+String _normalizeTempoString(String value) {
+  return value.replaceAll('–', '-').replaceAll(RegExp(r'\s+'), '');
+}
+
+bool _looksLikePath(String value) {
+  if (value.contains('/') || value.contains('\\')) {
+    return true;
+  }
+  final lower = value.toLowerCase();
+  return lower.endsWith('.png') ||
+      lower.endsWith('.jpg') ||
+      lower.endsWith('.jpeg') ||
+      lower.endsWith('.webp') ||
+      lower.endsWith('.gif') ||
+      lower.endsWith('.bmp');
 }
