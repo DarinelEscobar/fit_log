@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../navigation/widgets/kinetic_bottom_nav_bar.dart';
 import '../../../../theme/kinetic_noir.dart';
 import '../models/finish_session_summary_draft.dart';
 
@@ -154,27 +153,13 @@ class _FinishSessionSummaryScreenState
             SizedBox(width: 12),
           ],
         ),
-        bottomNavigationBar: IgnorePointer(
-          ignoring: true,
-          child: KineticBottomNavBar(
-            selectedIndex: 1,
-            items: const [
-              KineticBottomNavItem(icon: Icons.home_rounded, label: 'Home'),
-              KineticBottomNavItem(
-                icon: Icons.fitness_center_rounded,
-                label: 'Routines',
-              ),
-            ],
-            onTap: (_) {},
-          ),
-        ),
         body: SafeArea(
           top: false,
           child: Stack(
             children: [
               const _AmbientGlow(),
               SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 164),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 56),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 520),

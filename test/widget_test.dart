@@ -8,6 +8,7 @@ import 'package:fit_log/src/features/routines/domain/repositories/workout_plan_r
 import 'package:fit_log/src/features/routines/presentation/pages/start_routine_screen.dart';
 import 'package:fit_log/src/features/routines/presentation/providers/workout_plan_repository_provider.dart';
 import 'package:fit_log/src/features/routines/presentation/widgets/active_session_exercise_card.dart';
+import 'package:fit_log/src/navigation/widgets/kinetic_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -110,8 +111,18 @@ void main() {
     expect(find.byKey(const Key('active-session-title')), findsOneWidget);
     expect(
         find.byKey(const Key('active-session-register-set')), findsOneWidget);
+    expect(
+        find.byKey(const Key('active-session-notes-toggle')), findsOneWidget);
+    expect(find.byKey(const Key('active-session-notes')), findsNothing);
+    expect(find.text('TEMPO'), findsOneWidget);
+    expect(find.text('3-1-1-0'), findsOneWidget);
+    expect(find.byType(KineticBottomNavBar), findsNothing);
+    expect(find.text('DONE'), findsNothing);
+    expect(find.textContaining('sets programmed'), findsNothing);
     expect(find.textContaining('LBS'), findsNothing);
     expect(find.textContaining('LOG HISTORY'), findsNothing);
+    expect(find.text('ACTIVE WORKOUT'), findsNothing);
+    expect(find.text('Current Session'), findsNothing);
   });
 
   testWidgets('numeric workout inputs select all current text on tap', (
@@ -119,6 +130,7 @@ void main() {
   ) async {
     await _pumpStartRoutine(tester);
 
+    await _openNotesComposer(tester);
     final inputFinder = find.byKey(const Key('active-set-1-1-kg'));
     await tester.tap(inputFinder);
     await tester.pump();
@@ -141,6 +153,8 @@ void main() {
 
     expect(find.byKey(const Key('active-set-row-1-5')), findsNothing);
 
+    await tester.tap(find.byKey(const Key('active-set-options-toggle-1')));
+    await tester.pump();
     await _scrollUntilVisible(
         tester, find.byKey(const Key('active-set-add-1')));
     await tester.tap(find.byKey(const Key('active-set-add-1')));
@@ -163,6 +177,7 @@ void main() {
   ) async {
     await _pumpStartRoutine(tester);
 
+    await _openNotesComposer(tester);
     await tester.enterText(
       find.byKey(const Key('active-session-notes')),
       'Real session note',
@@ -175,6 +190,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('finish-session-title')), findsOneWidget);
+    expect(find.byType(KineticBottomNavBar), findsNothing);
     expect(find.text('Real session note'), findsOneWidget);
 
     await tester.enterText(
@@ -199,6 +215,7 @@ void main() {
   ) async {
     await _pumpStartRoutine(tester);
 
+    await _openNotesComposer(tester);
     await tester.enterText(
       find.byKey(const Key('active-session-notes')),
       'Original active note',
@@ -233,6 +250,7 @@ void main() {
     final repo = _FakeWorkoutPlanRepository();
     await _pumpStartRoutine(tester, repo: repo);
 
+    await _openNotesComposer(tester);
     await tester.enterText(
       find.byKey(const Key('active-session-notes')),
       'Initial active note',
@@ -265,6 +283,38 @@ void main() {
     expect(repo.savedSessions.single.fatigueLevel, '8');
     expect(repo.savedSessions.single.mood, '4');
   });
+
+  testWidgets('system back opens exit confirmation and stay keeps session open',
+      (tester) async {
+    await _pumpStartRoutineInHost(tester);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('confirm-exit-title')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('confirm-exit-stay')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('active-session-title')), findsOneWidget);
+    expect(find.byKey(const Key('routine-host-open')), findsNothing);
+  });
+
+  testWidgets('close button uses same modal and exit leaves active session',
+      (tester) async {
+    await _pumpStartRoutineInHost(tester);
+
+    await tester.tap(find.byKey(const Key('active-session-close')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('confirm-exit-title')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('confirm-exit-exit')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('active-session-title')), findsNothing);
+    expect(find.byKey(const Key('routine-host-open')), findsOneWidget);
+  });
 }
 
 Future<void> _pumpApp(
@@ -294,15 +344,7 @@ Future<void> _pumpStartRoutine(
   await tester.binding.setSurfaceSize(const Size(430, 1000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .setMockMethodCallHandler(_notificationsChannel, (call) async {
-    return null;
-  });
-  addTearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(_notificationsChannel, null);
-  });
-
+  _setUpRoutineChannels();
   final effectiveRepo = repo ?? _FakeWorkoutPlanRepository();
   await tester.pumpWidget(
     ProviderScope(
@@ -326,6 +368,40 @@ Future<void> _pumpStartRoutine(
   await tester.pump();
 }
 
+Future<void> _pumpStartRoutineInHost(
+  WidgetTester tester, {
+  _FakeWorkoutPlanRepository? repo,
+}) async {
+  await tester.binding.setSurfaceSize(const Size(430, 1000));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
+  _setUpRoutineChannels();
+  final effectiveRepo = repo ?? _FakeWorkoutPlanRepository();
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        workoutPlanRepositoryProvider.overrideWithValue(effectiveRepo),
+      ],
+      child: const MaterialApp(home: _RoutineHost()),
+    ),
+  );
+
+  await tester.tap(find.byKey(const Key('routine-host-open')));
+  await tester.pumpAndSettle();
+
+  final messengerState =
+      tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger));
+  messengerState.removeCurrentSnackBar(reason: SnackBarClosedReason.remove);
+  await tester.pump();
+}
+
+void _setUpRoutineChannels() {
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(_notificationsChannel, (call) async {
+    return null;
+  });
+}
+
 Future<void> _completeFirstSet(WidgetTester tester) async {
   final firstCardState = tester.state<ActiveSessionExerciseCardState>(
     find.byType(ActiveSessionExerciseCard).first,
@@ -335,6 +411,11 @@ Future<void> _completeFirstSet(WidgetTester tester) async {
   await tester.pump();
 }
 
+Future<void> _openNotesComposer(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('active-session-notes-toggle')));
+  await tester.pumpAndSettle();
+}
+
 Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
   await tester.scrollUntilVisible(
     finder,
@@ -342,6 +423,30 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
     scrollable: find.byType(Scrollable).last,
   );
   await tester.pump();
+}
+
+class _RoutineHost extends StatelessWidget {
+  const _RoutineHost();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: FilledButton(
+          key: const Key('routine-host-open'),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => StartRoutineScreen(
+                plan:
+                    WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
+              ),
+            ),
+          ),
+          child: const Text('OPEN ROUTINE'),
+        ),
+      ),
+    );
+  }
 }
 
 class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {

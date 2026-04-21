@@ -56,6 +56,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
   int _visibleSets = 0;
   Timer? _restTimer;
   int _restRemaining = 0;
+  bool _showAdjustActions = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -70,8 +71,13 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
   void didUpdateWidget(covariant ActiveSessionExerciseCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.detail.exerciseId != widget.detail.exerciseId) {
+      _showAdjustActions = false;
       _resetControllers(widget.detail.sets);
       return;
+    }
+
+    if (oldWidget.expanded && !widget.expanded) {
+      _showAdjustActions = false;
     }
 
     if (widget.detail.sets > _visibleSets) {
@@ -293,7 +299,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: widget.expanded
             ? KineticNoirPalette.surface
@@ -320,13 +326,13 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
             borderRadius: BorderRadius.circular(24),
             onTap: widget.onToggle,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 42,
-                    height: 42,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       color: _isExerciseComplete
                           ? KineticNoirPalette.primary.withValues(alpha: 0.16)
@@ -344,7 +350,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                           : KineticNoirPalette.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -352,15 +358,15 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                         Text(
                           widget.detail.name,
                           style: KineticNoirTypography.headline(
-                            size: widget.expanded ? 28 : 24,
+                            size: widget.expanded ? 26 : 22,
                             height: 1.0,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         if (chips.isNotEmpty)
                           Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
+                            spacing: 6,
+                            runSpacing: 6,
                             children: [
                               for (final chip in chips)
                                 _TagChip(
@@ -370,16 +376,6 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                                 ),
                             ],
                           ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '$_visibleSets sets programmed',
-                          style: KineticNoirTypography.body(
-                            size: 12,
-                            weight: FontWeight.w700,
-                            color: KineticNoirPalette.onSurfaceVariant,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -397,11 +393,11 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
           if (widget.expanded) ...[
             if (widget.detail.description.trim().isNotEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
                 child: Text(
                   widget.detail.description,
                   style: KineticNoirTypography.body(
-                    size: 13,
+                    size: 12,
                     weight: FontWeight.w600,
                     color: KineticNoirPalette.onSurfaceVariant,
                     height: 1.5,
@@ -409,16 +405,75 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                 ),
               ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
-                    child: _MetricPanel(
-                      label: 'TARGET',
-                      value: '$_visibleSets x ${widget.detail.reps}',
+                    child: Row(
+                      children: [
+                        Text(
+                          'TARGET',
+                          style: KineticNoirTypography.body(
+                            size: 10,
+                            weight: FontWeight.w800,
+                            color: KineticNoirPalette.onSurfaceVariant,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '$_visibleSets x ${widget.detail.reps}',
+                            style: KineticNoirTypography.body(
+                              size: 12,
+                              weight: FontWeight.w700,
+                              color: KineticNoirPalette.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  TextButton.icon(
+                    key: Key(
+                      'active-set-options-toggle-${widget.detail.exerciseId}',
+                    ),
+                    onPressed: () {
+                      setState(() => _showAdjustActions = !_showAdjustActions);
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: KineticNoirPalette.onSurfaceVariant,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: Icon(
+                      _showAdjustActions
+                          ? Icons.tune_rounded
+                          : Icons.more_horiz_rounded,
+                      size: 16,
+                    ),
+                    label: Text(
+                      _showAdjustActions ? 'HIDE' : 'MODIFY',
+                      style: KineticNoirTypography.body(
+                        size: 10,
+                        weight: FontWeight.w800,
+                        color: KineticNoirPalette.onSurfaceVariant,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Row(
+                children: [
                   Expanded(
                     child: _MetricPanel(
                       label: 'REST',
@@ -432,11 +487,18 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                       value: '${widget.detail.rir}',
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _MetricPanel(
+                      label: 'TEMPO',
+                      value: widget.detail.tempo,
+                    ),
+                  ),
                 ],
               ),
             ),
             const Padding(
-              padding: EdgeInsets.fromLTRB(18, 0, 18, 8),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Row(
                 children: <Widget>[
                   SizedBox(width: 56, child: _HeaderText('SET')),
@@ -446,13 +508,11 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                   Expanded(child: Center(child: _HeaderText('REPS'))),
                   SizedBox(width: 12),
                   Expanded(child: Center(child: _HeaderText('RIR'))),
-                  SizedBox(width: 12),
-                  SizedBox(width: 28, child: _HeaderText('DONE')),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: Column(
                 children: [
                   for (var index = 0; index < _visibleSets; index++)
@@ -479,10 +539,10 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
             ),
             if (_restRemaining > 0)
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: KineticNoirPalette.surfaceLow,
                     borderRadius: BorderRadius.circular(18),
@@ -526,63 +586,75 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                   ),
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-              child: OverflowBar(
-                spacing: 8,
-                overflowSpacing: 8,
-                alignment: MainAxisAlignment.start,
-                overflowAlignment: OverflowBarAlignment.start,
-                children: [
-                  TextButton.icon(
-                    key: Key('active-set-add-${widget.detail.exerciseId}'),
-                    onPressed: _addSet,
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: Text(
-                      'ADD SET',
-                      style: KineticNoirTypography.body(
-                        size: 11,
-                        weight: FontWeight.w800,
-                        color: KineticNoirPalette.primary,
-                        letterSpacing: 1.0,
-                      ),
+            if (_showAdjustActions)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: KineticNoirPalette.surfaceLow,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: KineticNoirPalette.outlineVariant
+                          .withValues(alpha: 0.16),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    key: Key('active-set-remove-${widget.detail.exerciseId}'),
-                    onPressed: _visibleSets > 1 ? _removeSet : null,
-                    icon: const Icon(Icons.remove_rounded, size: 18),
-                    label: Text(
-                      'REMOVE SET',
-                      style: KineticNoirTypography.body(
-                        size: 11,
-                        weight: FontWeight.w800,
-                        color: _visibleSets > 1
-                            ? KineticNoirPalette.onSurfaceVariant
-                            : KineticNoirPalette.outlineVariant,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                  ),
-                  if (widget.onSwap != null)
-                    TextButton.icon(
-                      key: Key('active-swap-${widget.detail.exerciseId}'),
-                      onPressed: widget.onSwap,
-                      icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                      label: Text(
-                        'SWAP EXERCISE',
-                        style: KineticNoirTypography.body(
-                          size: 11,
-                          weight: FontWeight.w800,
-                          color: KineticNoirPalette.onSurfaceVariant,
-                          letterSpacing: 1.0,
+                  child: OverflowBar(
+                    spacing: 8,
+                    overflowSpacing: 8,
+                    alignment: MainAxisAlignment.start,
+                    overflowAlignment: OverflowBarAlignment.start,
+                    children: [
+                      TextButton.icon(
+                        key: Key('active-set-add-${widget.detail.exerciseId}'),
+                        onPressed: _addSet,
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: Text(
+                          'ADD SET',
+                          style: KineticNoirTypography.body(
+                            size: 11,
+                            weight: FontWeight.w800,
+                            color: KineticNoirPalette.primary,
+                            letterSpacing: 1.0,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                      TextButton.icon(
+                        key: Key(
+                            'active-set-remove-${widget.detail.exerciseId}'),
+                        onPressed: _visibleSets > 1 ? _removeSet : null,
+                        icon: const Icon(Icons.remove_rounded, size: 18),
+                        label: Text(
+                          'REMOVE SET',
+                          style: KineticNoirTypography.body(
+                            size: 11,
+                            weight: FontWeight.w800,
+                            color: _visibleSets > 1
+                                ? KineticNoirPalette.onSurfaceVariant
+                                : KineticNoirPalette.outlineVariant,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ),
+                      if (widget.onSwap != null)
+                        TextButton.icon(
+                          key: Key('active-swap-${widget.detail.exerciseId}'),
+                          onPressed: widget.onSwap,
+                          icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                          label: Text(
+                            'SWAP EXERCISE',
+                            style: KineticNoirTypography.body(
+                              size: 11,
+                              weight: FontWeight.w800,
+                              color: KineticNoirPalette.onSurfaceVariant,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
           ],
         ],
       ),
@@ -610,10 +682,10 @@ class _MetricPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: KineticNoirPalette.surfaceLow,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -626,6 +698,8 @@ class _MetricPanel extends StatelessWidget {
               size: 14,
               weight: FontWeight.w800,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -683,7 +757,7 @@ class _SetRow extends StatelessWidget {
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: isCompleted
             ? KineticNoirPalette.surfaceLow.withValues(alpha: 0.6)
@@ -743,18 +817,6 @@ class _SetRow extends StatelessWidget {
               onChanged: onChanged,
             ),
           ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 28,
-            child: Icon(
-              isCompleted
-                  ? Icons.check_box_rounded
-                  : Icons.check_box_outline_blank_rounded,
-              color: isCompleted
-                  ? KineticNoirPalette.primary
-                  : KineticNoirPalette.onSurfaceVariant,
-            ),
-          ),
         ],
       ),
     );
@@ -803,7 +865,7 @@ class _NumberInput extends StatelessWidget {
         isDense: true,
         filled: true,
         fillColor: KineticNoirPalette.surfaceLow,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -825,7 +887,7 @@ class _TagChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: isHighlighted
             ? KineticNoirPalette.primary.withValues(alpha: 0.12)
