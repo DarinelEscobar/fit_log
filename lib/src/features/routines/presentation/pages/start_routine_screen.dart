@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../navigation/widgets/kinetic_bottom_nav_bar.dart';
 import '../../../../theme/kinetic_noir.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
@@ -53,6 +52,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
   int? _expandedExerciseId;
   String? _energy;
   String? _mood;
+  bool _showNotesComposer = false;
 
   @override
   void initState() {
@@ -327,407 +327,286 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final isKeyboardVisible = bottomInset > 0;
 
-    return Scaffold(
-      backgroundColor: KineticNoirPalette.background,
-      appBar: AppBar(
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          return;
+        }
+        _handleExitAttempt();
+      },
+      child: Scaffold(
         backgroundColor: KineticNoirPalette.background,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          color: KineticNoirPalette.onSurface,
-          onPressed: _handleExitAttempt,
-        ),
-        titleSpacing: 0,
-        title: ValueListenableBuilder<Duration>(
-          valueListenable: _elapsed,
-          builder: (context, duration, _) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Current Session',
-                  key: const Key('active-session-title'),
-                  style: KineticNoirTypography.headline(
-                    size: 20,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${WorkoutSessionHelper.formatDuration(duration)}  •  ${(_completionRatio * 100).round()}% Complete',
-                  style: KineticNoirTypography.body(
-                    size: 12,
-                    weight: FontWeight.w700,
-                    color: KineticNoirPalette.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-        actions: [
-          TextButton(
-            key: const Key('active-session-finish'),
-            onPressed: _openFinishSummary,
-            child: Text(
-              'FINISH',
-              style: KineticNoirTypography.body(
-                size: 13,
-                weight: FontWeight.w800,
-                color: KineticNoirPalette.primary,
-                letterSpacing: 1.4,
-              ),
-            ),
+        appBar: AppBar(
+          backgroundColor: KineticNoirPalette.background,
+          surfaceTintColor: Colors.transparent,
+          toolbarHeight: 92,
+          leading: IconButton(
+            key: const Key('active-session-close'),
+            icon: const Icon(Icons.close_rounded),
+            color: KineticNoirPalette.onSurface,
+            onPressed: _handleExitAttempt,
           ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      bottomNavigationBar: isKeyboardVisible
-          ? null
-          : IgnorePointer(
-              ignoring: true,
-              child: KineticBottomNavBar(
-                selectedIndex: 1,
-                items: const [
-                  KineticBottomNavItem(icon: Icons.home_rounded, label: 'Home'),
-                  KineticBottomNavItem(
-                    icon: Icons.fitness_center_rounded,
-                    label: 'Routines',
+          titleSpacing: 0,
+          title: ValueListenableBuilder<Duration>(
+            valueListenable: _elapsed,
+            builder: (context, duration, _) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.plan.name,
+                    key: const Key('active-session-title'),
+                    style: KineticNoirTypography.headline(
+                      size: 20,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _HeaderMetaChip(
+                        label: WorkoutSessionHelper.formatDuration(duration),
+                      ),
+                      _HeaderMetaChip(
+                        label: '$_completedSetCount/$_totalSetCount sets',
+                      ),
+                      _HeaderMetaChip(
+                        label: '${_volumeKg.toStringAsFixed(0)} KG',
+                      ),
+                      _HeaderMetaChip(
+                        label: '${(_completionRatio * 100).round()}%',
+                        isHighlighted: true,
+                      ),
+                    ],
                   ),
                 ],
-                onTap: (_) {},
-              ),
-            ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: Padding(
-        padding: EdgeInsets.only(
-          bottom: isKeyboardVisible ? bottomInset : 82,
-        ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: kineticPrimaryGradient,
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: KineticNoirPalette.shadow.withValues(alpha: 0.18),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-              ),
-            ],
+              );
+            },
           ),
-          child: FilledButton.icon(
-            key: const Key('active-session-register-set'),
-            onPressed: _expandedExerciseId == null
-                ? null
-                : () {
-                    final cardState =
-                        _cardKeys[_expandedExerciseId!]?.currentState;
-                    if (cardState == null) {
-                      return;
-                    }
-                    final didRegister = cardState.logCurrentSet();
-                    if (didRegister) {
-                      _showSnackBar('Set registered.');
-                    } else {
-                      _showSnackBar(
-                        'All visible sets are complete. Add a new set to keep going.',
-                      );
-                    }
-                  },
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              disabledBackgroundColor:
-                  Colors.transparent.withValues(alpha: 0.4),
-              shadowColor: Colors.transparent,
-              foregroundColor: KineticNoirPalette.onPrimary,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 18,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999),
+          actions: [
+            TextButton(
+              key: const Key('active-session-finish'),
+              onPressed: _openFinishSummary,
+              child: Text(
+                'FINISH',
+                style: KineticNoirTypography.body(
+                  size: 13,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.primary,
+                  letterSpacing: 1.4,
+                ),
               ),
             ),
-            icon: const Icon(Icons.check_rounded),
-            label: Text(
-              'REGISTER SET',
-              style: KineticNoirTypography.body(
-                size: 13,
-                weight: FontWeight.w800,
-                color: KineticNoirPalette.onPrimary,
-                letterSpacing: 1.3,
+            const SizedBox(width: 8),
+          ],
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+        floatingActionButton: Padding(
+          padding: EdgeInsets.only(
+            bottom: isKeyboardVisible ? bottomInset : 24,
+          ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: kineticPrimaryGradient,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: [
+                BoxShadow(
+                  color: KineticNoirPalette.shadow.withValues(alpha: 0.18),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: FilledButton.icon(
+              key: const Key('active-session-register-set'),
+              onPressed: _expandedExerciseId == null
+                  ? null
+                  : () {
+                      final cardState =
+                          _cardKeys[_expandedExerciseId!]?.currentState;
+                      if (cardState == null) {
+                        return;
+                      }
+                      final didRegister = cardState.logCurrentSet();
+                      if (didRegister) {
+                        _showSnackBar('Set registered.');
+                      } else {
+                        _showSnackBar(
+                          'All visible sets are complete. Add a new set to keep going.',
+                        );
+                      }
+                    },
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                disabledBackgroundColor:
+                    Colors.transparent.withValues(alpha: 0.4),
+                shadowColor: Colors.transparent,
+                foregroundColor: KineticNoirPalette.onPrimary,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 18,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              icon: const Icon(Icons.check_rounded),
+              label: Text(
+                'REGISTER SET',
+                style: KineticNoirTypography.body(
+                  size: 13,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.onPrimary,
+                  letterSpacing: 1.3,
+                ),
               ),
             ),
           ),
         ),
-      ),
-      body: asyncExercises.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: KineticNoirPalette.primary),
-        ),
-        error: (error, _) => _AsyncErrorState(error: '$error'),
-        data: (exercises) => asyncDetails.when(
+        body: asyncExercises.when(
           loading: () => const Center(
             child: CircularProgressIndicator(color: KineticNoirPalette.primary),
           ),
           error: (error, _) => _AsyncErrorState(error: '$error'),
-          data: (details) {
-            _initializeSessionData(details, exercises);
+          data: (exercises) => asyncDetails.when(
+            loading: () => const Center(
+              child:
+                  CircularProgressIndicator(color: KineticNoirPalette.primary),
+            ),
+            error: (error, _) => _AsyncErrorState(error: '$error'),
+            data: (details) {
+              _initializeSessionData(details, exercises);
 
-            final sessionDetails =
-                _sessionDetails ?? const <PlanExerciseDetail>[];
-            if (sessionDetails.isEmpty) {
-              return const _EmptySessionState();
-            }
+              final sessionDetails =
+                  _sessionDetails ?? const <PlanExerciseDetail>[];
+              if (sessionDetails.isEmpty) {
+                return const _EmptySessionState();
+              }
 
-            return Column(
-              children: [
-                Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.fromLTRB(
-                      24,
-                      16,
-                      24,
-                      isKeyboardVisible ? 120 + bottomInset : 180,
+              return Column(
+                children: [
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        12,
+                        24,
+                        isKeyboardVisible ? 120 + bottomInset : 132,
+                      ),
+                      children: [
+                        ActiveSessionNotesCard(
+                          controller: _notesCtl,
+                          focusNode: _notesFocusNode,
+                          isVisible: _showNotesComposer,
+                          onToggleVisibility: () {
+                            setState(
+                                () => _showNotesComposer = !_showNotesComposer);
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        for (var index = 0;
+                            index < sessionDetails.length;
+                            index++)
+                          ActiveSessionExerciseCard(
+                            key: _cardKeys[sessionDetails[index].exerciseId],
+                            detail: sessionDetails[index],
+                            exercise:
+                                _exerciseMap?[sessionDetails[index].exerciseId],
+                            planId: widget.plan.id,
+                            exerciseNumber: index + 1,
+                            expanded: _expandedExerciseId ==
+                                sessionDetails[index].exerciseId,
+                            logsMap: _sessionLogs,
+                            onToggle: () => setState(() {
+                              final exerciseId =
+                                  sessionDetails[index].exerciseId;
+                              _expandedExerciseId =
+                                  _expandedExerciseId == exerciseId
+                                      ? null
+                                      : exerciseId;
+                            }),
+                            onSetCountChanged: (count) => setState(() {
+                              _setCountsByExercise[
+                                  sessionDetails[index].exerciseId] = count;
+                            }),
+                            saveDraftLog: _saveDraftLog,
+                            completeLog: _completeLog,
+                            removeLog: _removeLog,
+                            onSwap: () => swapExercise(index),
+                          ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          key: const Key('active-session-add-exercise'),
+                          onPressed: addExercise,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor:
+                                KineticNoirPalette.onSurfaceVariant,
+                            side: BorderSide(
+                              color: KineticNoirPalette.outlineVariant
+                                  .withValues(alpha: 0.35),
+                              style: BorderStyle.solid,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                          ),
+                          icon: const Icon(Icons.add_circle_outline_rounded),
+                          label: Text(
+                            'ADD EXERCISE',
+                            style: KineticNoirTypography.body(
+                              size: 12,
+                              weight: FontWeight.w800,
+                              color: KineticNoirPalette.onSurfaceVariant,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    children: [
-                      ValueListenableBuilder<Duration>(
-                        valueListenable: _elapsed,
-                        builder: (context, duration, _) {
-                          return _ActiveSessionHero(
-                            plan: widget.plan,
-                            duration: duration,
-                            completedSets: _completedSetCount,
-                            totalSets: _totalSetCount,
-                            volumeKg: _volumeKg,
-                            completionRatio: _completionRatio,
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 18),
-                      ActiveSessionNotesCard(
-                        controller: _notesCtl,
-                        focusNode: _notesFocusNode,
-                      ),
-                      const SizedBox(height: 18),
-                      for (var index = 0;
-                          index < sessionDetails.length;
-                          index++)
-                        ActiveSessionExerciseCard(
-                          key: _cardKeys[sessionDetails[index].exerciseId],
-                          detail: sessionDetails[index],
-                          exercise:
-                              _exerciseMap?[sessionDetails[index].exerciseId],
-                          planId: widget.plan.id,
-                          exerciseNumber: index + 1,
-                          expanded: _expandedExerciseId ==
-                              sessionDetails[index].exerciseId,
-                          logsMap: _sessionLogs,
-                          onToggle: () => setState(() {
-                            final exerciseId = sessionDetails[index].exerciseId;
-                            _expandedExerciseId =
-                                _expandedExerciseId == exerciseId
-                                    ? null
-                                    : exerciseId;
-                          }),
-                          onSetCountChanged: (count) => setState(() {
-                            _setCountsByExercise[
-                                sessionDetails[index].exerciseId] = count;
-                          }),
-                          saveDraftLog: _saveDraftLog,
-                          completeLog: _completeLog,
-                          removeLog: _removeLog,
-                          onSwap: () => swapExercise(index),
-                        ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        key: const Key('active-session-add-exercise'),
-                        onPressed: addExercise,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: KineticNoirPalette.onSurfaceVariant,
-                          side: BorderSide(
-                            color: KineticNoirPalette.outlineVariant
-                                .withValues(alpha: 0.35),
-                            style: BorderStyle.solid,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(22),
-                          ),
-                        ),
-                        icon: const Icon(Icons.add_circle_outline_rounded),
-                        label: Text(
-                          'ADD EXERCISE',
-                          style: KineticNoirTypography.body(
-                            size: 12,
-                            weight: FontWeight.w800,
-                            color: KineticNoirPalette.onSurfaceVariant,
-                            letterSpacing: 1.1,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
   }
 }
 
-class _ActiveSessionHero extends StatelessWidget {
-  const _ActiveSessionHero({
-    required this.plan,
-    required this.duration,
-    required this.completedSets,
-    required this.totalSets,
-    required this.volumeKg,
-    required this.completionRatio,
-  });
-
-  final WorkoutPlan plan;
-  final Duration duration;
-  final int completedSets;
-  final int totalSets;
-  final double volumeKg;
-  final double completionRatio;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'ACTIVE WORKOUT',
-          style: KineticNoirTypography.body(
-            size: 10,
-            weight: FontWeight.w800,
-            color: KineticNoirPalette.primary,
-            letterSpacing: 1.8,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          plan.name,
-          style: KineticNoirTypography.headline(
-            size: 34,
-            height: 0.95,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          plan.frequency.toUpperCase(),
-          style: KineticNoirTypography.body(
-            size: 11,
-            weight: FontWeight.w800,
-            color: KineticNoirPalette.onSurfaceVariant,
-            letterSpacing: 1.5,
-          ),
-        ),
-        const SizedBox(height: 18),
-        Row(
-          children: [
-            Text(
-              'PROGRESS',
-              style: KineticNoirTypography.body(
-                size: 10,
-                weight: FontWeight.w800,
-                color: KineticNoirPalette.onSurfaceVariant,
-                letterSpacing: 1.4,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              '${(completionRatio * 100).round()}%',
-              style: KineticNoirTypography.headline(
-                size: 20,
-                color: KineticNoirPalette.primary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            minHeight: 6,
-            value: completionRatio,
-            backgroundColor: KineticNoirPalette.surfaceBright,
-            valueColor:
-                const AlwaysStoppedAnimation<Color>(KineticNoirPalette.primary),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Row(
-          children: [
-            Expanded(
-              child: _HeroMetric(
-                label: 'DURATION',
-                value: WorkoutSessionHelper.formatDuration(duration),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _HeroMetric(
-                label: 'SETS',
-                value: '$completedSets / $totalSets',
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _HeroMetric(
-                label: 'VOLUME',
-                value: '${volumeKg.toStringAsFixed(0)} KG',
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _HeroMetric extends StatelessWidget {
-  const _HeroMetric({
+class _HeaderMetaChip extends StatelessWidget {
+  const _HeaderMetaChip({
     required this.label,
-    required this.value,
+    this.isHighlighted = false,
   });
 
   final String label;
-  final String value;
+  final bool isHighlighted;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: KineticNoirPalette.surfaceLow,
-        borderRadius: BorderRadius.circular(18),
+        color: isHighlighted
+            ? KineticNoirPalette.primary.withValues(alpha: 0.12)
+            : KineticNoirPalette.surfaceLow,
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: KineticNoirTypography.body(
-              size: 10,
-              weight: FontWeight.w800,
-              color: KineticNoirPalette.onSurfaceVariant,
-              letterSpacing: 1.4,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: KineticNoirTypography.headline(
-              size: 18,
-              color: KineticNoirPalette.onSurface,
-            ),
-          ),
-        ],
+      child: Text(
+        label,
+        style: KineticNoirTypography.body(
+          size: 10,
+          weight: FontWeight.w800,
+          color: isHighlighted
+              ? KineticNoirPalette.primary
+              : KineticNoirPalette.onSurfaceVariant,
+          letterSpacing: 0.8,
+        ),
       ),
     );
   }
