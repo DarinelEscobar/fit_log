@@ -6,6 +6,7 @@ import '../../domain/entities/workout_plan.dart';
 import '../models/edit_routine_result.dart';
 import '../models/exercise_list_view_data.dart';
 import '../providers/exercise_list_view_provider.dart';
+import '../../../performance/presentation/pages/exercise_progress_detail_screen.dart';
 import 'edit_routine_screen.dart';
 import 'start_routine_screen.dart';
 
@@ -112,7 +113,11 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
                           bottom: index == filteredItems.length - 1 ? 0 : 14,
                         ),
                         child: RepaintBoundary(
-                          child: _ExerciseCard(item: filteredItems[index]),
+                          child: _ExerciseCard(
+                            item: filteredItems[index],
+                            onOpenProgress: () =>
+                                _openProgress(filteredItems[index]),
+                          ),
                         ),
                       );
                     },
@@ -222,6 +227,15 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
       _currentPlan = result.plan;
     });
   }
+
+  Future<void> _openProgress(ExerciseListItemView item) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExerciseProgressDetailScreen(exercise: item),
+      ),
+    );
+  }
 }
 
 class _ExerciseListHero extends StatelessWidget {
@@ -317,9 +331,13 @@ class _ExerciseListHero extends StatelessWidget {
 }
 
 class _ExerciseCard extends StatelessWidget {
-  const _ExerciseCard({required this.item});
+  const _ExerciseCard({
+    required this.item,
+    required this.onOpenProgress,
+  });
 
   final ExerciseListItemView item;
+  final VoidCallback onOpenProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -404,6 +422,36 @@ class _ExerciseCard extends StatelessWidget {
               ),
             ),
           ],
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              key: Key('exercise-progress-${item.exerciseId}'),
+              onPressed: onOpenProgress,
+              style: TextButton.styleFrom(
+                foregroundColor: KineticNoirPalette.primary,
+                backgroundColor:
+                    KineticNoirPalette.primary.withValues(alpha: 0.08),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              icon: const Icon(Icons.trending_up_rounded, size: 18),
+              label: Text(
+                'PROGRESS',
+                style: KineticNoirTypography.body(
+                  size: 11,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.primary,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
