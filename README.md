@@ -46,6 +46,23 @@ A smoke test is provided under `test/`:
 flutter test
 ```
 
+## Release to GitHub
+
+The release flow is tag-driven. Before pushing a tag, make sure the Android signing secrets exist in GitHub Actions:
+
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+The workflow expects the keystore to be decoded at `android/app/upload-keystore.jks` and the generated `android/key.properties` to point to it.
+
+Typical release steps:
+
+1. Bump the app version in `pubspec.yaml` if needed.
+2. Create and push a tag like `v1.0.0`.
+3. GitHub Actions builds the signed APK and uploads it to the GitHub Release.
+
 ## Notes
 
 - Statistics and profile sections are placeholders for future updates.

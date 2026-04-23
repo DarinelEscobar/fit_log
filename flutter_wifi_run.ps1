@@ -1,5 +1,5 @@
-$ip = "192.168.101.3"
-$port = "5555"
+$ip = "192.168.0.252"
+$port = "35041"
 Write-Host "Intentando conectar a ${ip}:${port} ..." -ForegroundColor Cyan
 
 $secureJdkRoot = Join-Path $env:USERPROFILE '.jdks'
