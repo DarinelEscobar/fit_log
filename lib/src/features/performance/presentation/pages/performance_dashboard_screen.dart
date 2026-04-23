@@ -197,40 +197,48 @@ class _PerformanceDashboardScreenState
                       ),
                     ),
                   ),
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    sliver: SliverToBoxAdapter(
-                      child: _PerformanceHero(summary: summary),
+                  if (summary.hasData) ...[
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      sliver: SliverToBoxAdapter(
+                        child: _PerformanceHero(summary: summary),
+                      ),
                     ),
-                  ),
-                  const SliverPadding(
-                    padding: EdgeInsets.only(top: 18),
-                    sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    sliver: SliverToBoxAdapter(
-                      child: _MetricGrid(summary: summary),
+                    const SliverPadding(
+                      padding: EdgeInsets.only(top: 18),
+                      sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
                     ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
-                    sliver: SliverToBoxAdapter(
-                      child: _TrendSection(summary: summary),
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      sliver: SliverToBoxAdapter(
+                        child: _MetricGrid(summary: summary),
+                      ),
                     ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
-                    sliver: SliverToBoxAdapter(
-                      child: _MuscleFocusSection(summary: summary),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: _TrendSection(summary: summary),
+                      ),
                     ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(24, 18, 24, 120),
-                    sliver: SliverToBoxAdapter(
-                      child: _RecentPrsSection(summary: summary),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: _MuscleFocusSection(summary: summary),
+                      ),
                     ),
-                  ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(24, 18, 24, 120),
+                      sliver: SliverToBoxAdapter(
+                        child: _RecentPrsSection(summary: summary),
+                      ),
+                    ),
+                  ] else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                      sliver: SliverToBoxAdapter(
+                        child: _PerformanceNoLogsState(period: summary.period),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -967,6 +975,56 @@ class _PerformanceEmptyState extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PerformanceNoLogsState extends StatelessWidget {
+  const _PerformanceNoLogsState({required this.period});
+
+  final PerformancePeriod period;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: KineticNoirPalette.surfaceLow,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.16),
+        ),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.query_stats_rounded,
+            color: KineticNoirPalette.primary,
+            size: 42,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No logs found for this period',
+            textAlign: TextAlign.center,
+            style: KineticNoirTypography.headline(
+              size: 22,
+              weight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'The ${period.label} dashboard uses logged sets for exercises in your current active routines.',
+            textAlign: TextAlign.center,
+            style: KineticNoirTypography.body(
+              size: 14,
+              weight: FontWeight.w600,
+              color: KineticNoirPalette.onSurfaceVariant,
+              height: 1.5,
+            ),
+          ),
+        ],
       ),
     );
   }

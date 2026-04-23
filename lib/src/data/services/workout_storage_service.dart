@@ -191,6 +191,77 @@ class WorkoutStorageService {
     return rows.map(_mapExerciseRow).toList(growable: false);
   }
 
+  Future<List<int>> fetchExerciseIdsForPlans(List<int> planIds) async {
+    await warmUpRoutineRuntimeCache();
+    if (planIds.isEmpty) {
+      return const [];
+    }
+
+    final db = await _getDatabase();
+    final placeholders = List.filled(planIds.length, '?').join(', ');
+    final rows = await db.rawQuery(
+      '''
+      SELECT DISTINCT exercise_id
+      FROM plan_exercises
+      WHERE plan_id IN ($placeholders)
+      ORDER BY exercise_id ASC
+      ''',
+      planIds,
+    );
+
+    return rows
+        .map((row) => _intValue(row['exercise_id']))
+        .toList(growable: false);
+  }
+
+  Future<DateTime?> fetchLatestWorkoutLogDate({
+    List<int>? planIds,
+    List<int>? exerciseIds,
+    int? exerciseId,
+  }) async {
+    final db = await _getDatabase();
+    final clauses = <String>[];
+    final args = <Object?>[];
+
+    if (planIds != null) {
+      if (planIds.isEmpty) {
+        return null;
+      }
+      clauses
+          .add('plan_id IN (${List.filled(planIds.length, '?').join(', ')})');
+      args.addAll(planIds);
+    }
+
+    if (exerciseIds != null) {
+      if (exerciseIds.isEmpty) {
+        return null;
+      }
+      clauses.add(
+        'exercise_id IN (${List.filled(exerciseIds.length, '?').join(', ')})',
+      );
+      args.addAll(exerciseIds);
+    }
+
+    if (exerciseId != null) {
+      clauses.add('exercise_id = ?');
+      args.add(exerciseId);
+    }
+
+    final rows = await db.query(
+      'workout_logs',
+      columns: ['date'],
+      where: clauses.isEmpty ? null : clauses.join(' AND '),
+      whereArgs: args.isEmpty ? null : args,
+      orderBy: 'date DESC',
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+
+    return DateTime.tryParse(_stringValue(rows.first['date']));
+  }
+
   Future<List<PlanExerciseDetail>> fetchPlanExerciseDetails(int planId) async {
     await warmUpRoutineRuntimeCache();
     final db = await _getDatabase();
@@ -407,6 +478,7 @@ class WorkoutStorageService {
 
   Future<List<WorkoutLogEntry>> fetchWorkoutLogs({
     List<int>? planIds,
+    List<int>? exerciseIds,
     int? exerciseId,
     DateTime? startDate,
     DateTime? endDate,
@@ -419,8 +491,19 @@ class WorkoutStorageService {
       if (planIds.isEmpty) {
         return const [];
       }
-      clauses.add('plan_id IN (${List.filled(planIds.length, '?').join(', ')})');
+      clauses
+          .add('plan_id IN (${List.filled(planIds.length, '?').join(', ')})');
       args.addAll(planIds);
+    }
+
+    if (exerciseIds != null) {
+      if (exerciseIds.isEmpty) {
+        return const [];
+      }
+      clauses.add(
+        'exercise_id IN (${List.filled(exerciseIds.length, '?').join(', ')})',
+      );
+      args.addAll(exerciseIds);
     }
 
     if (exerciseId != null) {
@@ -460,6 +543,11 @@ class WorkoutStorageService {
         )
         .toList(growable: false);
   }
+
+  Future<bool> hasUsableWorkoutLogs() => _hasUsableDateRows('workout_logs');
+
+  Future<bool> hasUsableWorkoutSessions() =>
+      _hasUsableDateRows('workout_sessions');
 
   Future<void> exportRoutineRuntimeToXlsxFiles(Directory directory) async {
     await warmUpRoutineRuntimeCache();
@@ -896,6 +984,27 @@ class WorkoutStorageService {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
+  Future<bool> _hasUsableDateRows(String table) async {
+    final db = await _getDatabase();
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS count, MIN(date) AS min_date, MAX(date) AS max_date '
+      'FROM $table',
+    );
+    if (result.isEmpty) {
+      return false;
+    }
+
+    final row = result.first;
+    final count = _intValue(row['count']);
+    if (count <= 0) {
+      return false;
+    }
+
+    final minDate = DateTime.tryParse(_stringValue(row['min_date']));
+    final maxDate = DateTime.tryParse(_stringValue(row['max_date']));
+    return minDate != null && maxDate != null;
+  }
+
   Future<int> _nextId(
     DatabaseExecutor db,
     String table,
@@ -1060,9 +1169,8 @@ List<Map<String, Object?>> _parseWorkoutPlanSeed(String directoryPath) {
       'plan_id': planId,
       'name': _stringValue(_headerValue(row, headers, ['name'])),
       'frequency': _stringValue(_headerValue(row, headers, ['frequency'])),
-      'is_active': _boolValue(_headerValue(row, headers, ['is_active']))
-          ? 1
-          : 0,
+      'is_active':
+          _boolValue(_headerValue(row, headers, ['is_active'])) ? 1 : 0,
     });
   }
   return rows;
@@ -1118,7 +1226,9 @@ List<Map<String, Object?>> _parsePlanExerciseSeed(
     final planId = _intValueOrNull(_headerValue(row, headers, ['plan_id']));
     final originalExerciseId =
         _intValueOrNull(_headerValue(row, headers, ['exercise_id']));
-    if (planId == null || planId <= 0 || originalExerciseId == null ||
+    if (planId == null ||
+        planId <= 0 ||
+        originalExerciseId == null ||
         originalExerciseId <= 0) {
       continue;
     }
@@ -1135,7 +1245,8 @@ List<Map<String, Object?>> _parsePlanExerciseSeed(
       'plan_id': planId,
       'exercise_id': exerciseId,
       'position': nextPosition,
-      'suggested_sets': _intValue(_headerValue(row, headers, ['suggested_sets'])),
+      'suggested_sets':
+          _intValue(_headerValue(row, headers, ['suggested_sets'])),
       'suggested_reps':
           _intValue(_headerValue(row, headers, ['suggested_reps'])),
       'estimated_weight':
@@ -1226,7 +1337,8 @@ Sheet? _readSheet(String filePath, String sheetName) {
 Map<String, int> _headerIndexMap(List<Data?> headerRow) {
   final headers = <String, int>{};
   for (var index = 0; index < headerRow.length; index++) {
-    final header = _normalizeHeaderName(_stringValue(_excelValueAt(headerRow, index)));
+    final header =
+        _normalizeHeaderName(_stringValue(_excelValueAt(headerRow, index)));
     if (header.isEmpty || headers.containsKey(header)) {
       continue;
     }
