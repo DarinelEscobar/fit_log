@@ -13,6 +13,7 @@ import '../../../../navigation/widgets/kinetic_bottom_nav_bar.dart';
 import '../../../../theme/kinetic_noir.dart';
 import '../../../../theme/toru_brand.dart';
 import '../../../history/presentation/providers/history_providers.dart';
+import '../../../performance/presentation/providers/performance_providers.dart';
 import '../../domain/usecases/export_app_data_usecase.dart';
 import '../../domain/usecases/import_app_data_usecase.dart';
 import '../providers/app_data_providers.dart';
@@ -154,6 +155,8 @@ class _DataScreenState extends ConsumerState<DataScreen> {
       ref.invalidate(allExercisesProvider);
       ref.invalidate(workoutLogsProvider);
       ref.invalidate(workoutSessionsProvider);
+      ref.invalidate(performanceDashboardProvider);
+      ref.invalidate(exerciseProgressDetailProvider);
       ref.read(routineLibraryMetadataEpochProvider.notifier).state++;
       if (!mounted) return;
       _showMessage('Data imported');

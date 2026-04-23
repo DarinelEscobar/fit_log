@@ -109,13 +109,14 @@ class AppDataRepositoryImpl implements AppDataRepository {
 
     await _storageService.reopenIfNeeded();
 
-    if (!restoredDatabase) {
-      if (restoredLogSheet) {
-        await _storageService.replaceWorkoutLogsFromCurrentXlsxFiles();
-      }
-      if (restoredSessionSheet) {
-        await _storageService.replaceWorkoutSessionsFromCurrentXlsxFiles();
-      }
+    if (restoredLogSheet &&
+        (!restoredDatabase || !await _storageService.hasUsableWorkoutLogs())) {
+      await _storageService.replaceWorkoutLogsFromCurrentXlsxFiles();
+    }
+    if (restoredSessionSheet &&
+        (!restoredDatabase ||
+            !await _storageService.hasUsableWorkoutSessions())) {
+      await _storageService.replaceWorkoutSessionsFromCurrentXlsxFiles();
     }
 
     if (restoredRoutineSheet || restoredDatabase) {

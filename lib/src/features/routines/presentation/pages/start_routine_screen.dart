@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../theme/kinetic_noir.dart';
+import '../../../history/presentation/providers/history_providers.dart';
+import '../../../performance/presentation/providers/performance_providers.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
 import '../../domain/entities/workout_log_entry.dart';
@@ -358,6 +360,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
             notes: result.notes,
           ),
         );
+        ref.invalidate(workoutLogsProvider);
+        ref.invalidate(workoutSessionsProvider);
+        ref.invalidate(performanceDashboardProvider);
+        ref.invalidate(exerciseProgressDetailProvider);
         if (!mounted) {
           return;
         }

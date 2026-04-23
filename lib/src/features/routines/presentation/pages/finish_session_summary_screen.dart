@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../theme/kinetic_noir.dart';
+import '../../../../theme/toru_brand.dart';
 import '../models/finish_session_summary_draft.dart';
 
 enum FinishSessionSummaryAction {
@@ -137,13 +138,9 @@ class _FinishSessionSummaryScreenState
             onPressed: () => Navigator.of(context)
                 .pop(const FinishSessionSummaryResult.discard()),
           ),
-          title: Text(
-            'FIT LOG',
-            key: const Key('finish-session-title'),
-            style: KineticNoirTypography.headline(
-              size: 24,
-              color: KineticNoirPalette.primary,
-            ),
+          title: const KeyedSubtree(
+            key: Key('finish-session-title'),
+            child: FitLogWordmark(),
           ),
           actions: const [
             Icon(

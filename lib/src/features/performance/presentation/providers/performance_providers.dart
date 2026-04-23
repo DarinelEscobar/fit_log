@@ -7,22 +7,44 @@ import '../../../routines/presentation/providers/exercises_provider.dart';
 import '../models/performance_models.dart';
 
 final performanceDashboardProvider = FutureProvider.family<
-    PerformanceDashboardSummary, PerformanceDashboardRequest>((ref, request) async {
+    PerformanceDashboardSummary,
+    PerformanceDashboardRequest>((ref, request) async {
   if (request.activePlanIds.isEmpty) {
     return PerformanceDashboardSummary.empty(request.period);
   }
 
   final storage = ref.watch(workoutStorageServiceProvider);
-  final exercises = await ref.watch(allExercisesProvider.future);
+  final results = await Future.wait([
+    ref.watch(allExercisesProvider.future),
+    storage.fetchExerciseIdsForPlans(request.activePlanIds),
+  ]);
+  final exercises = results[0] as List<Exercise>;
+  final activeExerciseIds = results[1] as List<int>;
   final exerciseMap = {
     for (final exercise in exercises) exercise.id: exercise,
   };
-  final range = request.period.resolve(DateTime.now());
-  final logs = await storage.fetchWorkoutLogs(
-    planIds: request.activePlanIds,
-    startDate: range.start,
-    endDate: range.end,
-  );
+  final latestExerciseLogDate = activeExerciseIds.isEmpty
+      ? null
+      : await storage.fetchLatestWorkoutLogDate(exerciseIds: activeExerciseIds);
+  final latestPlanLogDate = latestExerciseLogDate ??
+      await storage.fetchLatestWorkoutLogDate(planIds: request.activePlanIds);
+  final range = request.period.resolve(latestPlanLogDate ?? DateTime.now());
+
+  var logs = activeExerciseIds.isEmpty
+      ? const <WorkoutLogEntry>[]
+      : await storage.fetchWorkoutLogs(
+          exerciseIds: activeExerciseIds,
+          startDate: range.start,
+          endDate: range.end,
+        );
+
+  if (logs.isEmpty) {
+    logs = await storage.fetchWorkoutLogs(
+      planIds: request.activePlanIds,
+      startDate: range.start,
+      endDate: range.end,
+    );
+  }
 
   return _buildDashboardSummary(
     period: request.period,
@@ -32,8 +54,9 @@ final performanceDashboardProvider = FutureProvider.family<
   );
 });
 
-final exerciseProgressDetailProvider = FutureProvider.family<
-    ExerciseProgressDetailData, int>((ref, exerciseId) async {
+final exerciseProgressDetailProvider =
+    FutureProvider.family<ExerciseProgressDetailData, int>(
+        (ref, exerciseId) async {
   final storage = ref.watch(workoutStorageServiceProvider);
   final logs = await storage.fetchWorkoutLogs(exerciseId: exerciseId);
   return _buildExerciseProgressDetail(logs);
@@ -66,7 +89,8 @@ PerformanceDashboardSummary _buildDashboardSummary({
   );
   final totalReps = logs.fold<int>(0, (sum, entry) => sum + entry.reps);
   final uniqueTrainingDays = logs
-      .map((entry) => DateTime(entry.date.year, entry.date.month, entry.date.day))
+      .map((entry) =>
+          DateTime(entry.date.year, entry.date.month, entry.date.day))
       .toSet()
       .length;
 
@@ -86,8 +110,8 @@ PerformanceDashboardSummary _buildDashboardSummary({
       exerciseMap[log.exerciseId]?.mainMuscleGroup ?? '',
     );
     if (muscleGroup.isNotEmpty) {
-      volumeByMuscle[muscleGroup] = (volumeByMuscle[muscleGroup] ?? 0) +
-          (log.weight * log.reps);
+      volumeByMuscle[muscleGroup] =
+          (volumeByMuscle[muscleGroup] ?? 0) + (log.weight * log.reps);
     }
   }
 
@@ -228,28 +252,26 @@ ExerciseProgressDetailData _buildExerciseProgressDetail(
   }).toList(growable: false)
     ..sort((a, b) => a.weekStart.compareTo(b.weekStart));
 
-  final recentSessions = groupedByDate.entries
-      .map((entry) {
-        final dayLogs = entry.value;
-        dayLogs.sort((a, b) => a.setNumber.compareTo(b.setNumber));
-        final volumeKg = dayLogs.fold<double>(
-          0,
-          (sum, log) => sum + log.weight * log.reps,
-        );
-        final topSet = dayLogs.fold<WorkoutLogEntry>(
-          dayLogs.first,
-          (peak, log) => _estimateOneRm(log) > _estimateOneRm(peak) ? log : peak,
-        );
-        return ExerciseRecentSession(
-          date: entry.key,
-          setCount: dayLogs.length,
-          volumeKg: volumeKg,
-          topWeightKg: topSet.weight,
-          topReps: topSet.reps,
-          topOneRmKg: _estimateOneRm(topSet),
-        );
-      })
-      .toList(growable: false)
+  final recentSessions = groupedByDate.entries.map((entry) {
+    final dayLogs = entry.value;
+    dayLogs.sort((a, b) => a.setNumber.compareTo(b.setNumber));
+    final volumeKg = dayLogs.fold<double>(
+      0,
+      (sum, log) => sum + log.weight * log.reps,
+    );
+    final topSet = dayLogs.fold<WorkoutLogEntry>(
+      dayLogs.first,
+      (peak, log) => _estimateOneRm(log) > _estimateOneRm(peak) ? log : peak,
+    );
+    return ExerciseRecentSession(
+      date: entry.key,
+      setCount: dayLogs.length,
+      volumeKg: volumeKg,
+      topWeightKg: topSet.weight,
+      topReps: topSet.reps,
+      topOneRmKg: _estimateOneRm(topSet),
+    );
+  }).toList(growable: false)
     ..sort((a, b) => b.date.compareTo(a.date));
 
   return ExerciseProgressDetailData(
@@ -286,7 +308,8 @@ PerformancePrCard? _bestSetForMetric(
       continue;
     }
 
-    final exerciseName = exerciseMap[entry.key]?.name ?? 'Exercise ${entry.key}';
+    final exerciseName =
+        exerciseMap[entry.key]?.name ?? 'Exercise ${entry.key}';
     final selected = switch (metric) {
       _Metric.oneRm => _pickBestOneRmLog(logs),
       _Metric.volume => _pickBestVolumeDate(logs),
@@ -343,7 +366,8 @@ _MetricSelection? _pickBestOneRmLog(List<WorkoutLogEntry> logs) {
   for (var index = 1; index < logs.length; index++) {
     final value = _estimateOneRm(logs[index]);
     if (value > bestValue ||
-        (value == bestValue && logs[index].date.isAfter(logs[bestIndex].date))) {
+        (value == bestValue &&
+            logs[index].date.isAfter(logs[bestIndex].date))) {
       bestIndex = index;
       bestValue = value;
     }
@@ -432,7 +456,8 @@ double? _previousBestVolume(List<WorkoutLogEntry> logs, int selectedIndex) {
 
 DateTime _weekStart(DateTime date) {
   final normalized = DateTime(date.year, date.month, date.day);
-  return normalized.subtract(Duration(days: normalized.weekday - DateTime.monday));
+  return normalized
+      .subtract(Duration(days: normalized.weekday - DateTime.monday));
 }
 
 double _estimateOneRm(WorkoutLogEntry entry) {
@@ -449,9 +474,8 @@ String _normalizeMuscleGroup(String value) {
       .replaceAll(RegExp(r'\s+'), ' ')
       .toLowerCase()
       .split(' ')
-      .map((word) => word.isEmpty
-          ? word
-          : '${word[0].toUpperCase()}${word.substring(1)}')
+      .map((word) =>
+          word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
       .join(' ');
 }
 

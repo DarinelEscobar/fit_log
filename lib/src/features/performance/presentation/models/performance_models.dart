@@ -95,6 +95,12 @@ final class PerformanceDashboardSummary {
   final List<PerformanceMuscleFocus> muscleFocus;
   final List<PerformancePrCard> recentPrs;
 
+  bool get hasData =>
+      trainingDays > 0 ||
+      totalReps > 0 ||
+      totalVolumeKg > 0 ||
+      trend.isNotEmpty;
+
   factory PerformanceDashboardSummary.empty(PerformancePeriod period) {
     final now = DateTime.now();
     final range = period.resolve(now);
