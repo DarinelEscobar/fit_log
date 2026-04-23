@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icons/toru_green.svg" alt="Toru mascot" width="140" />
+  <img src="docs/images/toru_green.svg" alt="Toru mascot" width="140" />
 </p>
 
 <h1 align="center">Fit Log</h1>
