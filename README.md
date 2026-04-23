@@ -1,10 +1,6 @@
 <p align="center">
-  <img src="docs/images/toru_green.svg" alt="Toru mascot" width="140" />
+  <img src="docs/images/fitlog_logo_4x3_transparent.svg" alt="FitLog - Train, Progress, You" width="460" />
 </p>
-
-<h1 align="center">Fit Log</h1>
-
-<p align="center"><strong>TRAIN · PROGRESS · YOU</strong></p>
 
 <p align="center">Routine-based training, fast session logging, and local-first workout backups.</p>
 
