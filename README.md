@@ -1,72 +1,222 @@
-# Fit Log
+<p align="center">
+  <img src="assets/icons/toru_green.svg" alt="Toru mascot" width="140" />
+</p>
 
-Fit Log is a Flutter application for tracking workout routines and logging your training sessions. Workout plans remain in Excel (`.xlsx`) files for easy backups, while workout sessions and set logs are stored in a local SQLite database for faster writes during session completion.
+<h1 align="center">Fit Log</h1>
 
-## Features
+<p align="center"><strong>TRAIN · PROGRESS · YOU</strong></p>
 
-- Manage workout plans and exercises.
-- Start a routine and record sets with reps, weight and RIR.
-- Session timer with fatigue, mood and notes at the end of each workout.
-- History tab showing previous workout sessions and logs.
-- Bottom navigation with tabs for Home, Routines, Logs and more.
-- New **Data** screen to export or import all tables as a backup.
-- Backups are copied to your Downloads folder and can be shared directly from the app.
+<p align="center">Routine-based training, fast session logging, and local-first workout backups.</p>
 
-## Getting Started
+Fit Log is a Flutter workout tracker focused on routine-based training, fast in-session logging, and local-first data ownership. The app is designed for lifters who want structured routines, quick set registration during a workout, and backup-friendly data they can keep on-device.
 
-1. Install [Flutter](https://flutter.dev/) (version `3.5` or newer).
-2. Fetch the dependencies:
+The current product experience is built around three primary tabs:
 
-   ```bash
-   flutter pub get
-   ```
-3. Launch the application on a device or emulator:
+- `Home` for the landing dashboard and entry into the main flows
+- `Routines` for routine management, exercise browsing, editing, and active sessions
+- `Performance` for analytics based on current active routines and exercise-level progress
 
-   ```bash
-   flutter run
-   ```
+## Product Overview
 
-On first launch, the app creates the Excel files defined in `kTableSchemas`. This is triggered by `XlsxInitializer.ensureXlsxFilesExist()` during startup. Workout sessions/logs are stored in SQLite and the app will migrate existing `workout_log.xlsx` and `workout_session.xlsx` data into the database on first use.
+Fit Log helps users do four things well:
 
-## Project Structure
+1. Build and manage structured workout routines
+2. Start an active session and log sets quickly with `kg`, reps, RIR, rest timing, and notes
+3. Finish a session with a dedicated summary flow for energy, mood, notes, and saved logs
+4. Export or import the app state through ZIP or table-level `.xlsx` files
 
-- `lib/main.dart` – entry point that ensures the Excel tables exist and runs the app.
-- `lib/src/` – source code organized by feature.
-  - `features/routines` – workout plans and routine screens.
-  - `features/history` – logs and session history screens.
-  - `navigation/main_scaffold.dart` – bottom navigation setup.
+The app uses a dark Kinetic-Noir visual system across the redesigned flows. The implemented UX emphasizes fast read/write performance, compact session logging, and local-first backups instead of cloud sync.
 
-The main scaffold registers five tabs including Routines and Logs.
+## Implemented UX
 
-## Running Tests
+### Primary Navigation
 
-A smoke test is provided under `test/`:
+- `Home Dashboard`: entry screen for the app, with shortcuts into routine tracking and data management
+- `Routines Library`: overview of active and inactive routines, optimized for quick drill-down into a program
+- `Performance Dashboard`: analytics for current active routines only, filtered by a selected time window
+
+### Routine Flow
+
+- `Exercise List`: routine detail before a workout starts, with search and direct access to exercise progress
+- `Routine Editor`: full routine editing flow for metadata, exercises, and programmed set details
+- `Active Workout Session`: compact logging screen with global set registration, `kg` only, rest timer, notes, and per-exercise set controls
+- `Finish Session Summary`: full-screen end-of-workout review before saving the session
+- `Exercise Progress Detail`: exercise-centric progress screen accessed from the exercise list
+
+### Secondary Flow
+
+- `Data Management`: export/import backups and move between the main app flows without leaving the local-first model
+
+## Implemented Screens
+
+### Home Dashboard
+
+The home screen is the main entry point. It introduces the app, points users to routine tracking, and exposes `Data Management` as a secondary operational screen.
+
+![Home Dashboard](docs/images/screens/home-dashboard.png)
+
+### Data Management
+
+The data screen handles export, share, and import flows. It is intentionally isolated from the main tabs so users can perform backup operations without mixing them into the training flow.
+
+![Data Management](docs/images/screens/data-management.png)
+
+### Routines Library
+
+This screen is the main planning hub. Users can inspect active routines, reactivate inactive ones, create plans, and enter a specific routine.
+
+![Routines Library](docs/images/screens/routines-library.png)
+
+### Exercise List
+
+This is the pre-workout view for a selected routine. It shows the programmed exercises, supports filtering, and provides a direct `Progress` action for each exercise before the session starts.
+
+![Exercise List](docs/images/screens/exercise-list.png)
+
+### Routine Editor
+
+The editor is a form-driven workflow for changing routine metadata and programmed exercise details without dropping into JSON or raw data editing.
+
+![Routine Editor](docs/images/screens/routine-editor.png)
+
+### Active Workout Session
+
+The active session screen is optimized for fast logging. It uses `kg` only, keeps the global `REGISTER SET` action, supports `+ set` and `- set`, and avoids heavy history UI during the workout.
+
+![Active Workout Session](docs/images/screens/active-workout-session.png)
+
+### Finish Session Summary
+
+The finish screen is a dedicated full-screen review of the session draft before persisting the workout logs and session summary.
+
+![Finish Session Summary](docs/images/screens/finish-session-summary.png)
+
+### Performance Dashboard
+
+The dashboard aggregates training data for the currently active routines in the selected window. It shows volume, day coverage, muscle focus, and recent PR-style signals.
+
+![Performance Dashboard](docs/images/screens/performance-dashboard.png)
+
+### Exercise Progress Detail
+
+The progress detail screen is exercise-centric. It aggregates logs by `exerciseId` and provides estimated 1RM, total volume, trend, and recent session context for a single exercise.
+
+![Exercise Progress Detail](docs/images/screens/exercise-progress-detail.png)
+
+## Data Model and Storage
+
+Fit Log uses a hybrid local storage model:
+
+- `SQLite` is the runtime source for routines, exercises, plan details, workout logs, and workout sessions
+- `.xlsx` tables are retained for compatibility, import/export, and human-readable backups
+- startup warmup seeds or rebuilds the runtime cache from `.xlsx` when needed
+
+Current tables and backup artifacts include:
+
+- `fit_log.db`
+- `workout_plan.xlsx`
+- `exercise.xlsx`
+- `plan_exercise.xlsx`
+- `workout_log.xlsx`
+- `workout_session.xlsx`
+- `user.xlsx`
+- `body_metrics.xlsx`
+- `muscle.xlsx`
+- `exercise_target.xlsx`
+
+Operationally, the app now favors SQLite for responsive reads and writes during normal use, while still exporting a portable ZIP backup that includes both the database and spreadsheet-compatible tables.
+
+## Current Navigation Model
+
+The current app shell exposes three primary tabs from the bottom navigation:
+
+- `Home`
+- `Routines`
+- `Performance`
+
+The following screens are secondary routes opened from those tabs:
+
+- `Data Management`
+- `Exercise List`
+- `Routine Editor`
+- `Exercise Progress Detail`
+- `Active Workout Session`
+- `Finish Session Summary`
+
+## Performance and Analytics Scope
+
+The analytics layer is intentionally scoped and should be read with these constraints in mind:
+
+- `Performance Dashboard` is based on current active routines only
+- the time selector changes the window, but does not include inactive routines unless they are active again
+- `Exercise Progress Detail` is keyed by `exerciseId`, so continuity depends on keeping the same exercise record instead of deleting and recreating it as a new id
+
+This makes the dashboard good for understanding the current training block, while the exercise detail view is better for following a specific lift over time.
+
+## Development Setup
+
+### Requirements
+
+- Flutter `3.5` or newer
+- Dart SDK compatible with the version declared in `pubspec.yaml`
+
+### Install dependencies
+
+```bash
+flutter pub get
+```
+
+### Run the app
+
+```bash
+flutter run
+```
+
+At startup the app:
+
+1. ensures the expected `.xlsx` tables exist
+2. warms up the SQLite routine/runtime cache
+3. initializes local notifications used by the workout flow
+
+## Development Notes
+
+- The app is organized under `lib/src/` by feature and responsibility
+- UI lives in `presentation`
+- domain contracts live in `domain`
+- repositories and storage adapters live in `data`
+
+Important runtime entrypoints:
+
+- [main.dart](/mnt/c/Users/Cybac/Documents/New_folder/fit_log/lib/main.dart)
+- [app.dart](/mnt/c/Users/Cybac/Documents/New_folder/fit_log/lib/src/app.dart)
+- [main_scaffold.dart](/mnt/c/Users/Cybac/Documents/New_folder/fit_log/lib/src/navigation/main_scaffold.dart)
+- [workout_storage_service.dart](/mnt/c/Users/Cybac/Documents/New_folder/fit_log/lib/src/data/services/workout_storage_service.dart)
+
+## Backup and Import
+
+The app supports:
+
+- exporting a full ZIP backup
+- sharing the generated backup file
+- importing a full ZIP backup
+- importing individual `.xlsx` tables when supported by the data layer
+
+Backups are meant to preserve local ownership of the training data while keeping the runtime optimized for SQLite.
+
+## Validation
+
+Run the main validation steps with:
 
 ```bash
 flutter test
 ```
 
-## Release to GitHub
+And for targeted static validation:
 
-The release flow is tag-driven. Before pushing a tag, make sure the Android signing secrets exist in GitHub Actions:
+```bash
+flutter analyze
+```
 
-- `ANDROID_KEYSTORE_BASE64`
-- `ANDROID_KEYSTORE_PASSWORD`
-- `ANDROID_KEY_ALIAS`
-- `ANDROID_KEY_PASSWORD`
+## Status
 
-The workflow expects the keystore to be decoded at `android/app/upload-keystore.jks` and the generated `android/key.properties` to point to it.
-
-Typical release steps:
-
-1. Bump the app version in `pubspec.yaml` if needed.
-2. Create and push a tag like `v1.0.0`.
-3. GitHub Actions builds the signed APK and uploads it to the GitHub Release.
-
-## Notes
-
-- Statistics and profile sections are placeholders for future updates.
-- Workout plans and exercises are stored in the application documents directory as `.xlsx` files, making them simple to export or edit externally.
-- Workout sessions and set logs are stored in SQLite (`fit_log.db`) to avoid blocking the UI when saving a completed routine.
-- When exporting from the Data screen a ZIP file is also copied to your Downloads directory for easy access.
-- The Data screen can import either a full `fitlog_backup.zip` or an individual `.xlsx` table to replace existing data.
+The redesigned experience currently covers the main workflow from app entry to routine management, active workout logging, session summary, analytics, and backup operations. Future design folders outside the implemented screen list are not part of the shipped README documentation yet.
