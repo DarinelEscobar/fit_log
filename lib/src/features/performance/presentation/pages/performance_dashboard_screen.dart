@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../theme/kinetic_noir.dart';
+import '../../../../theme/toru_brand.dart';
 import '../../../routines/domain/entities/workout_plan.dart';
 import '../../../routines/presentation/providers/workout_plan_provider.dart';
 import '../models/performance_models.dart';
@@ -36,14 +37,25 @@ class _PerformanceDashboardScreenState
           color: KineticNoirPalette.primary,
           onPressed: () {},
         ),
-        title: Text(
-          'PERFORMANCE',
+        title: Row(
           key: const Key('performance-dashboard-title'),
-          style: KineticNoirTypography.headline(
-            size: 24,
-            weight: FontWeight.w700,
-            color: KineticNoirPalette.primary,
-          ),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ToruMark(
+              size: 26,
+              variant: ToruMarkVariant.white,
+              opacity: 0.94,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'PERFORMANCE',
+              style: KineticNoirTypography.headline(
+                size: 24,
+                weight: FontWeight.w700,
+                color: KineticNoirPalette.primary,
+              ),
+            ),
+          ],
         ),
         actions: const [
           Padding(
@@ -173,7 +185,7 @@ class _PerformanceDashboardScreenState
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Current active routines only',
+                            'Based on exercises in current active routines',
                             style: KineticNoirTypography.body(
                               size: 12,
                               weight: FontWeight.w600,
@@ -288,7 +300,9 @@ class _PeriodChip extends StatelessWidget {
           curve: Curves.easeOut,
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: selected ? KineticNoirPalette.surfaceBright : Colors.transparent,
+            color: selected
+                ? KineticNoirPalette.surfaceBright
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
@@ -297,8 +311,9 @@ class _PeriodChip extends StatelessWidget {
             style: KineticNoirTypography.body(
               size: 11,
               weight: selected ? FontWeight.w800 : FontWeight.w600,
-              color:
-                  selected ? KineticNoirPalette.primary : KineticNoirPalette.onSurfaceVariant,
+              color: selected
+                  ? KineticNoirPalette.primary
+                  : KineticNoirPalette.onSurfaceVariant,
               letterSpacing: 1.4,
             ),
           ),
@@ -333,16 +348,33 @@ class _PerformanceHero extends StatelessWidget {
             right: -36,
             bottom: -32,
             child: IgnorePointer(
-              child: Container(
+              child: SizedBox(
                 width: 148,
                 height: 148,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: KineticNoirPalette.primary.withValues(alpha: 0.08),
-                  boxShadow: [
-                    BoxShadow(
-                      color: KineticNoirPalette.primary.withValues(alpha: 0.08),
-                      blurRadius: 48,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 148,
+                      height: 148,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color:
+                            KineticNoirPalette.primary.withValues(alpha: 0.08),
+                        boxShadow: [
+                          BoxShadow(
+                            color: KineticNoirPalette.primary.withValues(
+                              alpha: 0.08,
+                            ),
+                            blurRadius: 48,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const ToruMark(
+                      size: 92,
+                      variant: ToruMarkVariant.white,
+                      opacity: 0.16,
                     ),
                   ],
                 ),
@@ -406,7 +438,8 @@ class _PerformanceHero extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: KineticNoirPalette.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
@@ -548,7 +581,8 @@ class _TrendSection extends StatelessWidget {
               const Spacer(),
               Icon(
                 Icons.more_horiz_rounded,
-                color: KineticNoirPalette.onSurfaceVariant.withValues(alpha: 0.8),
+                color:
+                    KineticNoirPalette.onSurfaceVariant.withValues(alpha: 0.8),
               ),
             ],
           ),
@@ -830,8 +864,7 @@ class _PrCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: KineticNoirPalette.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
@@ -908,10 +941,9 @@ class _PerformanceEmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.show_chart_rounded,
-                size: 40,
-                color: KineticNoirPalette.primary,
+              const ToruMark(
+                size: 48,
+                variant: ToruMarkVariant.green,
               ),
               const SizedBox(height: 16),
               Text(
@@ -975,7 +1007,8 @@ class _VolumeTrendChart extends StatelessWidget {
     ];
     final maxY = (maxVolume <= 0 ? 1.0 : maxVolume * 1.15).toDouble();
     final maxX = points.length <= 1 ? 1.0 : (points.length - 1).toDouble();
-    final interval = points.length <= 4 ? 1.0 : (points.length / 3).ceilToDouble();
+    final interval =
+        points.length <= 4 ? 1.0 : (points.length / 3).ceilToDouble();
 
     return LineChart(
       LineChartData(
