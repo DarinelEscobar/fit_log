@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../theme/kinetic_noir.dart';
+import '../../../../theme/toru_brand.dart';
 
 class HomeDashboardScreen extends StatelessWidget {
   const HomeDashboardScreen({
@@ -80,21 +81,13 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return const Row(
       children: [
-        const Icon(Icons.menu_rounded,
-            color: KineticNoirPalette.primary, size: 22),
-        const SizedBox(width: 14),
-        Text(
-          'FIT LOG',
-          style: KineticNoirTypography.headline(
-            size: 24,
-            weight: FontWeight.w700,
-            color: KineticNoirPalette.primary,
-          ),
-        ),
-        const Spacer(),
-        const Icon(
+        Icon(Icons.menu_rounded, color: KineticNoirPalette.primary, size: 22),
+        SizedBox(width: 14),
+        FitLogWordmark(),
+        Spacer(),
+        Icon(
           Icons.more_vert_rounded,
           color: KineticNoirPalette.onSurfaceVariant,
           size: 22,

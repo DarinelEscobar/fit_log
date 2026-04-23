@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../navigation/widgets/kinetic_bottom_nav_bar.dart';
 import '../../../../theme/kinetic_noir.dart';
+import '../../../../theme/toru_brand.dart';
 import '../../../history/presentation/providers/history_providers.dart';
 import '../../domain/usecases/export_app_data_usecase.dart';
 import '../../domain/usecases/import_app_data_usecase.dart';
@@ -403,16 +404,33 @@ class _HeroCard extends StatelessWidget {
             right: -46,
             top: -58,
             child: IgnorePointer(
-              child: Container(
+              child: SizedBox(
                 width: 180,
                 height: 180,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: KineticNoirPalette.primary.withValues(alpha: 0.12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: KineticNoirPalette.primary.withValues(alpha: 0.12),
-                      blurRadius: 60,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 180,
+                      height: 180,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color:
+                            KineticNoirPalette.primary.withValues(alpha: 0.12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: KineticNoirPalette.primary.withValues(
+                              alpha: 0.12,
+                            ),
+                            blurRadius: 60,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const ToruMark(
+                      size: 108,
+                      variant: ToruMarkVariant.white,
+                      opacity: 0.18,
                     ),
                   ],
                 ),

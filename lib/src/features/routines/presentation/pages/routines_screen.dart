@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../theme/kinetic_noir.dart';
+import '../../../../theme/toru_brand.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
 import '../../domain/entities/workout_plan.dart';
@@ -336,24 +337,17 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return const Row(
       children: [
-        const Icon(
+        Icon(
           Icons.menu_rounded,
           color: KineticNoirPalette.primary,
           size: 22,
         ),
-        const SizedBox(width: 14),
-        Text(
-          'FIT LOG',
-          style: KineticNoirTypography.headline(
-            size: 24,
-            weight: FontWeight.w700,
-            color: KineticNoirPalette.primary,
-          ),
-        ),
-        const Spacer(),
-        const Icon(
+        SizedBox(width: 14),
+        FitLogWordmark(),
+        Spacer(),
+        Icon(
           Icons.more_vert_rounded,
           color: KineticNoirPalette.primary,
           size: 22,
@@ -376,10 +370,9 @@ class _EmptyStateCard extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          const Icon(
-            Icons.fitness_center_rounded,
-            size: 38,
-            color: KineticNoirPalette.primary,
+          const ToruMark(
+            size: 46,
+            variant: ToruMarkVariant.green,
           ),
           const SizedBox(height: 16),
           Text(
