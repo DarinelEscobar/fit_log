@@ -405,6 +405,62 @@ class WorkoutStorageService {
         .toList(growable: false);
   }
 
+  Future<List<WorkoutLogEntry>> fetchWorkoutLogs({
+    List<int>? planIds,
+    int? exerciseId,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final db = await _getDatabase();
+    final clauses = <String>[];
+    final args = <Object?>[];
+
+    if (planIds != null) {
+      if (planIds.isEmpty) {
+        return const [];
+      }
+      clauses.add('plan_id IN (${List.filled(planIds.length, '?').join(', ')})');
+      args.addAll(planIds);
+    }
+
+    if (exerciseId != null) {
+      clauses.add('exercise_id = ?');
+      args.add(exerciseId);
+    }
+
+    if (startDate != null) {
+      clauses.add('date >= ?');
+      args.add(_formatDate(startDate));
+    }
+
+    if (endDate != null) {
+      clauses.add('date <= ?');
+      args.add(_formatDate(endDate));
+    }
+
+    final rows = await db.query(
+      'workout_logs',
+      where: clauses.isEmpty ? null : clauses.join(' AND '),
+      whereArgs: args.isEmpty ? null : args,
+      orderBy: 'date ASC, plan_id ASC, exercise_id ASC, set_number ASC',
+    );
+
+    return rows
+        .map(
+          (row) => WorkoutLogEntry(
+            date:
+                DateTime.tryParse(_stringValue(row['date'])) ?? DateTime.now(),
+            planId: _intValue(row['plan_id']),
+            exerciseId: _intValue(row['exercise_id']),
+            setNumber: _intValue(row['set_number']),
+            reps: _intValue(row['reps']),
+            weight: _doubleValue(row['weight']),
+            rir: _intValue(row['rir']),
+          ),
+        )
+        .toList(growable: false);
+  }
+
   Future<void> exportRoutineRuntimeToXlsxFiles(Directory directory) async {
     await warmUpRoutineRuntimeCache();
     final db = await _getDatabase();
@@ -687,6 +743,16 @@ class WorkoutStorageService {
     ''');
 
     await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_workout_logs_plan_date
+      ON workout_logs(plan_id, date)
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_workout_logs_exercise_date
+      ON workout_logs(exercise_id, date)
+    ''');
+
+    await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_workout_plans_is_active
       ON workout_plans(is_active)
     ''');
@@ -699,6 +765,11 @@ class WorkoutStorageService {
     await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_plan_exercises_exercise
       ON plan_exercises(exercise_id)
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_workout_sessions_plan_date
+      ON workout_sessions(plan_id, date)
     ''');
   }
 
