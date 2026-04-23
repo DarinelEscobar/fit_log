@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/fitlog_logo_4x3_transparent.svg" alt="FitLog - Train, Progress, You" width="460" />
+  <img src="docs/images/fitlog_logo.svg" alt="FitLog - Train, Progress, You" width="460" />
 </p>
 
 <p align="center">Routine-based training, fast session logging, and local-first workout backups.</p>
