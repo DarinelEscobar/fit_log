@@ -21,6 +21,13 @@ class WorkoutStorageService {
   static const int _databaseVersion = 2;
   static const String _routineRuntimeSeededKey = 'routine_runtime_seeded';
   static const String _routineRuntimeSeededAtKey = 'routine_runtime_seeded_at';
+  static const List<String> _requiredDatabaseTables = [
+    'workout_logs',
+    'workout_sessions',
+    'workout_plans',
+    'exercises',
+    'plan_exercises',
+  ];
 
   final DatabaseFactory _databaseFactory;
 
@@ -45,22 +52,58 @@ class WorkoutStorageService {
     await _getDatabase();
   }
 
+  Future<void> validateDatabaseFile(File file) async {
+    if (!await file.exists() || await file.length() == 0) {
+      throw const FormatException('Backup database is missing or empty.');
+    }
+
+    Database? db;
+    try {
+      db = await _databaseFactory.openDatabase(
+        file.path,
+        options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
+      );
+      await _validateRequiredTables(db);
+
+      final integrityRows = await db.rawQuery('PRAGMA integrity_check');
+      final integrityResult =
+          integrityRows.isEmpty ? null : integrityRows.first.values.first;
+      if (integrityResult?.toString().toLowerCase() != 'ok') {
+        throw FormatException(
+          'SQLite integrity check failed: $integrityResult',
+        );
+      }
+    } catch (error) {
+      if (error is FormatException) {
+        rethrow;
+      }
+      throw FormatException('Backup database is not readable: $error');
+    } finally {
+      await db?.close();
+    }
+  }
+
+  Future<void> repairDataIntegrity() async {
+    final db = await _getDatabase();
+    await db.transaction((txn) async {
+      await _repairDataIntegrity(txn, recoverMissingParents: true);
+    });
+  }
+
   Future<void> warmUpRoutineRuntimeCache({bool force = false}) {
     if (!force && _routineWarmUpFuture != null) {
       return _routineWarmUpFuture!;
     }
 
     late final Future<void> trackedFuture;
-    trackedFuture =
-        _warmUpRoutineRuntimeCacheInternal(force: force).catchError((
-      error,
-      stackTrace,
-    ) {
-      if (identical(_routineWarmUpFuture, trackedFuture)) {
-        _routineWarmUpFuture = null;
-      }
-      Error.throwWithStackTrace(error, stackTrace);
-    });
+    trackedFuture = _warmUpRoutineRuntimeCacheInternal(force: force).catchError(
+      (error, stackTrace) {
+        if (identical(_routineWarmUpFuture, trackedFuture)) {
+          _routineWarmUpFuture = null;
+        }
+        Error.throwWithStackTrace(error, stackTrace);
+      },
+    );
     _routineWarmUpFuture = trackedFuture;
     return _routineWarmUpFuture!;
   }
@@ -77,15 +120,14 @@ class WorkoutStorageService {
     final db = await _getDatabase();
     final nextId = await _nextId(db, 'workout_plans', 'plan_id');
     await db.insert(
-      'workout_plans',
-      {
-        'plan_id': nextId,
-        'name': name,
-        'frequency': frequency,
-        'is_active': 1,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+        'workout_plans',
+        {
+          'plan_id': nextId,
+          'name': name,
+          'frequency': frequency,
+          'is_active': 1,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> updateWorkoutPlan(
@@ -97,10 +139,7 @@ class WorkoutStorageService {
     final db = await _getDatabase();
     await db.update(
       'workout_plans',
-      {
-        'name': name,
-        'frequency': frequency,
-      },
+      {'name': name, 'frequency': frequency},
       where: 'plan_id = ?',
       whereArgs: [planId],
     );
@@ -111,9 +150,7 @@ class WorkoutStorageService {
     final db = await _getDatabase();
     await db.update(
       'workout_plans',
-      {
-        'is_active': isActive ? 1 : 0,
-      },
+      {'is_active': isActive ? 1 : 0},
       where: 'plan_id = ?',
       whereArgs: [planId],
     );
@@ -136,16 +173,15 @@ class WorkoutStorageService {
     final db = await _getDatabase();
     final nextId = await _nextId(db, 'exercises', 'exercise_id');
     await db.insert(
-      'exercises',
-      {
-        'exercise_id': nextId,
-        'name': name,
-        'description': description,
-        'category': category,
-        'main_muscle_group': mainMuscleGroup,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+        'exercises',
+        {
+          'exercise_id': nextId,
+          'name': name,
+          'description': description,
+          'category': category,
+          'main_muscle_group': mainMuscleGroup,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> updateExercise(
@@ -199,15 +235,12 @@ class WorkoutStorageService {
 
     final db = await _getDatabase();
     final placeholders = List.filled(planIds.length, '?').join(', ');
-    final rows = await db.rawQuery(
-      '''
+    final rows = await db.rawQuery('''
       SELECT DISTINCT exercise_id
       FROM plan_exercises
       WHERE plan_id IN ($placeholders)
       ORDER BY exercise_id ASC
-      ''',
-      planIds,
-    );
+      ''', planIds);
 
     return rows
         .map((row) => _intValue(row['exercise_id']))
@@ -227,8 +260,9 @@ class WorkoutStorageService {
       if (planIds.isEmpty) {
         return null;
       }
-      clauses
-          .add('plan_id IN (${List.filled(planIds.length, '?').join(', ')})');
+      clauses.add(
+        'plan_id IN (${List.filled(planIds.length, '?').join(', ')})',
+      );
       args.addAll(planIds);
     }
 
@@ -332,7 +366,7 @@ class WorkoutStorageService {
       final entries = <Map<String, Object?>>[
         for (final row in currentRows)
           if (_intValue(row['exercise_id']) != detail.exerciseId)
-            Map<String, Object?>.from(row)
+            Map<String, Object?>.from(row),
       ];
 
       final insertIndex = (position ?? entries.length).clamp(0, entries.length);
@@ -380,7 +414,7 @@ class WorkoutStorageService {
       final entries = <Map<String, Object?>>[
         for (final row in currentRows)
           if (_intValue(row['exercise_id']) != exerciseId)
-            Map<String, Object?>.from(row)
+            Map<String, Object?>.from(row),
       ];
 
       await _rewritePlanExercises(txn, planId, entries);
@@ -396,18 +430,17 @@ class WorkoutStorageService {
     final batch = db.batch();
     for (final log in logs) {
       batch.insert(
-        'workout_logs',
-        {
-          'date': _formatDate(log.date),
-          'plan_id': log.planId,
-          'exercise_id': log.exerciseId,
-          'set_number': log.setNumber,
-          'reps': log.reps,
-          'weight': log.weight,
-          'rir': log.rir,
-        },
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
+          'workout_logs',
+          {
+            'date': _formatDate(log.date),
+            'plan_id': log.planId,
+            'exercise_id': log.exerciseId,
+            'set_number': log.setNumber,
+            'reps': log.reps,
+            'weight': log.weight,
+            'rir': log.rir,
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     await batch.commit(noResult: true);
   }
@@ -426,17 +459,16 @@ class WorkoutStorageService {
     }
 
     await db.insert(
-      'workout_sessions',
-      {
-        'date': _formatDate(session.date),
-        'plan_id': session.planId,
-        'fatigue_level': session.fatigueLevel,
-        'duration_minutes': session.durationMinutes,
-        'mood': session.mood,
-        'notes': session.notes,
-      },
-      conflictAlgorithm: ConflictAlgorithm.ignore,
-    );
+        'workout_sessions',
+        {
+          'date': _formatDate(session.date),
+          'plan_id': session.planId,
+          'fatigue_level': session.fatigueLevel,
+          'duration_minutes': session.durationMinutes,
+          'mood': session.mood,
+          'notes': session.notes,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 
   Future<List<WorkoutSession>> fetchAllSessions() async {
@@ -491,8 +523,9 @@ class WorkoutStorageService {
       if (planIds.isEmpty) {
         return const [];
       }
-      clauses
-          .add('plan_id IN (${List.filled(planIds.length, '?').join(', ')})');
+      clauses.add(
+        'plan_id IN (${List.filled(planIds.length, '?').join(', ')})',
+      );
       args.addAll(planIds);
     }
 
@@ -552,6 +585,9 @@ class WorkoutStorageService {
   Future<void> exportRoutineRuntimeToXlsxFiles(Directory directory) async {
     await warmUpRoutineRuntimeCache();
     final db = await _getDatabase();
+    await db.transaction((txn) async {
+      await _repairDataIntegrity(txn, recoverMissingParents: true);
+    });
 
     final plans = await db.query('workout_plans', orderBy: 'plan_id ASC');
     final exercises = await db.query('exercises', orderBy: 'exercise_id ASC');
@@ -560,53 +596,41 @@ class WorkoutStorageService {
       orderBy: 'plan_id ASC, position ASC',
     );
 
-    await _writeExcelExport(
-      directory,
-      'workout_plan.xlsx',
-      [
-        for (final row in plans)
-          [
-            _intValue(row['plan_id']),
-            _stringValue(row['name']),
-            _stringValue(row['frequency']),
-            _boolValue(row['is_active']) ? 1 : 0,
-          ],
-      ],
-    );
+    await _writeExcelExport(directory, 'workout_plan.xlsx', [
+      for (final row in plans)
+        [
+          _intValue(row['plan_id']),
+          _stringValue(row['name']),
+          _stringValue(row['frequency']),
+          _boolValue(row['is_active']) ? 1 : 0,
+        ],
+    ]);
 
-    await _writeExcelExport(
-      directory,
-      'exercise.xlsx',
-      [
-        for (final row in exercises)
-          [
-            _intValue(row['exercise_id']),
-            _stringValue(row['name']),
-            _stringValue(row['description']),
-            _stringValue(row['category']),
-            _stringValue(row['main_muscle_group']),
-          ],
-      ],
-    );
+    await _writeExcelExport(directory, 'exercise.xlsx', [
+      for (final row in exercises)
+        [
+          _intValue(row['exercise_id']),
+          _stringValue(row['name']),
+          _stringValue(row['description']),
+          _stringValue(row['category']),
+          _stringValue(row['main_muscle_group']),
+        ],
+    ]);
 
-    await _writeExcelExport(
-      directory,
-      'plan_exercise.xlsx',
-      [
-        for (final row in planExercises)
-          [
-            _intValue(row['plan_id']),
-            _intValue(row['exercise_id']),
-            _intValue(row['suggested_sets']),
-            _intValue(row['suggested_reps']),
-            _doubleValue(row['estimated_weight']),
-            _intValue(row['rest_seconds']),
-            _intValue(row['rir']),
-            _stringValue(row['tempo']),
-            _stringValue(row['image_path']),
-          ],
-      ],
-    );
+    await _writeExcelExport(directory, 'plan_exercise.xlsx', [
+      for (final row in planExercises)
+        [
+          _intValue(row['plan_id']),
+          _intValue(row['exercise_id']),
+          _intValue(row['suggested_sets']),
+          _intValue(row['suggested_reps']),
+          _doubleValue(row['estimated_weight']),
+          _intValue(row['rest_seconds']),
+          _intValue(row['rir']),
+          _stringValue(row['tempo']),
+          _stringValue(row['image_path']),
+        ],
+    ]);
   }
 
   Future<void> replaceWorkoutLogsFromCurrentXlsxFiles() async {
@@ -625,7 +649,7 @@ class WorkoutStorageService {
         );
       }
       await batch.commit(noResult: true);
-      await _deduplicateWorkoutData(txn);
+      await _repairDataIntegrity(txn, recoverMissingParents: true);
     });
   }
 
@@ -645,7 +669,7 @@ class WorkoutStorageService {
         );
       }
       await batch.commit(noResult: true);
-      await _deduplicateWorkoutData(txn);
+      await _repairDataIntegrity(txn, recoverMissingParents: true);
     });
   }
 
@@ -714,6 +738,7 @@ class WorkoutStorageService {
         _routineRuntimeSeededAtKey,
         DateTime.now().toIso8601String(),
       );
+      await _repairDataIntegrity(txn, recoverMissingParents: true);
     });
   }
 
@@ -741,6 +766,10 @@ class WorkoutStorageService {
     );
 
     await _migrateWorkoutHistoryFromExcelIfNeeded(db);
+    await _repairDataIntegrity(
+      db,
+      recoverMissingParents: await _hasRoutineRuntimeData(db),
+    );
     _database = db;
     return db;
   }
@@ -831,6 +860,11 @@ class WorkoutStorageService {
     ''');
 
     await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_plan_exercises_unique
+      ON plan_exercises(plan_id, exercise_id)
+    ''');
+
+    await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_workout_logs_plan_date
       ON workout_logs(plan_id, date)
     ''');
@@ -863,6 +897,26 @@ class WorkoutStorageService {
 
   Future<void> _deduplicateWorkoutData(DatabaseExecutor db) async {
     await db.execute('''
+      DELETE FROM workout_logs
+      WHERE plan_id <= 0
+        OR exercise_id <= 0
+        OR set_number <= 0
+        OR TRIM(date) = ''
+    ''');
+
+    await db.execute('''
+      DELETE FROM workout_sessions
+      WHERE plan_id <= 0
+        OR TRIM(date) = ''
+    ''');
+
+    await db.execute('''
+      DELETE FROM plan_exercises
+      WHERE plan_id <= 0
+        OR exercise_id <= 0
+    ''');
+
+    await db.execute('''
       DELETE FROM workout_sessions
       WHERE id NOT IN (
         SELECT MIN(id)
@@ -877,6 +931,90 @@ class WorkoutStorageService {
         SELECT MIN(id)
         FROM workout_logs
         GROUP BY date, plan_id, exercise_id, set_number, reps, weight, rir
+      )
+    ''');
+
+    await db.execute('''
+      DELETE FROM plan_exercises
+      WHERE rowid NOT IN (
+        SELECT MIN(rowid)
+        FROM plan_exercises
+        GROUP BY plan_id, exercise_id
+      )
+    ''');
+  }
+
+  Future<void> _repairDataIntegrity(
+    DatabaseExecutor db, {
+    required bool recoverMissingParents,
+  }) async {
+    await _deduplicateWorkoutData(db);
+
+    if (recoverMissingParents) {
+      await db.execute('''
+        INSERT OR IGNORE INTO workout_plans (
+          plan_id,
+          name,
+          frequency,
+          is_active
+        )
+        SELECT
+          missing.plan_id,
+          'Recovered Plan ' || missing.plan_id,
+          'Recovered from imported data',
+          0
+        FROM (
+          SELECT DISTINCT plan_id FROM workout_logs WHERE plan_id > 0
+          UNION
+          SELECT DISTINCT plan_id FROM workout_sessions WHERE plan_id > 0
+          UNION
+          SELECT DISTINCT plan_id FROM plan_exercises WHERE plan_id > 0
+        ) AS missing
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM workout_plans plans
+          WHERE plans.plan_id = missing.plan_id
+        )
+      ''');
+
+      await db.execute('''
+        INSERT OR IGNORE INTO exercises (
+          exercise_id,
+          name,
+          description,
+          category,
+          main_muscle_group
+        )
+        SELECT
+          missing.exercise_id,
+          'Recovered Exercise ' || missing.exercise_id,
+          'Recovered from imported workout data.',
+          'Recovered',
+          'Unknown'
+        FROM (
+          SELECT DISTINCT exercise_id FROM workout_logs WHERE exercise_id > 0
+          UNION
+          SELECT DISTINCT exercise_id FROM plan_exercises WHERE exercise_id > 0
+        ) AS missing
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM exercises exercises
+          WHERE exercises.exercise_id = missing.exercise_id
+        )
+      ''');
+    }
+
+    await db.execute('''
+      DELETE FROM plan_exercises
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM workout_plans plans
+        WHERE plans.plan_id = plan_exercises.plan_id
+      )
+      OR NOT EXISTS (
+        SELECT 1
+        FROM exercises exercises
+        WHERE exercises.exercise_id = plan_exercises.exercise_id
       )
     ''');
   }
@@ -984,6 +1122,37 @@ class WorkoutStorageService {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
+  Future<bool> _hasRoutineRuntimeData(DatabaseExecutor db) async {
+    final counts = await Future.wait<int>([
+      _countRows(db, 'workout_plans'),
+      _countRows(db, 'exercises'),
+      _countRows(db, 'plan_exercises'),
+    ]);
+    return counts.any((count) => count > 0);
+  }
+
+  Future<void> _validateRequiredTables(DatabaseExecutor db) async {
+    final rows = await db.query(
+      'sqlite_master',
+      columns: ['name'],
+      where: 'type = ?',
+      whereArgs: ['table'],
+    );
+    final tables = rows
+        .map((row) => _stringValue(row['name']))
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    final missingTables = [
+      for (final table in _requiredDatabaseTables)
+        if (!tables.contains(table)) table,
+    ];
+    if (missingTables.isNotEmpty) {
+      throw FormatException(
+        'Backup database is missing tables: ${missingTables.join(', ')}',
+      );
+    }
+  }
+
   Future<bool> _hasUsableDateRows(String table) async {
     final db = await _getDatabase();
     final result = await db.rawQuery(
@@ -1030,19 +1199,14 @@ class WorkoutStorageService {
     return _stringValue(rows.first['value']);
   }
 
-  Future<void> _setMeta(
-    DatabaseExecutor db,
-    String key,
-    String value,
-  ) async {
+  Future<void> _setMeta(DatabaseExecutor db, String key, String value) async {
     await db.insert(
-      'storage_meta',
-      {
-        'key': key,
-        'value': value,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+        'storage_meta',
+        {
+          'key': key,
+          'value': value,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   WorkoutPlan _mapWorkoutPlanRow(Map<String, Object?> row) {
@@ -1188,8 +1352,9 @@ List<Map<String, Object?>> _parseExerciseSeed(String directoryPath) {
   final headers = _headerIndexMap(sheet.rows.first);
   final rows = <Map<String, Object?>>[];
   for (final row in sheet.rows.skip(1)) {
-    final exerciseId =
-        _intValueOrNull(_headerValue(row, headers, ['exercise_id']));
+    final exerciseId = _intValueOrNull(
+      _headerValue(row, headers, ['exercise_id']),
+    );
     if (exerciseId == null || exerciseId <= 0) {
       continue;
     }
@@ -1199,8 +1364,9 @@ List<Map<String, Object?>> _parseExerciseSeed(String directoryPath) {
       'name': _stringValue(_headerValue(row, headers, ['name'])),
       'description': _stringValue(_headerValue(row, headers, ['description'])),
       'category': _stringValue(_headerValue(row, headers, ['category'])),
-      'main_muscle_group':
-          _stringValue(_headerValue(row, headers, ['main_muscle_group'])),
+      'main_muscle_group': _stringValue(
+        _headerValue(row, headers, ['main_muscle_group']),
+      ),
     });
   }
   return rows;
@@ -1224,8 +1390,9 @@ List<Map<String, Object?>> _parsePlanExerciseSeed(
   final rows = <Map<String, Object?>>[];
   for (final row in sheet.rows.skip(1)) {
     final planId = _intValueOrNull(_headerValue(row, headers, ['plan_id']));
-    final originalExerciseId =
-        _intValueOrNull(_headerValue(row, headers, ['exercise_id']));
+    final originalExerciseId = _intValueOrNull(
+      _headerValue(row, headers, ['exercise_id']),
+    );
     if (planId == null ||
         planId <= 0 ||
         originalExerciseId == null ||
@@ -1245,12 +1412,15 @@ List<Map<String, Object?>> _parsePlanExerciseSeed(
       'plan_id': planId,
       'exercise_id': exerciseId,
       'position': nextPosition,
-      'suggested_sets':
-          _intValue(_headerValue(row, headers, ['suggested_sets'])),
-      'suggested_reps':
-          _intValue(_headerValue(row, headers, ['suggested_reps'])),
-      'estimated_weight':
-          _doubleValue(_headerValue(row, headers, ['estimated_weight'])),
+      'suggested_sets': _intValue(
+        _headerValue(row, headers, ['suggested_sets']),
+      ),
+      'suggested_reps': _intValue(
+        _headerValue(row, headers, ['suggested_reps']),
+      ),
+      'estimated_weight': _doubleValue(
+        _headerValue(row, headers, ['estimated_weight']),
+      ),
       'rest_seconds': _intValue(_headerValue(row, headers, ['rest_seconds'])),
       'rir': _resolveRoutineRir(
         canonicalRirValue: _headerValue(row, headers, ['rir']),
@@ -1264,8 +1434,9 @@ List<Map<String, Object?>> _parsePlanExerciseSeed(
         legacyImagePathValue: _headerValue(row, headers, ['image_path']),
         exerciseDescription: exerciseDescription,
       ),
-      'image_path':
-          _resolveRoutineImagePath(_headerValue(row, headers, ['image_path'])),
+      'image_path': _resolveRoutineImagePath(
+        _headerValue(row, headers, ['image_path']),
+      ),
     });
   }
 
@@ -1273,50 +1444,126 @@ List<Map<String, Object?>> _parsePlanExerciseSeed(
 }
 
 List<Map<String, Object?>> _parseWorkoutLogSeed(String directoryPath) {
+  const filename = 'workout_log.xlsx';
   final sheet = _readSheet(
-    path.join(directoryPath, 'workout_log.xlsx'),
-    kTableSchemas['workout_log.xlsx']!.sheetName,
+    path.join(directoryPath, filename),
+    kTableSchemas[filename]!.sheetName,
   );
-  if (sheet == null) {
+  if (sheet == null || sheet.rows.isEmpty) {
     return const [];
   }
 
-  return [
-    for (final row in sheet.rows.skip(1))
-      if (row.isNotEmpty)
-        {
-          'date': _stringValue(_excelValueAt(row, 1)),
-          'plan_id': _intValue(_excelValueAt(row, 2)),
-          'exercise_id': _intValue(_excelValueAt(row, 3)),
-          'set_number': _intValue(_excelValueAt(row, 4)),
-          'reps': _intValue(_excelValueAt(row, 5)),
-          'weight': _doubleValue(_excelValueAt(row, 6)),
-          'rir': _intValue(_excelValueAt(row, 7)),
-        },
-  ];
+  final headers = _headerIndexMap(sheet.rows.first);
+  _requireHeaderGroups(filename, headers, const {
+    'date': ['date'],
+    'plan_id': ['plan_id'],
+    'exercise_id': ['exercise_id'],
+    'set_number': ['set_number'],
+    'reps_completed': ['reps_completed', 'reps'],
+    'weight_used': ['weight_used', 'weight'],
+    'RIR': ['rir'],
+  });
+
+  final rows = <Map<String, Object?>>[];
+  for (var index = 1; index < sheet.rows.length; index++) {
+    final row = sheet.rows[index];
+    if (_isBlankExcelRow(row)) {
+      continue;
+    }
+
+    final date = _stringValue(_headerValue(row, headers, ['date'])).trim();
+    final planId = _intValueOrNull(_headerValue(row, headers, ['plan_id']));
+    final exerciseId = _intValueOrNull(
+      _headerValue(row, headers, ['exercise_id']),
+    );
+    final setNumber = _intValueOrNull(
+      _headerValue(row, headers, ['set_number']),
+    );
+    final reps = _intValueOrNull(
+      _headerValue(row, headers, ['reps_completed', 'reps']),
+    );
+    final weight = _doubleValue(
+      _headerValue(row, headers, ['weight_used', 'weight']),
+    );
+    final rir = _intValueOrNull(_headerValue(row, headers, ['rir']));
+
+    if (date.isEmpty ||
+        planId == null ||
+        planId <= 0 ||
+        exerciseId == null ||
+        exerciseId <= 0 ||
+        setNumber == null ||
+        setNumber <= 0 ||
+        reps == null ||
+        rir == null) {
+      throw FormatException('Invalid $filename row ${index + 1}.');
+    }
+
+    rows.add({
+      'date': date,
+      'plan_id': planId,
+      'exercise_id': exerciseId,
+      'set_number': setNumber,
+      'reps': reps,
+      'weight': weight,
+      'rir': rir,
+    });
+  }
+  return rows;
 }
 
 List<Map<String, Object?>> _parseWorkoutSessionSeed(String directoryPath) {
+  const filename = 'workout_session.xlsx';
   final sheet = _readSheet(
-    path.join(directoryPath, 'workout_session.xlsx'),
-    kTableSchemas['workout_session.xlsx']!.sheetName,
+    path.join(directoryPath, filename),
+    kTableSchemas[filename]!.sheetName,
   );
-  if (sheet == null) {
+  if (sheet == null || sheet.rows.isEmpty) {
     return const [];
   }
 
-  return [
-    for (final row in sheet.rows.skip(1))
-      if (row.isNotEmpty)
-        {
-          'date': _stringValue(_excelValueAt(row, 1)),
-          'plan_id': _intValue(_excelValueAt(row, 2)),
-          'fatigue_level': _stringValue(_excelValueAt(row, 3)),
-          'duration_minutes': _intValue(_excelValueAt(row, 4)),
-          'mood': _stringValue(_excelValueAt(row, 5)),
-          'notes': _stringValue(_excelValueAt(row, 6)),
-        },
-  ];
+  final headers = _headerIndexMap(sheet.rows.first);
+  _requireHeaderGroups(filename, headers, const {
+    'date': ['date'],
+    'plan_id': ['plan_id'],
+    'fatigue_level': ['fatigue_level'],
+    'duration_minutes': ['duration_minutes'],
+    'mood': ['mood'],
+    'notes': ['notes'],
+  });
+
+  final rows = <Map<String, Object?>>[];
+  for (var index = 1; index < sheet.rows.length; index++) {
+    final row = sheet.rows[index];
+    if (_isBlankExcelRow(row)) {
+      continue;
+    }
+
+    final date = _stringValue(_headerValue(row, headers, ['date'])).trim();
+    final planId = _intValueOrNull(_headerValue(row, headers, ['plan_id']));
+    final durationMinutes = _intValueOrNull(
+      _headerValue(row, headers, ['duration_minutes']),
+    );
+
+    if (date.isEmpty ||
+        planId == null ||
+        planId <= 0 ||
+        durationMinutes == null) {
+      throw FormatException('Invalid $filename row ${index + 1}.');
+    }
+
+    rows.add({
+      'date': date,
+      'plan_id': planId,
+      'fatigue_level': _stringValue(
+        _headerValue(row, headers, ['fatigue_level']),
+      ),
+      'duration_minutes': durationMinutes,
+      'mood': _stringValue(_headerValue(row, headers, ['mood'])),
+      'notes': _stringValue(_headerValue(row, headers, ['notes'])),
+    });
+  }
+  return rows;
 }
 
 Sheet? _readSheet(String filePath, String sheetName) {
@@ -1331,14 +1578,15 @@ Sheet? _readSheet(String filePath, String sheetName) {
   }
 
   final excel = Excel.decodeBytes(bytes);
-  return excel[sheetName];
+  return excel.tables[sheetName];
 }
 
 Map<String, int> _headerIndexMap(List<Data?> headerRow) {
   final headers = <String, int>{};
   for (var index = 0; index < headerRow.length; index++) {
-    final header =
-        _normalizeHeaderName(_stringValue(_excelValueAt(headerRow, index)));
+    final header = _normalizeHeaderName(
+      _stringValue(_excelValueAt(headerRow, index)),
+    );
     if (header.isEmpty || headers.containsKey(header)) {
       continue;
     }
@@ -1359,6 +1607,36 @@ Object? _headerValue(
     }
   }
   return null;
+}
+
+void _requireHeaderGroups(
+  String filename,
+  Map<String, int> headers,
+  Map<String, List<String>> requiredHeaders,
+) {
+  final missingHeaders = <String>[];
+  for (final entry in requiredHeaders.entries) {
+    final hasHeader = entry.value.any(
+      (header) => headers.containsKey(_normalizeHeaderName(header)),
+    );
+    if (!hasHeader) {
+      missingHeaders.add(entry.key);
+    }
+  }
+  if (missingHeaders.isNotEmpty) {
+    throw FormatException(
+      'Invalid $filename: missing columns ${missingHeaders.join(', ')}.',
+    );
+  }
+}
+
+bool _isBlankExcelRow(List<Data?> row) {
+  for (var index = 0; index < row.length; index++) {
+    if (_stringValue(_excelValueAt(row, index)).trim().isNotEmpty) {
+      return false;
+    }
+  }
+  return true;
 }
 
 String _normalizeHeaderName(String value) {
@@ -1394,6 +1672,9 @@ Object? _excelValueAt(List<Data?> row, int index) {
 }
 
 CellValue _toCellValue(Object? value) {
+  if (value == null) {
+    return TextCellValue('');
+  }
   if (value is int) {
     return IntCellValue(value);
   }
@@ -1582,8 +1863,9 @@ int? _extractRirFromDescription(String description) {
     return null;
   }
 
-  final match = RegExp(r'(?:target\s*)?rir[^0-9]*([0-9]+)')
-      .firstMatch(description.toLowerCase());
+  final match = RegExp(
+    r'(?:target\s*)?rir[^0-9]*([0-9]+)',
+  ).firstMatch(description.toLowerCase());
   if (match != null) {
     return int.tryParse(match.group(1)!);
   }

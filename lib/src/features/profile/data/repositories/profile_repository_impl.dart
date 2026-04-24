@@ -17,15 +17,17 @@ class ProfileRepositoryImpl implements ProfileRepository {
       if (defaultSheet != null) {
         excel.rename(defaultSheet, schema.sheetName);
       }
-      excel[schema.sheetName]!.appendRow(
+      excel[schema.sheetName].appendRow(
         schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList(),
       );
-      excel[schema.sheetName]!
-          .appendRow(schema.sample.map<CellValue?>((e) {
-        if (e is int) return IntCellValue(e);
-        if (e is double) return DoubleCellValue(e);
-        return TextCellValue(e.toString());
-      }).toList());
+      excel[schema.sheetName].appendRow(
+        schema.sample.map<CellValue?>((e) {
+          if (e == null) return TextCellValue('');
+          if (e is int) return IntCellValue(e);
+          if (e is double) return DoubleCellValue(e);
+          return TextCellValue(e.toString());
+        }).toList(),
+      );
       final bytes = excel.save();
       if (bytes != null) await file.writeAsBytes(bytes);
     }
@@ -39,6 +41,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
     }
     return 0;
   }
+
   Future<Excel?> _openSheet(String filename) async {
     final dir = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/$filename');
@@ -60,7 +63,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   Future<UserProfile?> getUserProfile() async {
     final excel = await _openSheet('user.xlsx');
     if (excel == null) return null;
-    final sheet = excel[kTableSchemas['user.xlsx']!.sheetName];
+    final sheet = excel.tables[kTableSchemas['user.xlsx']!.sheetName];
     if (sheet == null || sheet.rows.length < 2) return null;
     final row = sheet.rows[1];
     return UserProfile(
@@ -90,7 +93,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   Future<List<BodyMetric>> getBodyMetrics() async {
     final excel = await _openSheet('body_metrics.xlsx');
     if (excel == null) return [];
-    final sheet = excel[kTableSchemas['body_metrics.xlsx']!.sheetName];
+    final sheet = excel.tables[kTableSchemas['body_metrics.xlsx']!.sheetName];
     if (sheet == null) return [];
     return sheet.rows.skip(1).where((r) => r.isNotEmpty).map((r) {
       return BodyMetric(
@@ -116,7 +119,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   Future<void> addBodyMetric(BodyMetric m) async {
     final file = await _getOrCreateFile('body_metrics.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['body_metrics.xlsx']!.sheetName]!;
+    final sheet = excel[kTableSchemas['body_metrics.xlsx']!.sheetName];
 
     sheet.appendRow([
       IntCellValue(_getLastId(sheet) + 1),
@@ -142,7 +145,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   Future<void> updateUserProfile(UserProfile p) async {
     final file = await _getOrCreateFile('user.xlsx');
     final excel = Excel.decodeBytes(await file.readAsBytes());
-    final sheet = excel[kTableSchemas['user.xlsx']!.sheetName]!;
+    final sheet = excel[kTableSchemas['user.xlsx']!.sheetName];
     final values = [
       IntCellValue(p.id),
       IntCellValue(p.age),

@@ -134,8 +134,7 @@ void main() {
 
     expect(repo.setPlanActiveCalls, 1);
     expect(find.text('3 ACTIVE'), findsOneWidget);
-    expect(find.byKey(const Key('inactive-routines-section')), findsOneWidget);
-    expect(find.byKey(const Key('inactive-routines-empty')), findsOneWidget);
+    expect(find.byKey(const Key('inactive-routine-3')), findsNothing);
   });
 
   testWidgets('inactive routines section remains visible when empty',
@@ -149,6 +148,10 @@ void main() {
 
     expect(find.byKey(const Key('inactive-routines-section')), findsOneWidget);
     expect(find.text('INACTIVE ROUTINES'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('inactive-routines-toggle')));
+    await tester.pumpAndSettle();
+
     expect(find.byKey(const Key('inactive-routines-empty')), findsOneWidget);
     expect(find.text('No inactive routines'), findsOneWidget);
   });
@@ -493,9 +496,19 @@ void main() {
       ),
     );
 
-    expect(find.text('Exportar Datos'), findsOneWidget);
-    expect(find.text('Compartir Backup'), findsOneWidget);
-    expect(find.text('Importar Datos'), findsOneWidget);
+    expect(find.text('Export Data'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Share Backup'),
+      180,
+      scrollable: find.byType(Scrollable),
+    );
+    expect(find.text('Share Backup'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Import Data'),
+      180,
+      scrollable: find.byType(Scrollable),
+    );
+    expect(find.text('Import Data'), findsOneWidget);
   });
 }
 
