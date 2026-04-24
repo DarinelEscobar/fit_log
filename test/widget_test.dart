@@ -1,4 +1,5 @@
 import 'package:fit_log/src/app.dart';
+import 'package:fit_log/src/features/app_data/presentation/pages/data_screen.dart';
 import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
 import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_detail.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
@@ -115,10 +116,14 @@ void main() {
     await tester.tap(find.byKey(const Key('home-view-routines')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('INACTIVE ROUTINES'));
+    expect(find.byKey(const Key('inactive-routines-section')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('inactive-routines-toggle')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Activate'));
+    expect(find.byKey(const Key('inactive-routine-3')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('inactive-routine-activate-3')));
     await tester.pump();
 
     expect(find.text('My Routines'), findsOneWidget);
@@ -129,6 +134,23 @@ void main() {
 
     expect(repo.setPlanActiveCalls, 1);
     expect(find.text('3 ACTIVE'), findsOneWidget);
+    expect(find.byKey(const Key('inactive-routines-section')), findsOneWidget);
+    expect(find.byKey(const Key('inactive-routines-empty')), findsOneWidget);
+  });
+
+  testWidgets('inactive routines section remains visible when empty',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository(includeInactivePlan: false);
+    await _pumpApp(tester, repo: repo);
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('home-view-routines')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('inactive-routines-section')), findsOneWidget);
+    expect(find.text('INACTIVE ROUTINES'), findsOneWidget);
+    expect(find.byKey(const Key('inactive-routines-empty')), findsOneWidget);
+    expect(find.text('No inactive routines'), findsOneWidget);
   });
 
   testWidgets('active workout session shows the redesigned shell', (
@@ -461,6 +483,20 @@ void main() {
     expect(find.byKey(const Key('active-session-title')), findsNothing);
     expect(find.byKey(const Key('routine-host-open')), findsOneWidget);
   });
+
+  testWidgets('Data screen shows backup actions', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: DataScreen(),
+        ),
+      ),
+    );
+
+    expect(find.text('Exportar Datos'), findsOneWidget);
+    expect(find.text('Compartir Backup'), findsOneWidget);
+    expect(find.text('Importar Datos'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpApp(
@@ -683,15 +719,17 @@ class _RoutineHost extends StatelessWidget {
 class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   _FakeWorkoutPlanRepository({
     this.setPlanActiveDelay = Duration.zero,
+    bool includeInactivePlan = true,
   }) : _plans = [
           WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
           WorkoutPlan(id: 2, name: 'Lower Strength', frequency: 'Tue / Fri'),
-          WorkoutPlan(
-            id: 3,
-            name: 'Mobility Reset',
-            frequency: 'Daily',
-            isActive: false,
-          ),
+          if (includeInactivePlan)
+            WorkoutPlan(
+              id: 3,
+              name: 'Mobility Reset',
+              frequency: 'Daily',
+              isActive: false,
+            ),
         ];
 
   final Duration setPlanActiveDelay;
