@@ -28,27 +28,28 @@ class XlsxInitializer {
 
   static void _writeTable(Excel excel, TableSchema schema) {
     final sheet = excel[schema.sheetName];
-    if (sheet == null) return;
 
-    final headerRow = schema.headers
-        .map<CellValue?>((e) => TextCellValue(e))
-        .toList();
+    final headerRow =
+        schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList();
 
     sheet.appendRow(headerRow);
 
     // Soporta múltiples filas si sample es una lista de listas
     if (schema.sample.isNotEmpty && schema.sample.first is List) {
       for (var row in schema.sample) {
-        final cellRow = (row as List).map<CellValue?>((e) => _toCellValue(e)).toList();
+        final cellRow =
+            (row as List).map<CellValue?>((e) => _toCellValue(e)).toList();
         sheet.appendRow(cellRow);
       }
     } else {
-      final sampleRow = schema.sample.map<CellValue?>((e) => _toCellValue(e)).toList();
+      final sampleRow =
+          schema.sample.map<CellValue?>((e) => _toCellValue(e)).toList();
       sheet.appendRow(sampleRow);
     }
   }
 
   static CellValue _toCellValue(dynamic e) {
+    if (e == null) return TextCellValue('');
     if (e is int) return IntCellValue(e);
     if (e is double) return DoubleCellValue(e);
     return TextCellValue(e.toString());
