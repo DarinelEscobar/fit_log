@@ -191,7 +191,79 @@ void main() {
     );
   });
 
-  test('xlsx initializer writes empty cells instead of null text', () async {
+  test('fresh install seeds only 30 exercises and leaves runtime tables empty',
+      () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    await service.warmUpRoutineRuntimeCache();
+    await service.close();
+
+    final db = await databaseFactoryFfi.openDatabase(databasePath);
+    addTearDown(db.close);
+
+    expect(await _countTable(db, 'exercises'), 30);
+    expect(await _countTable(db, 'workout_plans'), 0);
+    expect(await _countTable(db, 'plan_exercises'), 0);
+    expect(await _countTable(db, 'workout_logs'), 0);
+    expect(await _countTable(db, 'workout_sessions'), 0);
+
+    final xlsxFiles = documentsDirectory
+        .listSync()
+        .whereType<File>()
+        .where((file) => p.extension(file.path).toLowerCase() == '.xlsx')
+        .toList();
+    expect(xlsxFiles, isEmpty);
+  });
+
+  test('warmup seed is idempotent', () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    await service.warmUpRoutineRuntimeCache();
+    await service.warmUpRoutineRuntimeCache();
+    await service.close();
+
+    final db = await databaseFactoryFfi.openDatabase(databasePath);
+    addTearDown(db.close);
+    expect(await _countTable(db, 'exercises'), 30);
+  });
+
+  test('warmup does not rewrite existing user data', () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    await service.reopenIfNeeded();
+    await service.close();
+
+    final db = await databaseFactoryFfi.openDatabase(databasePath);
+    await db.insert('exercises', {
+      'exercise_id': 99,
+      'name': 'Custom User Exercise',
+      'description': 'User-created data',
+      'category': 'Isolation',
+      'main_muscle_group': 'Arms',
+    });
+    await db.close();
+
+    await service.warmUpRoutineRuntimeCache();
+    await service.close();
+
+    final verifyDb = await databaseFactoryFfi.openDatabase(databasePath);
+    addTearDown(verifyDb.close);
+
+    expect(await _countTable(verifyDb, 'exercises'), 1);
+    expect(
+      await _count(
+        verifyDb,
+        "SELECT COUNT(*) FROM exercises WHERE exercise_id = 99",
+      ),
+      1,
+    );
+    expect(
+      await _count(
+        verifyDb,
+        "SELECT COUNT(*) FROM exercises WHERE exercise_id = 1",
+      ),
+      0,
+    );
+  });
+
+  test('xlsx initializer creates files with headers only by default', () async {
     await XlsxInitializer.ensureXlsxFilesExist();
 
     final metricsFile = File(
@@ -199,9 +271,7 @@ void main() {
     );
     final excel = Excel.decodeBytes(await metricsFile.readAsBytes());
     final sheet = excel.tables['BodyMetrics']!;
-    final bodyFatValue = sheet.rows[1][3]?.value;
-
-    expect(bodyFatValue?.toString(), isNot('null'));
+    expect(sheet.rows.length, 1);
   });
 }
 
@@ -237,6 +307,10 @@ Map<String, Object?> _planExerciseRow({
 
 Future<int> _count(Database db, String sql) async {
   return Sqflite.firstIntValue(await db.rawQuery(sql)) ?? 0;
+}
+
+Future<int> _countTable(Database db, String table) {
+  return _count(db, 'SELECT COUNT(*) FROM $table');
 }
 
 Future<int> _planExerciseOrphanCount(Database db) {

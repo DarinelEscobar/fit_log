@@ -1,6 +1,9 @@
 import 'dart:io';
+
 import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
+
+import '../../../../data/create/initialize_xlsx.dart';
 import '../../../../data/schema/schemas.dart';
 import '../../domain/entities/user_profile.dart';
 import '../../domain/entities/body_metric.dart';
@@ -11,25 +14,10 @@ class ProfileRepositoryImpl implements ProfileRepository {
     final dir = await getApplicationDocumentsDirectory();
     final file = File('${dir.path}/$filename');
     if (!await file.exists()) {
-      final schema = kTableSchemas[filename]!;
-      final excel = Excel.createExcel();
-      final defaultSheet = excel.getDefaultSheet();
-      if (defaultSheet != null) {
-        excel.rename(defaultSheet, schema.sheetName);
-      }
-      excel[schema.sheetName].appendRow(
-        schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList(),
+      await XlsxInitializer.ensureXlsxFileExists(
+        filename,
+        includeSampleRows: false,
       );
-      excel[schema.sheetName].appendRow(
-        schema.sample.map<CellValue?>((e) {
-          if (e == null) return TextCellValue('');
-          if (e is int) return IntCellValue(e);
-          if (e is double) return DoubleCellValue(e);
-          return TextCellValue(e.toString());
-        }).toList(),
-      );
-      final bytes = excel.save();
-      if (bytes != null) await file.writeAsBytes(bytes);
     }
     return file;
   }

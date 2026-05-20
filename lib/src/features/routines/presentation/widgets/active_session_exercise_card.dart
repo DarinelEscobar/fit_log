@@ -13,6 +13,12 @@ import '../../domain/entities/workout_log_entry.dart';
 
 typedef SessionLogCallback = void Function(WorkoutLogEntry entry);
 
+enum LogCurrentSetResult {
+  registered,
+  noPendingSet,
+  invalidReps,
+}
+
 class ActiveSessionExerciseCard extends StatefulWidget {
   const ActiveSessionExerciseCard({
     required this.detail,
@@ -101,10 +107,15 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     super.dispose();
   }
 
-  bool logCurrentSet() {
+  LogCurrentSetResult logCurrentSet() {
     final nextSet = _nextPendingSetNumber;
     if (nextSet == null) {
-      return false;
+      return LogCurrentSetResult.noPendingSet;
+    }
+
+    final reps = _parsePositiveInt(_repControllers[nextSet - 1].text);
+    if (reps == null) {
+      return LogCurrentSetResult.invalidReps;
     }
 
     widget.completeLog(
@@ -113,7 +124,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
         planId: widget.planId,
         exerciseId: widget.detail.exerciseId,
         setNumber: nextSet,
-        reps: _parseInt(_repControllers[nextSet - 1].text, widget.detail.reps),
+        reps: reps,
         weight: _parseDouble(
             _kgControllers[nextSet - 1].text, widget.detail.weight),
         rir: _parseInt(_rirControllers[nextSet - 1].text, widget.detail.rir),
@@ -122,7 +133,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     );
     _startRestTimer(widget.now);
     setState(() {});
-    return true;
+    return LogCurrentSetResult.registered;
   }
 
   void _resetControllers(int targetSets) {
@@ -700,6 +711,14 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
 
   int _parseInt(String value, int fallback) {
     return int.tryParse(value.trim()) ?? fallback;
+  }
+
+  int? _parsePositiveInt(String value) {
+    final parsed = int.tryParse(value.trim());
+    if (parsed == null || parsed <= 0) {
+      return null;
+    }
+    return parsed;
   }
 
   double _parseDouble(String value, double fallback) {

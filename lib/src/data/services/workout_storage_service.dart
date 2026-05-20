@@ -676,69 +676,98 @@ class WorkoutStorageService {
   Future<void> _warmUpRoutineRuntimeCacheInternal({required bool force}) async {
     final db = await _getDatabase();
 
-    if (!force) {
-      final seeded = await _readMeta(db, _routineRuntimeSeededKey);
-      if (seeded == '1') {
-        return;
-      }
+    if (force) {
+      final directory = await getApplicationDocumentsDirectory();
+      final payload = await compute(_parseRoutineRuntimeSeed, directory.path);
 
-      final counts = await Future.wait<int>([
-        _countRows(db, 'workout_plans'),
-        _countRows(db, 'exercises'),
-        _countRows(db, 'plan_exercises'),
-      ]);
-      if (counts.every((count) => count > 0)) {
-        await _setMeta(db, _routineRuntimeSeededKey, '1');
-        return;
-      }
+      final plans =
+          payload[_routineSeedPlansKey] ?? const <Map<String, Object?>>[];
+      final exercises =
+          payload[_routineSeedExercisesKey] ?? const <Map<String, Object?>>[];
+      final planExercises = payload[_routineSeedPlanExercisesKey] ??
+          const <Map<String, Object?>>[];
+
+      await db.transaction((txn) async {
+        await txn.delete('plan_exercises');
+        await txn.delete('exercises');
+        await txn.delete('workout_plans');
+
+        final batch = txn.batch();
+        for (final row in plans) {
+          batch.insert(
+            'workout_plans',
+            row,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        for (final row in exercises) {
+          batch.insert(
+            'exercises',
+            row,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        for (final row in planExercises) {
+          batch.insert(
+            'plan_exercises',
+            row,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        await batch.commit(noResult: true);
+
+        await _setMeta(txn, _routineRuntimeSeededKey, '1');
+        await _setMeta(
+          txn,
+          _routineRuntimeSeededAtKey,
+          DateTime.now().toIso8601String(),
+        );
+        await _repairDataIntegrity(txn, recoverMissingParents: true);
+      });
+      return;
     }
 
-    final directory = await getApplicationDocumentsDirectory();
-    final payload = await compute(_parseRoutineRuntimeSeed, directory.path);
+    final seeded = await _readMeta(db, _routineRuntimeSeededKey);
+    if (seeded == '1') {
+      return;
+    }
 
-    final plans =
-        payload[_routineSeedPlansKey] ?? const <Map<String, Object?>>[];
-    final exercises =
-        payload[_routineSeedExercisesKey] ?? const <Map<String, Object?>>[];
-    final planExercises =
-        payload[_routineSeedPlanExercisesKey] ?? const <Map<String, Object?>>[];
+    final counts = await Future.wait<int>([
+      _countRows(db, 'exercises'),
+      _countRows(db, 'workout_plans'),
+      _countRows(db, 'plan_exercises'),
+      _countRows(db, 'workout_logs'),
+      _countRows(db, 'workout_sessions'),
+    ]);
+
+    final exercisesCount = counts[0];
+    final hasOtherRoutineData = counts.skip(1).any((count) => count > 0);
+    if (exercisesCount > 0 || hasOtherRoutineData) {
+      await _setMeta(db, _routineRuntimeSeededKey, '1');
+      await _setMeta(
+        db,
+        _routineRuntimeSeededAtKey,
+        DateTime.now().toIso8601String(),
+      );
+      return;
+    }
 
     await db.transaction((txn) async {
-      await txn.delete('plan_exercises');
-      await txn.delete('exercises');
-      await txn.delete('workout_plans');
-
       final batch = txn.batch();
-      for (final row in plans) {
-        batch.insert(
-          'workout_plans',
-          row,
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-      for (final row in exercises) {
+      for (final exercise in _kCommonExerciseSeedRows) {
         batch.insert(
           'exercises',
-          row,
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-      for (final row in planExercises) {
-        batch.insert(
-          'plan_exercises',
-          row,
-          conflictAlgorithm: ConflictAlgorithm.replace,
+          exercise,
+          conflictAlgorithm: ConflictAlgorithm.ignore,
         );
       }
       await batch.commit(noResult: true);
-
       await _setMeta(txn, _routineRuntimeSeededKey, '1');
       await _setMeta(
         txn,
         _routineRuntimeSeededAtKey,
         DateTime.now().toIso8601String(),
       );
-      await _repairDataIntegrity(txn, recoverMissingParents: true);
     });
   }
 
@@ -1261,6 +1290,219 @@ class WorkoutStorageService {
     };
   }
 }
+
+const List<Map<String, Object?>> _kCommonExerciseSeedRows = [
+  {
+    'exercise_id': 1,
+    'name': 'Barbell Back Squat',
+    'description': 'Drive through mid-foot and keep torso braced.',
+    'category': 'Compound',
+    'main_muscle_group': 'Legs',
+  },
+  {
+    'exercise_id': 2,
+    'name': 'Romanian Deadlift',
+    'description': 'Push hips back and keep a neutral spine.',
+    'category': 'Compound',
+    'main_muscle_group': 'Hamstrings',
+  },
+  {
+    'exercise_id': 3,
+    'name': 'Conventional Deadlift',
+    'description': 'Set lats tight and pull the floor away.',
+    'category': 'Compound',
+    'main_muscle_group': 'Back',
+  },
+  {
+    'exercise_id': 4,
+    'name': 'Barbell Bench Press',
+    'description': 'Retract shoulder blades and control bar path.',
+    'category': 'Compound',
+    'main_muscle_group': 'Chest',
+  },
+  {
+    'exercise_id': 5,
+    'name': 'Incline Dumbbell Press',
+    'description': 'Press up and in while keeping shoulder stable.',
+    'category': 'Compound',
+    'main_muscle_group': 'Chest',
+  },
+  {
+    'exercise_id': 6,
+    'name': 'Standing Overhead Press',
+    'description': 'Brace core and press in a vertical path.',
+    'category': 'Compound',
+    'main_muscle_group': 'Shoulders',
+  },
+  {
+    'exercise_id': 7,
+    'name': 'Pull-Up',
+    'description': 'Lead with chest and avoid swinging.',
+    'category': 'Compound',
+    'main_muscle_group': 'Back',
+  },
+  {
+    'exercise_id': 8,
+    'name': 'Lat Pulldown',
+    'description': 'Pull elbows down toward hips.',
+    'category': 'Compound',
+    'main_muscle_group': 'Back',
+  },
+  {
+    'exercise_id': 9,
+    'name': 'Barbell Row',
+    'description': 'Keep torso fixed and row to lower ribs.',
+    'category': 'Compound',
+    'main_muscle_group': 'Back',
+  },
+  {
+    'exercise_id': 10,
+    'name': 'Seated Cable Row',
+    'description': 'Squeeze shoulder blades at full contraction.',
+    'category': 'Compound',
+    'main_muscle_group': 'Back',
+  },
+  {
+    'exercise_id': 11,
+    'name': 'Leg Press',
+    'description': 'Control depth and keep knees tracking over toes.',
+    'category': 'Compound',
+    'main_muscle_group': 'Legs',
+  },
+  {
+    'exercise_id': 12,
+    'name': 'Walking Lunge',
+    'description': 'Take controlled steps and keep torso tall.',
+    'category': 'Compound',
+    'main_muscle_group': 'Legs',
+  },
+  {
+    'exercise_id': 13,
+    'name': 'Hip Thrust',
+    'description': 'Posteriorly tilt pelvis and lock out hips.',
+    'category': 'Compound',
+    'main_muscle_group': 'Glutes',
+  },
+  {
+    'exercise_id': 14,
+    'name': 'Leg Extension',
+    'description': 'Pause briefly at top without swinging.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Quadriceps',
+  },
+  {
+    'exercise_id': 15,
+    'name': 'Seated Leg Curl',
+    'description': 'Pull with hamstrings and control the eccentric.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Hamstrings',
+  },
+  {
+    'exercise_id': 16,
+    'name': 'Standing Calf Raise',
+    'description': 'Use full range and pause at stretch.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Calves',
+  },
+  {
+    'exercise_id': 17,
+    'name': 'Dumbbell Lateral Raise',
+    'description': 'Lift with elbows and avoid shrugging.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Shoulders',
+  },
+  {
+    'exercise_id': 18,
+    'name': 'Face Pull',
+    'description': 'Pull to eye level and externally rotate.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Shoulders',
+  },
+  {
+    'exercise_id': 19,
+    'name': 'Cable Fly',
+    'description': 'Keep slight elbow bend and squeeze chest.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Chest',
+  },
+  {
+    'exercise_id': 20,
+    'name': 'Push-Up',
+    'description': 'Maintain plank alignment through full range.',
+    'category': 'Compound',
+    'main_muscle_group': 'Chest',
+  },
+  {
+    'exercise_id': 21,
+    'name': 'Dips',
+    'description': 'Stay controlled and avoid shoulder collapse.',
+    'category': 'Compound',
+    'main_muscle_group': 'Triceps',
+  },
+  {
+    'exercise_id': 22,
+    'name': 'Triceps Pushdown',
+    'description': 'Keep elbows fixed and fully extend arms.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Triceps',
+  },
+  {
+    'exercise_id': 23,
+    'name': 'Overhead Triceps Extension',
+    'description': 'Keep elbows close and control stretch.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Triceps',
+  },
+  {
+    'exercise_id': 24,
+    'name': 'Barbell Curl',
+    'description': 'Curl without torso momentum.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Biceps',
+  },
+  {
+    'exercise_id': 25,
+    'name': 'Hammer Curl',
+    'description': 'Keep neutral grip and full elbow flexion.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Biceps',
+  },
+  {
+    'exercise_id': 26,
+    'name': 'Preacher Curl',
+    'description': 'Use strict tempo and avoid shoulder roll.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Biceps',
+  },
+  {
+    'exercise_id': 27,
+    'name': 'Cable Crunch',
+    'description': 'Flex spine intentionally and exhale at bottom.',
+    'category': 'Isolation',
+    'main_muscle_group': 'Core',
+  },
+  {
+    'exercise_id': 28,
+    'name': 'Hanging Leg Raise',
+    'description': 'Raise legs with controlled hip flexion.',
+    'category': 'Compound',
+    'main_muscle_group': 'Core',
+  },
+  {
+    'exercise_id': 29,
+    'name': 'Plank',
+    'description': 'Maintain a rigid trunk without sagging hips.',
+    'category': 'Isometric',
+    'main_muscle_group': 'Core',
+  },
+  {
+    'exercise_id': 30,
+    'name': 'Bulgarian Split Squat',
+    'description': 'Stay balanced and track front knee over toes.',
+    'category': 'Compound',
+    'main_muscle_group': 'Legs',
+  },
+];
 
 const String _routineSeedPlansKey = 'plans';
 const String _routineSeedExercisesKey = 'exercises';

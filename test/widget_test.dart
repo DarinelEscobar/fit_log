@@ -201,6 +201,57 @@ void main() {
     );
   });
 
+  testWidgets('register set blocks when reps is empty', (tester) async {
+    await _pumpStartRoutine(tester);
+
+    await tester.enterText(find.byKey(const Key('active-set-1-1-reps')), '');
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('active-session-register-set')));
+    await tester.pump();
+
+    expect(find.textContaining('Rest timer running'), findsNothing);
+    expect(
+      _notificationCalls.where((call) => call.method == 'zonedSchedule'),
+      isEmpty,
+    );
+  });
+
+  testWidgets('register set blocks when reps is zero', (tester) async {
+    await _pumpStartRoutine(tester);
+
+    await tester.enterText(find.byKey(const Key('active-set-1-1-reps')), '0');
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('active-session-register-set')));
+    await tester.pump();
+
+    expect(find.textContaining('Rest timer running'), findsNothing);
+    expect(
+      _notificationCalls.where((call) => call.method == 'zonedSchedule'),
+      isEmpty,
+    );
+  });
+
+  testWidgets('register set allows kg zero when reps is valid', (tester) async {
+    await _pumpStartRoutine(tester);
+
+    await tester.enterText(find.byKey(const Key('active-set-1-1-kg')), '0');
+    await tester.enterText(find.byKey(const Key('active-set-1-1-reps')), '8');
+    await tester.pump();
+
+    final firstCardState = tester.state<ActiveSessionExerciseCardState>(
+      find.byType(ActiveSessionExerciseCard).first,
+    );
+    expect(firstCardState.logCurrentSet(), LogCurrentSetResult.registered);
+    await tester.pump();
+    expect(firstCardState.restRemainingSeconds, greaterThan(0));
+    expect(
+      _notificationCalls.where((call) => call.method == 'zonedSchedule'),
+      hasLength(1),
+    );
+  });
+
   testWidgets('add and remove set update the visible set rows', (tester) async {
     await _pumpStartRoutine(tester);
 
@@ -682,7 +733,7 @@ Future<void> _completeFirstSet(WidgetTester tester) async {
     find.byType(ActiveSessionExerciseCard).first,
   );
 
-  expect(firstCardState.logCurrentSet(), isTrue);
+  expect(firstCardState.logCurrentSet(), LogCurrentSetResult.registered);
   await tester.pump();
 }
 
