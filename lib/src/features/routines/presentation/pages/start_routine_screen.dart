@@ -479,13 +479,19 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                       if (cardState == null) {
                         return;
                       }
-                      final didRegister = cardState.logCurrentSet();
-                      if (didRegister) {
-                        _showSnackBar('Set registered.');
-                      } else {
-                        _showSnackBar(
-                          'All visible sets are complete. Add a new set to keep going.',
-                        );
+                      final result = cardState.logCurrentSet();
+                      switch (result) {
+                        case LogCurrentSetResult.registered:
+                          _showSnackBar('Set registered.');
+                          break;
+                        case LogCurrentSetResult.invalidReps:
+                          _showSnackBar('Enter valid reps (>0) for this set.');
+                          break;
+                        case LogCurrentSetResult.noPendingSet:
+                          _showSnackBar(
+                            'All visible sets are complete. Add a new set to keep going.',
+                          );
+                          break;
                       }
                     },
               style: FilledButton.styleFrom(

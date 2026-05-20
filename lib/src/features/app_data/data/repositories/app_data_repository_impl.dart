@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../../data/create/initialize_xlsx.dart';
 import '../../../../data/services/workout_storage_service.dart';
 import '../../../../data/schema/schemas.dart';
 import '../../../../features/routines/domain/entities/workout_log_entry.dart';
@@ -31,6 +32,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
   Future<File> exportData() async {
     final dir = await getApplicationDocumentsDirectory();
     final databaseDir = await getDatabasesPath();
+    await XlsxInitializer.ensureXlsxFilesExist(includeSampleRows: false);
     await _storageService.repairDataIntegrity();
     await _storageService.exportRoutineRuntimeToXlsxFiles(dir);
     await _syncWorkoutExports(dir);
