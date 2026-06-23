@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../theme/kinetic_noir.dart';
 import '../../domain/entities/exercise.dart';
+import '../../domain/usecases/create_exercise_usecase.dart';
 import '../providers/exercises_provider.dart';
+import '../providers/workout_plan_repository_provider.dart';
+import '../widgets/exercise_definition_dialog.dart';
 
 class SelectExerciseScreen extends ConsumerStatefulWidget {
   const SelectExerciseScreen({
@@ -26,6 +29,7 @@ class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
   late final ValueNotifier<String> _groupNotifier;
   late Future<List<Exercise>> _loadFuture;
   List<Exercise>? _cachedExercises;
+  bool _isCreating = false;
 
   @override
   void initState() {
@@ -115,6 +119,8 @@ class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
                   searchController: _searchController,
                   groupsList: groupsList,
                   selectedGroupListenable: _groupNotifier,
+                  isCreating: _isCreating,
+                  onCreateExercise: _createExercise,
                 ),
               ),
               const SizedBox(height: 16),
@@ -175,6 +181,99 @@ class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
       return matchesGroup && matchesQuery;
     }).toList(growable: false);
   }
+
+  Future<void> _createExercise() async {
+    if (_isCreating) {
+      return;
+    }
+
+    final input = await showDialog<ExerciseDefinitionInput>(
+      context: context,
+      builder: (_) => const ExerciseDefinitionDialog(),
+    );
+    if (input == null || !mounted) {
+      return;
+    }
+
+    if (input.name.trim().isEmpty) {
+      _showMessage('Exercise name is required.', isError: true);
+      return;
+    }
+
+    setState(() => _isCreating = true);
+    try {
+      final repo = ref.read(workoutPlanRepositoryProvider);
+      await CreateExerciseUseCase(repo)(
+        input.name,
+        input.description,
+        input.category,
+        input.mainMuscleGroup,
+      );
+      ref.invalidate(allExercisesProvider);
+      final exercises = await repo.getAllExercises();
+      final sortedExercises = List<Exercise>.from(exercises)
+        ..sort((a, b) => a.name.compareTo(b.name));
+      final created = _findCreatedExercise(sortedExercises, input);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _cachedExercises = sortedExercises;
+        _loadFuture = Future.value(sortedExercises);
+      });
+
+      if (created == null) {
+        _showMessage(
+          'Exercise created, but it could not be selected automatically.',
+          isError: true,
+        );
+        return;
+      }
+
+      Navigator.pop(context, created);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage('Unable to create exercise: $error', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isCreating = false);
+      }
+    }
+  }
+
+  Exercise? _findCreatedExercise(
+    List<Exercise> exercises,
+    ExerciseDefinitionInput input,
+  ) {
+    for (final exercise in exercises.reversed) {
+      if (exercise.name.trim() == input.name.trim() &&
+          exercise.category.trim() == input.category.trim() &&
+          exercise.mainMuscleGroup.trim() == input.mainMuscleGroup.trim() &&
+          exercise.description.trim() == input.description.trim()) {
+        return exercise;
+      }
+    }
+    return null;
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        backgroundColor: isError
+            ? KineticNoirPalette.error
+            : KineticNoirPalette.surfaceBright,
+        content: Text(message),
+      ),
+    );
+  }
 }
 
 class _SelectExerciseHeader extends StatelessWidget {
@@ -182,11 +281,15 @@ class _SelectExerciseHeader extends StatelessWidget {
     required this.searchController,
     required this.groupsList,
     required this.selectedGroupListenable,
+    required this.isCreating,
+    required this.onCreateExercise,
   });
 
   final TextEditingController searchController;
   final List<String> groupsList;
   final ValueNotifier<String> selectedGroupListenable;
+  final bool isCreating;
+  final VoidCallback onCreateExercise;
 
   @override
   Widget build(BuildContext context) {
@@ -194,7 +297,7 @@ class _SelectExerciseHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Select an existing exercise to add it to the routine.',
+          'Select an existing exercise or create one if it is not in your library yet.',
           style: KineticNoirTypography.body(
             size: 14,
             weight: FontWeight.w600,
@@ -203,6 +306,50 @@ class _SelectExerciseHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: kineticPrimaryGradient,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: FilledButton.icon(
+              key: const Key('select-exercise-create-new'),
+              onPressed: isCreating ? null : onCreateExercise,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                disabledBackgroundColor:
+                    Colors.transparent.withValues(alpha: 0.24),
+                shadowColor: Colors.transparent,
+                foregroundColor: KineticNoirPalette.onPrimary,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              icon: isCreating
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: KineticNoirPalette.onPrimary,
+                      ),
+                    )
+                  : const Icon(Icons.add_circle_rounded, size: 18),
+              label: Text(
+                isCreating ? 'CREATING...' : 'CREATE NEW EXERCISE',
+                style: KineticNoirTypography.body(
+                  size: 12,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.onPrimary,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
         TextField(
           controller: searchController,
           decoration: InputDecoration(

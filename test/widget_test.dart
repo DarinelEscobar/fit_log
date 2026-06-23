@@ -7,6 +7,7 @@ import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.
 import 'package:fit_log/src/features/routines/domain/entities/workout_plan.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_session.dart';
 import 'package:fit_log/src/features/routines/domain/repositories/workout_plan_repository.dart';
+import 'package:fit_log/src/features/routines/presentation/pages/select_exercise_screen.dart';
 import 'package:fit_log/src/features/routines/presentation/pages/start_routine_screen.dart';
 import 'package:fit_log/src/features/routines/presentation/providers/workout_plan_repository_provider.dart';
 import 'package:fit_log/src/features/routines/presentation/widgets/active_session_exercise_card.dart';
@@ -613,6 +614,55 @@ void main() {
     );
     expect(find.text('Import Data'), findsOneWidget);
   });
+
+  testWidgets('exercise selector creates a new library exercise', (
+    tester,
+  ) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await tester.binding.setSurfaceSize(const Size(430, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          workoutPlanRepositoryProvider.overrideWithValue(repo),
+        ],
+        child: const MaterialApp(
+          home: _SelectExerciseHost(),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('select-exercise-host-open')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('select-exercise-create-new')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('select-exercise-create-new')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('exercise-definition-name')),
+      'Cable Lateral Raise',
+    );
+    await tester.enterText(
+      find.byKey(const Key('exercise-definition-category')),
+      'Isolation',
+    );
+    await tester.enterText(
+      find.byKey(const Key('exercise-definition-muscle')),
+      'Side Delts',
+    );
+    await tester.enterText(
+      find.byKey(const Key('exercise-definition-description')),
+      'Lead with elbows.',
+    );
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cable Lateral Raise'), findsOneWidget);
+    expect(repo.createdExerciseNames, contains('Cable Lateral Raise'));
+  });
 }
 
 Future<void> _pumpApp(
@@ -891,6 +941,48 @@ class _RoutineHost extends StatelessWidget {
   }
 }
 
+class _SelectExerciseHost extends StatefulWidget {
+  const _SelectExerciseHost();
+
+  @override
+  State<_SelectExerciseHost> createState() => _SelectExerciseHostState();
+}
+
+class _SelectExerciseHostState extends State<_SelectExerciseHost> {
+  Exercise? _selectedExercise;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_selectedExercise?.name ?? 'No exercise selected'),
+            const SizedBox(height: 12),
+            FilledButton(
+              key: const Key('select-exercise-host-open'),
+              onPressed: () async {
+                final exercise = await Navigator.of(context).push<Exercise>(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const SelectExerciseScreen(groups: {'Shoulders'}),
+                  ),
+                );
+                if (exercise == null) {
+                  return;
+                }
+                setState(() => _selectedExercise = exercise);
+              },
+              child: const Text('ADD EXERCISE'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   _FakeWorkoutPlanRepository({
     this.setPlanActiveDelay = Duration.zero,
@@ -911,6 +1003,7 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   final List<WorkoutPlan> _plans;
   int getAllExercisesCalls = 0;
   int setPlanActiveCalls = 0;
+  final List<String> createdExerciseNames = [];
   final List<WorkoutLogEntry> savedLogs = [];
   final List<WorkoutSession> savedSessions = [];
   ActiveWorkoutSessionDraft? activeSessionDraft;
@@ -990,7 +1083,23 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
     String description,
     String category,
     String mainMuscleGroup,
-  ) async {}
+  ) async {
+    createdExerciseNames.add(name);
+    final nextId = _exercises.fold<int>(
+          0,
+          (maxId, exercise) => exercise.id > maxId ? exercise.id : maxId,
+        ) +
+        1;
+    _exercises.add(
+      Exercise(
+        id: nextId,
+        name: name,
+        description: description,
+        category: category,
+        mainMuscleGroup: mainMuscleGroup,
+      ),
+    );
+  }
 
   @override
   Future<void> createWorkoutPlan(String name, String frequency) async {}
