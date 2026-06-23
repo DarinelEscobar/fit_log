@@ -45,7 +45,10 @@ class RoutineJsonCodec {
       final name = decoded['name']?.toString().trim() ?? '';
       final description = decoded['description']?.toString().trim() ?? '';
       final category = decoded['category']?.toString().trim() ?? '';
-      final mainMuscle = decoded['mainMuscle']?.toString().trim() ?? '';
+      final mainMuscle = (decoded['mainMuscleGroup'] ?? decoded['mainMuscle'])
+              ?.toString()
+              .trim() ??
+          '';
       if (name.isEmpty) return null;
       return Exercise(
         id: 0,

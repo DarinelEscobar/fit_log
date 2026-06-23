@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../theme/kinetic_noir.dart';
+import '../../domain/entities/exercise.dart';
+import '../../services/routine_json_codec.dart';
+import 'exercise_definition_form_widgets.dart';
 
 class ExerciseDefinitionInput {
   const ExerciseDefinitionInput({
@@ -25,10 +29,12 @@ class ExerciseDefinitionDialog extends StatefulWidget {
 }
 
 class _ExerciseDefinitionDialogState extends State<ExerciseDefinitionDialog> {
+  final RoutineJsonCodec _jsonCodec = RoutineJsonCodec();
   late final TextEditingController _nameController;
   late final TextEditingController _categoryController;
   late final TextEditingController _muscleController;
   late final TextEditingController _descriptionController;
+  bool _didCopyPrompt = false;
 
   @override
   void initState() {
@@ -76,28 +82,44 @@ class _ExerciseDefinitionDialogState extends State<ExerciseDefinitionDialog> {
               ),
             ),
             const SizedBox(height: 20),
-            _ExerciseField(
+            ExerciseDefinitionField(
               fieldKey: const Key('exercise-definition-name'),
               controller: _nameController,
               label: 'Exercise Name',
               hintText: 'Incline Dumbbell Press',
             ),
+            const SizedBox(height: 12),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _nameController,
+              builder: (context, value, _) {
+                final exerciseName = value.text.trim();
+                final hasName = exerciseName.isNotEmpty;
+                return ExerciseDefinitionJsonActions(
+                  canCopyPrompt: hasName,
+                  canPasteJson: hasName && _didCopyPrompt,
+                  onCopyPrompt:
+                      hasName ? () => _copyExercisePrompt(exerciseName) : null,
+                  onPasteJson:
+                      hasName && _didCopyPrompt ? _pasteExerciseJson : null,
+                );
+              },
+            ),
             const SizedBox(height: 14),
-            _ExerciseField(
+            ExerciseDefinitionField(
               fieldKey: const Key('exercise-definition-category'),
               controller: _categoryController,
               label: 'Category',
               hintText: 'Strength',
             ),
             const SizedBox(height: 14),
-            _ExerciseField(
+            ExerciseDefinitionField(
               fieldKey: const Key('exercise-definition-muscle'),
               controller: _muscleController,
               label: 'Primary Muscle',
               hintText: 'Upper Chest',
             ),
             const SizedBox(height: 14),
-            _ExerciseField(
+            ExerciseDefinitionField(
               fieldKey: const Key('exercise-definition-description'),
               controller: _descriptionController,
               label: 'Description',
@@ -159,59 +181,88 @@ class _ExerciseDefinitionDialogState extends State<ExerciseDefinitionDialog> {
       ),
     );
   }
+
+  Future<void> _copyExercisePrompt(String exerciseName) async {
+    await Clipboard.setData(
+      ClipboardData(text: _buildExercisePrompt(exerciseName)),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _didCopyPrompt = true);
+    _showMessage('Prompt copied. Paste the guide JSON when ready.');
+  }
+
+  Future<void> _pasteExerciseJson() async {
+    final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
+    if (!mounted) {
+      return;
+    }
+
+    final source = clipboardData?.text?.trim() ?? '';
+    final exercise = _jsonCodec.parseExerciseJson(source);
+
+    if (exercise == null || !_hasCompleteExerciseData(exercise)) {
+      _showMessage(
+        'Paste a valid exercise JSON with name, category, mainMuscleGroup, and description.',
+        isError: true,
+      );
+      return;
+    }
+
+    setState(() {
+      _nameController.text = exercise.name;
+      _categoryController.text = exercise.category;
+      _muscleController.text = exercise.mainMuscleGroup;
+      _descriptionController.text = exercise.description;
+    });
+    _showMessage('Exercise JSON applied.');
+  }
+
+  bool _hasCompleteExerciseData(Exercise exercise) {
+    return exercise.name.trim().isNotEmpty &&
+        exercise.category.trim().isNotEmpty &&
+        exercise.mainMuscleGroup.trim().isNotEmpty &&
+        exercise.description.trim().isNotEmpty;
+  }
+
+  String _buildExercisePrompt(String exerciseName) {
+    return '''
+Create concise exercise metadata for a fitness tracking app.
+
+Exercise name: "$exerciseName"
+
+Return valid JSON only. Do not include Markdown, code fences, comments, or explanations.
+Use English values and fill these exact keys:
+{
+  "name": "$exerciseName",
+  "category": "Strength or another short category",
+  "mainMuscleGroup": "Primary muscle group",
+  "description": "1-2 short sentences explaining how to perform it with useful cues."
 }
 
-class _ExerciseField extends StatelessWidget {
-  const _ExerciseField({
-    required this.fieldKey,
-    required this.controller,
-    required this.label,
-    required this.hintText,
-    this.minLines = 1,
-    this.maxLines = 1,
-  });
+Keep the description practical and concise.
+'''
+        .trim();
+  }
 
-  final Key fieldKey;
-  final TextEditingController controller;
-  final String label;
-  final String hintText;
-  final int minLines;
-  final int maxLines;
+  void _showMessage(String message, {bool isError = false}) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) {
+      return;
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: KineticNoirTypography.body(
-            size: 10,
-            weight: FontWeight.w800,
-            color: KineticNoirPalette.onSurfaceVariant,
-            letterSpacing: 1.8,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          key: fieldKey,
-          controller: controller,
-          minLines: minLines,
-          maxLines: maxLines,
-          style: KineticNoirTypography.body(size: 15, weight: FontWeight.w600),
-          decoration: InputDecoration(
-            hintText: hintText,
-            filled: true,
-            fillColor: KineticNoirPalette.surfaceLow,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-      ],
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: isError
+            ? KineticNoirPalette.error
+            : KineticNoirPalette.surfaceBright,
+        content: Text(message),
+      ),
     );
   }
 }

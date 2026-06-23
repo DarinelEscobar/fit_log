@@ -9,6 +9,7 @@ import '../../../performance/presentation/providers/performance_providers.dart';
 import '../../domain/entities/active_workout_session_draft.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
+import '../../domain/entities/weight_display_unit.dart';
 import '../../domain/entities/workout_log_entry.dart';
 import '../../domain/entities/workout_plan.dart';
 import '../../domain/entities/workout_session.dart';
@@ -55,6 +56,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
 
   final Map<int, GlobalKey<ActiveSessionExerciseCardState>> _cardKeys = {};
   final Map<int, int> _setCountsByExercise = {};
+  final Map<int, WeightDisplayUnit> _weightUnitsByExercise = {};
   final Map<String, WorkoutLogEntry> _sessionLogs = {};
   final Map<int, DateTime> _restEndsAtByExercise = {};
 
@@ -121,8 +123,13 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       for (final exercise in draft.exercises) exercise.id: exercise,
     };
     _setCountsByExercise.addAll(draft.setCountsByExercise);
+    _weightUnitsByExercise.addAll(draft.weightUnitsByExercise);
     for (final detail in _sessionDetails!) {
       _setCountsByExercise.putIfAbsent(detail.exerciseId, () => detail.sets);
+      _weightUnitsByExercise.putIfAbsent(
+        detail.exerciseId,
+        () => WeightDisplayUnit.kg,
+      );
       _cardKeys[detail.exerciseId] =
           GlobalKey<ActiveSessionExerciseCardState>();
     }
@@ -255,6 +262,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
           detail.exerciseId:
               _setCountsByExercise[detail.exerciseId] ?? detail.sets,
       },
+      weightUnitsByExercise: {
+        for (final detail in details)
+          detail.exerciseId:
+              _weightUnitsByExercise[detail.exerciseId] ?? WeightDisplayUnit.kg,
+      },
       logs: _sessionLogs.values.toList(growable: false),
       restEndsAtByExercise: Map<int, DateTime>.from(_restEndsAtByExercise),
     );
@@ -285,6 +297,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     if (_sessionDetails != null) {
       for (final detail in _sessionDetails!) {
         _setCountsByExercise.putIfAbsent(detail.exerciseId, () => detail.sets);
+        _weightUnitsByExercise.putIfAbsent(
+          detail.exerciseId,
+          () => WeightDisplayUnit.kg,
+        );
         _cardKeys.putIfAbsent(
           detail.exerciseId,
           () => GlobalKey<ActiveSessionExerciseCardState>(),
@@ -296,6 +312,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _sessionDetails = List<PlanExerciseDetail>.from(details);
     for (final detail in _sessionDetails!) {
       _setCountsByExercise[detail.exerciseId] = detail.sets;
+      _weightUnitsByExercise[detail.exerciseId] = WeightDisplayUnit.kg;
       _cardKeys[detail.exerciseId] =
           GlobalKey<ActiveSessionExerciseCardState>();
     }
@@ -365,6 +382,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       _sessionLogs.remove(key);
     }
     _restEndsAtByExercise.remove(detail.exerciseId);
+    _weightUnitsByExercise.remove(detail.exerciseId);
 
     setState(() {
       _cardKeys.remove(detail.exerciseId);
@@ -378,6 +396,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       _sessionDetails![index] = newDetail;
       _exerciseMap![picked.id] = picked;
       _setCountsByExercise[newDetail.exerciseId] = existingSetCount;
+      _weightUnitsByExercise[newDetail.exerciseId] = WeightDisplayUnit.kg;
       _cardKeys[newDetail.exerciseId] =
           GlobalKey<ActiveSessionExerciseCardState>();
       if (_expandedExerciseId == detail.exerciseId) {
@@ -424,6 +443,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       _sessionDetails!.add(newDetail);
       _exerciseMap![exercise.id] = exercise;
       _setCountsByExercise[newDetail.exerciseId] = newDetail.sets;
+      _weightUnitsByExercise[newDetail.exerciseId] = WeightDisplayUnit.kg;
       _cardKeys[newDetail.exerciseId] =
           GlobalKey<ActiveSessionExerciseCardState>();
       _expandedExerciseId = newDetail.exerciseId;
@@ -746,6 +766,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                             expanded: _expandedExerciseId ==
                                 sessionDetails[index].exerciseId,
                             logsMap: _sessionLogs,
+                            weightUnit: _weightUnitsByExercise[
+                                    sessionDetails[index].exerciseId] ??
+                                WeightDisplayUnit.kg,
                             initialRestEndsAt: _restEndsAtByExercise[
                                 sessionDetails[index].exerciseId],
                             onToggle: () => setState(() {
@@ -765,6 +788,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                             saveDraftLog: _saveDraftLog,
                             completeLog: _completeLog,
                             removeLog: _removeLog,
+                            onWeightUnitChanged: (unit) => setState(() {
+                              _weightUnitsByExercise[
+                                  sessionDetails[index].exerciseId] = unit;
+                              _scheduleDraftPersist();
+                            }),
                             onRestEndsAtChanged: (restEndsAt) =>
                                 _updateRestEndsAt(
                               sessionDetails[index].exerciseId,

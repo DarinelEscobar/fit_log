@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/app_data/presentation/pages/data_screen.dart';
+import '../features/history/presentation/pages/history_screen.dart';
 import '../features/performance/presentation/pages/performance_dashboard_screen.dart';
 import '../features/routines/domain/entities/active_workout_session_draft.dart';
 import '../features/routines/domain/usecases/active_session_draft_usecases.dart';
@@ -128,6 +129,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         children: [
           RoutinesScreen(onOpenDataManagement: _openDataManagement),
           if (_loadedTabs.contains(1))
+            const HistoryScreen()
+          else
+            const SizedBox.shrink(),
+          if (_loadedTabs.contains(2))
             const PerformanceDashboardScreen()
           else
             const SizedBox.shrink(),
@@ -139,6 +144,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         items: const [
           KineticBottomNavItem(
               icon: Icons.fitness_center_rounded, label: 'Routines'),
+          KineticBottomNavItem(
+            icon: Icons.history_rounded,
+            label: 'History',
+          ),
           KineticBottomNavItem(
             icon: Icons.show_chart_rounded,
             label: 'Performance',
