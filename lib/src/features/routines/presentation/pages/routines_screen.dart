@@ -18,7 +18,12 @@ import 'exercises_screen.dart';
 class RoutinesScreen extends ConsumerStatefulWidget {
   static const routeName = '/routines';
 
-  const RoutinesScreen({super.key});
+  const RoutinesScreen({
+    required this.onOpenDataManagement,
+    super.key,
+  });
+
+  final VoidCallback onOpenDataManagement;
 
   @override
   ConsumerState<RoutinesScreen> createState() => _RoutinesScreenState();
@@ -73,7 +78,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const _TopBar(),
+                        _TopBar(onOpenManage: _openManageSheet),
                         const SizedBox(height: 28),
                         Text(
                           'My Routines',
@@ -320,6 +325,32 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
       );
     }
   }
+
+  Future<void> _openManageSheet() async {
+    final action = await showModalBottomSheet<_ManageAction>(
+      context: context,
+      backgroundColor: KineticNoirPalette.surface,
+      barrierColor: Colors.black.withValues(alpha: 0.58),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) => const _ManageSheet(),
+    );
+
+    if (!mounted || action == null) {
+      return;
+    }
+
+    switch (action) {
+      case _ManageAction.dataBackups:
+        widget.onOpenDataManagement();
+        break;
+    }
+  }
+}
+
+enum _ManageAction {
+  dataBackups,
 }
 
 class _RoutineCardMetadata {
@@ -333,26 +364,140 @@ class _RoutineCardMetadata {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar();
+  const _TopBar({required this.onOpenManage});
+
+  final VoidCallback onOpenManage;
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       children: [
-        Icon(
-          Icons.menu_rounded,
-          color: KineticNoirPalette.primary,
-          size: 22,
-        ),
-        SizedBox(width: 14),
-        FitLogWordmark(),
-        Spacer(),
-        Icon(
-          Icons.more_vert_rounded,
-          color: KineticNoirPalette.primary,
-          size: 22,
+        const FitLogWordmark(),
+        const Spacer(),
+        Tooltip(
+          message: 'Manage',
+          child: IconButton(
+            key: const Key('routines-manage-button'),
+            onPressed: onOpenManage,
+            icon: const Icon(Icons.more_vert_rounded),
+            color: KineticNoirPalette.primary,
+          ),
         ),
       ],
+    );
+  }
+}
+
+class _ManageSheet extends StatelessWidget {
+  const _ManageSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color:
+                      KineticNoirPalette.outlineVariant.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              'Manage',
+              style: KineticNoirTypography.headline(
+                size: 26,
+                weight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Tools that support your training library.',
+              style: KineticNoirTypography.body(
+                size: 14,
+                weight: FontWeight.w600,
+                color: KineticNoirPalette.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                key: const Key('routines-data-management-action'),
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => Navigator.pop(context, _ManageAction.dataBackups),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    color: KineticNoirPalette.surfaceLow,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: KineticNoirPalette.outlineVariant
+                          .withValues(alpha: 0.18),
+                    ),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: KineticNoirPalette.primary
+                              .withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.backup_rounded,
+                          color: KineticNoirPalette.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Data & Backups',
+                              style: KineticNoirTypography.headline(
+                                size: 20,
+                                weight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Export, share, or import Fit Log data.',
+                              style: KineticNoirTypography.body(
+                                size: 13,
+                                weight: FontWeight.w600,
+                                color: KineticNoirPalette.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: KineticNoirPalette.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

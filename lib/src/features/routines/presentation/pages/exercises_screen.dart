@@ -71,12 +71,7 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
             tooltip: 'Edit routine',
             onPressed: _openEditor,
           ),
-          const SizedBox(width: 6),
-          const Icon(
-            Icons.more_vert_rounded,
-            color: KineticNoirPalette.primary,
-          ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
         ],
       ),
       body: asyncData.when(
@@ -384,11 +379,6 @@ class _ExerciseCard extends StatelessWidget {
                       ),
                   ],
                 ),
-              ),
-              Icon(
-                Icons.drag_indicator_rounded,
-                color:
-                    KineticNoirPalette.onSurfaceVariant.withValues(alpha: 0.8),
               ),
             ],
           ),

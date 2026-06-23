@@ -39,20 +39,6 @@ class ExerciseProgressDetailScreen extends ConsumerWidget {
             color: KineticNoirPalette.primary,
           ),
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: KineticNoirPalette.surfaceBright,
-              child: Icon(
-                Icons.person_rounded,
-                color: KineticNoirPalette.onSurfaceVariant,
-                size: 20,
-              ),
-            ),
-          ),
-        ],
       ),
       body: asyncData.when(
         loading: () => const Center(
@@ -128,7 +114,8 @@ class _ExerciseHeader extends StatelessWidget {
       children: [
         Row(
           children: [
-            _TagChip(label: exercise.category, accent: KineticNoirPalette.primary),
+            _TagChip(
+                label: exercise.category, accent: KineticNoirPalette.primary),
             const SizedBox(width: 8),
             _TagChip(
               label: exercise.mainMuscleGroup,
@@ -320,11 +307,6 @@ class _ProgressChart extends StatelessWidget {
                   weight: FontWeight.w700,
                 ),
               ),
-              const Spacer(),
-              Icon(
-                Icons.more_horiz_rounded,
-                color: KineticNoirPalette.onSurfaceVariant.withValues(alpha: 0.8),
-              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -411,7 +393,8 @@ class _ProgressChartBody extends StatelessWidget {
 
     final maxY = (maxOneRm <= 0 ? 1.0 : maxOneRm * 1.15).toDouble();
     final maxX = points.length <= 1 ? 1.0 : (points.length - 1).toDouble();
-    final interval = points.length <= 4 ? 1.0 : (points.length / 3).ceilToDouble();
+    final interval =
+        points.length <= 4 ? 1.0 : (points.length / 3).ceilToDouble();
 
     return LineChart(
       LineChartData(
@@ -569,7 +552,9 @@ class _MuscleFocusCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _TagChip(label: '${exercise.sets} SETS', accent: KineticNoirPalette.primary),
+              _TagChip(
+                  label: '${exercise.sets} SETS',
+                  accent: KineticNoirPalette.primary),
               _TagChip(
                 label: '${exercise.reps} REPS',
                 accent: KineticNoirPalette.primaryDim,

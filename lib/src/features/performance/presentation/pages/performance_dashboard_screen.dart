@@ -32,11 +32,6 @@ class _PerformanceDashboardScreenState
         backgroundColor: KineticNoirPalette.background,
         surfaceTintColor: Colors.transparent,
         titleSpacing: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.menu_rounded),
-          color: KineticNoirPalette.primary,
-          onPressed: () {},
-        ),
         title: Row(
           key: const Key('performance-dashboard-title'),
           mainAxisSize: MainAxisSize.min,
@@ -57,20 +52,6 @@ class _PerformanceDashboardScreenState
             ),
           ],
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: KineticNoirPalette.surfaceBright,
-              child: Icon(
-                Icons.person_rounded,
-                color: KineticNoirPalette.onSurfaceVariant,
-                size: 20,
-              ),
-            ),
-          ),
-        ],
       ),
       body: plansAsync.when(
         loading: () => const Center(
@@ -585,12 +566,6 @@ class _TrendSection extends StatelessWidget {
                   size: 19,
                   weight: FontWeight.w700,
                 ),
-              ),
-              const Spacer(),
-              Icon(
-                Icons.more_horiz_rounded,
-                color:
-                    KineticNoirPalette.onSurfaceVariant.withValues(alpha: 0.8),
               ),
             ],
           ),

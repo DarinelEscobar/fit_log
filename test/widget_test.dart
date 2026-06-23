@@ -48,31 +48,30 @@ void main() {
         .setMockMethodCallHandler(_notificationsChannel, null);
   });
 
-  testWidgets('home dashboard is the default entry view', (tester) async {
+  testWidgets('routines library is the default entry view', (tester) async {
     await _pumpApp(tester);
 
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('home-hero-title')), findsOneWidget);
-    expect(find.byKey(const Key('home-view-routines')), findsOneWidget);
-    expect(find.byKey(const Key('home-manage-data')), findsOneWidget);
+    expect(find.text('My Routines'), findsOneWidget);
+    expect(find.text('ACTIVE ROUTINES'), findsOneWidget);
+    expect(find.byKey(const Key('routines-manage-button')), findsOneWidget);
+    expect(find.text('HOME'), findsNothing);
   });
 
-  testWidgets('home actions open routines and data management', (tester) async {
+  testWidgets('routines manage menu opens data management', (tester) async {
     await _pumpApp(tester);
 
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.byKey(const Key('home-view-routines')));
-    await tester.tap(find.byKey(const Key('home-view-routines')));
+    await tester.tap(find.byKey(const Key('routines-manage-button')));
     await tester.pumpAndSettle();
-    expect(find.text('My Routines'), findsOneWidget);
+    expect(
+      find.byKey(const Key('routines-data-management-action')),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.text('HOME'));
-    await tester.pumpAndSettle();
-
-    await tester.ensureVisible(find.byKey(const Key('home-manage-data')));
-    await tester.tap(find.byKey(const Key('home-manage-data')));
+    await tester.tap(find.byKey(const Key('routines-data-management-action')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('data-screen-title')), findsOneWidget);
   });
@@ -82,9 +81,6 @@ void main() {
     final repo = _FakeWorkoutPlanRepository();
     await _pumpApp(tester, repo: repo);
 
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('home-view-routines')));
     await tester.pumpAndSettle();
 
     expect(find.text('My Routines'), findsOneWidget);
@@ -104,6 +100,11 @@ void main() {
     expect(find.byKey(const Key('routine-editor-title')), findsOneWidget);
     expect(find.text('EXERCISES'), findsOneWidget);
     expect(find.text('EXERCISE NAME'), findsWidgets);
+    expect(
+      find.byKey(const Key('routine-editor-add-existing')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('routine-editor-create-new')), findsOneWidget);
   });
 
   testWidgets('activating a routine keeps routines content visible',
@@ -114,8 +115,6 @@ void main() {
     await _pumpApp(tester, repo: repo);
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('home-view-routines')));
-    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('inactive-routines-section')), findsOneWidget);
 
@@ -124,6 +123,12 @@ void main() {
 
     expect(find.byKey(const Key('inactive-routine-3')), findsOneWidget);
 
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('inactive-routine-activate-3')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('inactive-routine-activate-3')));
     await tester.pump();
 
@@ -143,8 +148,6 @@ void main() {
     final repo = _FakeWorkoutPlanRepository(includeInactivePlan: false);
     await _pumpApp(tester, repo: repo);
 
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('home-view-routines')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('inactive-routines-section')), findsOneWidget);
@@ -167,6 +170,8 @@ void main() {
         find.byKey(const Key('active-session-register-set')), findsOneWidget);
     expect(
         find.byKey(const Key('active-session-notes-toggle')), findsOneWidget);
+    expect(
+        find.byKey(const Key('active-session-add-exercise')), findsOneWidget);
     expect(find.byKey(const Key('active-session-notes')), findsNothing);
     expect(find.text('TEMPO'), findsOneWidget);
     expect(find.text('3-1-1-0'), findsOneWidget);
@@ -594,6 +599,7 @@ void main() {
     );
 
     expect(find.text('Export Data'), findsOneWidget);
+    expect(find.byType(KineticBottomNavBar), findsNothing);
     await tester.scrollUntilVisible(
       find.text('Share Backup'),
       180,

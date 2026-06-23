@@ -26,158 +26,118 @@ class RoutineEditorExerciseCard extends StatelessWidget {
           color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.32),
         ),
       ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 38,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: KineticNoirPalette.surfaceBright.withValues(alpha: 0.24),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  bottomLeft: Radius.circular(20),
-                ),
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.drag_indicator_rounded,
-                  color: KineticNoirPalette.onSurfaceVariant.withValues(
-                    alpha: 0.65,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(56, 18, 18, 18),
-            child: Column(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: KineticNoirPalette.surfaceLow,
-                        borderRadius: BorderRadius.circular(14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _TextFieldShell(
+                        label: 'Exercise Name',
+                        controller: draft.nameController,
+                        style: KineticNoirTypography.headline(
+                          size: 22,
+                          weight: FontWeight.w700,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.fitness_center_rounded,
-                        color: KineticNoirPalette.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
                         children: [
-                          _TextFieldShell(
-                            label: 'Exercise Name',
-                            controller: draft.nameController,
-                            style: KineticNoirTypography.headline(
-                              size: 22,
-                              weight: FontWeight.w700,
+                          SizedBox(
+                            width: compactLayout ? 220 : 180,
+                            child: _FilledField(
+                              label: 'Category',
+                              controller: draft.categoryController,
                             ),
                           ),
-                          const SizedBox(height: 14),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
-                              SizedBox(
-                                width: compactLayout ? 220 : 180,
-                                child: _FilledField(
-                                  label: 'Category',
-                                  controller: draft.categoryController,
-                                ),
-                              ),
-                              SizedBox(
-                                width: compactLayout ? 220 : 180,
-                                child: _FilledField(
-                                  label: 'Primary Muscle',
-                                  controller: draft.mainMuscleController,
-                                ),
-                              ),
-                            ],
+                          SizedBox(
+                            width: compactLayout ? 220 : 180,
+                            child: _FilledField(
+                              label: 'Primary Muscle',
+                              controller: draft.mainMuscleController,
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    _DeleteButton(onPressed: onDelete),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                _FilledField(
-                  label: 'Description',
-                  controller: draft.descriptionController,
-                  minLines: 2,
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'PROGRAMMING',
-                  style: KineticNoirTypography.body(
-                    size: 10,
-                    weight: FontWeight.w800,
-                    color: KineticNoirPalette.primary,
-                    letterSpacing: 1.8,
+                    ],
                   ),
                 ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    _MetricField(
-                      width: compactLayout ? 112 : 96,
-                      label: 'Sets',
-                      controller: draft.setsController,
-                      keyboardType: TextInputType.number,
-                    ),
-                    _MetricField(
-                      width: compactLayout ? 112 : 96,
-                      label: 'Reps',
-                      controller: draft.repsController,
-                      keyboardType: TextInputType.number,
-                    ),
-                    _MetricField(
-                      width: compactLayout ? 112 : 96,
-                      label: 'Weight',
-                      controller: draft.weightController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                    ),
-                    _MetricField(
-                      width: compactLayout ? 112 : 96,
-                      label: 'Rest',
-                      controller: draft.restController,
-                      keyboardType: TextInputType.number,
-                    ),
-                    _MetricField(
-                      width: compactLayout ? 112 : 96,
-                      label: 'RIR',
-                      controller: draft.rirController,
-                      keyboardType: TextInputType.number,
-                      accentColor: KineticNoirPalette.error,
-                    ),
-                    _MetricField(
-                      width: compactLayout ? 112 : 96,
-                      label: 'Tempo',
-                      controller: draft.tempoController,
-                    ),
-                  ],
+                const SizedBox(width: 12),
+                _DeleteButton(onPressed: onDelete),
+              ],
+            ),
+            const SizedBox(height: 18),
+            _FilledField(
+              label: 'Description',
+              controller: draft.descriptionController,
+              minLines: 2,
+              maxLines: 3,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'PROGRAMMING',
+              style: KineticNoirTypography.body(
+                size: 10,
+                weight: FontWeight.w800,
+                color: KineticNoirPalette.primary,
+                letterSpacing: 1.8,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _MetricField(
+                  width: compactLayout ? 112 : 96,
+                  label: 'Sets',
+                  controller: draft.setsController,
+                  keyboardType: TextInputType.number,
+                ),
+                _MetricField(
+                  width: compactLayout ? 112 : 96,
+                  label: 'Reps',
+                  controller: draft.repsController,
+                  keyboardType: TextInputType.number,
+                ),
+                _MetricField(
+                  width: compactLayout ? 112 : 96,
+                  label: 'Weight',
+                  controller: draft.weightController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                ),
+                _MetricField(
+                  width: compactLayout ? 112 : 96,
+                  label: 'Rest',
+                  controller: draft.restController,
+                  keyboardType: TextInputType.number,
+                ),
+                _MetricField(
+                  width: compactLayout ? 112 : 96,
+                  label: 'RIR',
+                  controller: draft.rirController,
+                  keyboardType: TextInputType.number,
+                  accentColor: KineticNoirPalette.error,
+                ),
+                _MetricField(
+                  width: compactLayout ? 112 : 96,
+                  label: 'Tempo',
+                  controller: draft.tempoController,
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

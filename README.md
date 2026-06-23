@@ -6,9 +6,8 @@
 
 Fit Log is a Flutter workout tracker focused on routine-based training, fast in-session logging, and local-first data ownership. The app is designed for lifters who want structured routines, quick set registration during a workout, and backup-friendly data they can keep on-device.
 
-The current product experience is built around three primary tabs:
+The current product experience is built around two primary tabs:
 
-- `Home` for the landing dashboard and entry into the main flows
 - `Routines` for routine management, exercise browsing, editing, and active sessions
 - `Performance` for analytics based on current active routines and exercise-level progress
 
@@ -27,8 +26,7 @@ The app uses a dark Kinetic-Noir visual system across the redesigned flows. The 
 
 ### Primary Navigation
 
-- `Home Dashboard`: entry screen for the app, with shortcuts into routine tracking and data management
-- `Routines Library`: overview of active and inactive routines, optimized for quick drill-down into a program
+- `Routines Library`: entry screen for the app, optimized for quick drill-down into a program
 - `Performance Dashboard`: analytics for current active routines only, filtered by a selected time window
 
 ### Routine Flow
@@ -41,27 +39,21 @@ The app uses a dark Kinetic-Noir visual system across the redesigned flows. The 
 
 ### Secondary Flow
 
-- `Data Management`: export/import backups and move between the main app flows without leaving the local-first model
+- `Data Management`: export/import backups opened from the Routines `Manage` menu
 
 ## Implemented Screens
 
-### Home Dashboard
+### Routines Library
 
-The home screen is the main entry point. It introduces the app, points users to routine tracking, and exposes `Data Management` as a secondary operational screen.
+This screen is the main planning hub and the app entry point. Users can inspect active routines, reactivate inactive ones, create plans, enter a specific routine, and open backup tools from `Manage`.
 
-![Home Dashboard](docs/images/screens/home-dashboard.png)
+![Routines Library](docs/images/screens/routines-library.png)
 
 ### Data Management
 
 The data screen handles export, share, and import flows. It is intentionally isolated from the main tabs so users can perform backup operations without mixing them into the training flow.
 
 ![Data Management](docs/images/screens/data-management.png)
-
-### Routines Library
-
-This screen is the main planning hub. Users can inspect active routines, reactivate inactive ones, create plans, and enter a specific routine.
-
-![Routines Library](docs/images/screens/routines-library.png)
 
 ### Exercise List
 
@@ -124,9 +116,8 @@ Operationally, the app now favors SQLite for responsive reads and writes during 
 
 ## Current Navigation Model
 
-The current app shell exposes three primary tabs from the bottom navigation:
+The current app shell exposes two primary tabs from the bottom navigation:
 
-- `Home`
 - `Routines`
 - `Performance`
 

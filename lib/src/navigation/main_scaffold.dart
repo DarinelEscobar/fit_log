@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/app_data/presentation/pages/data_screen.dart';
-import '../features/home/presentation/pages/home_dashboard_screen.dart';
 import '../features/performance/presentation/pages/performance_dashboard_screen.dart';
 import '../features/routines/domain/entities/active_workout_session_draft.dart';
 import '../features/routines/domain/usecases/active_session_draft_usecases.dart';
@@ -40,14 +39,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   }
 
   Future<void> _openDataManagement() async {
-    final result = await Navigator.push<DataScreenResult>(
+    await Navigator.push<void>(
       context,
       MaterialPageRoute(builder: (_) => const DataScreen()),
     );
-    if (!mounted) return;
-    if (result == DataScreenResult.goRoutines) {
-      _selectTab(1);
-    }
   }
 
   Future<void> _checkRecoverableSession() async {
@@ -131,15 +126,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          HomeDashboardScreen(
-            onOpenDataManagement: _openDataManagement,
-            onOpenRoutines: () => _selectTab(1),
-          ),
+          RoutinesScreen(onOpenDataManagement: _openDataManagement),
           if (_loadedTabs.contains(1))
-            const RoutinesScreen()
-          else
-            const SizedBox.shrink(),
-          if (_loadedTabs.contains(2))
             const PerformanceDashboardScreen()
           else
             const SizedBox.shrink(),
@@ -149,7 +137,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         selectedIndex: _currentIndex,
         onTap: _selectTab,
         items: const [
-          KineticBottomNavItem(icon: Icons.home_rounded, label: 'Home'),
           KineticBottomNavItem(
               icon: Icons.fitness_center_rounded, label: 'Routines'),
           KineticBottomNavItem(
