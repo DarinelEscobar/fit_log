@@ -63,8 +63,7 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
     super.dispose();
   }
 
-  TextField _field(String label, TextEditingController ctl, double? prev,
-      {bool intType = false}) {
+  TextField _field(String label, TextEditingController ctl, double? prev) {
     final prevTxt = prev != null ? ' (último $prev)' : '';
     return TextField(
       controller: ctl,

@@ -1,9 +1,9 @@
+import '../entities/active_workout_session_draft.dart';
 import '../entities/workout_plan.dart';
 import '../entities/exercise.dart';
 import '../entities/plan_exercise_detail.dart';
 import '../entities/workout_log_entry.dart';
 import '../entities/workout_session.dart';
-
 
 abstract class WorkoutPlanRepository {
   Future<List<WorkoutPlan>> getAllPlans();
@@ -41,7 +41,10 @@ abstract class WorkoutPlanRepository {
 
   Future<void> deleteExerciseFromPlan(int planId, int exerciseId);
 
-  //Start session 
+  //Start session
   Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs);
   Future<void> saveWorkoutSession(WorkoutSession session);
+  Future<ActiveWorkoutSessionDraft?> getActiveSessionDraft();
+  Future<void> saveActiveSessionDraft(ActiveWorkoutSessionDraft draft);
+  Future<void> clearActiveSessionDraft();
 }

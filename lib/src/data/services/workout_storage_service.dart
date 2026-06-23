@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:excel/excel.dart';
@@ -7,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../features/routines/domain/entities/exercise.dart';
+import '../../features/routines/domain/entities/active_workout_session_draft.dart';
 import '../../features/routines/domain/entities/plan_exercise_detail.dart';
 import '../../features/routines/domain/entities/workout_log_entry.dart';
 import '../../features/routines/domain/entities/workout_plan.dart';
@@ -27,6 +29,7 @@ class WorkoutStorageService {
     'workout_plans',
     'exercises',
     'plan_exercises',
+    'active_workout_session_drafts',
   ];
 
   final DatabaseFactory _databaseFactory;
@@ -471,6 +474,57 @@ class WorkoutStorageService {
         conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 
+  Future<ActiveWorkoutSessionDraft?> fetchActiveSessionDraft() async {
+    final db = await _getDatabase();
+    final rows = await db.query(
+      'active_workout_session_drafts',
+      columns: ['payload'],
+      where: 'id = ?',
+      whereArgs: [1],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+
+    final payload = _stringValue(rows.first['payload']);
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map) {
+        return null;
+      }
+      return ActiveWorkoutSessionDraft.fromJson(
+        decoded.map((key, value) => MapEntry('$key', value)),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveActiveSessionDraft(
+    ActiveWorkoutSessionDraft draft,
+  ) async {
+    final db = await _getDatabase();
+    await db.insert(
+      'active_workout_session_drafts',
+      {
+        'id': 1,
+        'updated_at': draft.updatedAt.toIso8601String(),
+        'payload': jsonEncode(draft.toJson()),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> clearActiveSessionDraft() async {
+    final db = await _getDatabase();
+    await db.delete(
+      'active_workout_session_drafts',
+      where: 'id = ?',
+      whereArgs: [1],
+    );
+  }
+
   Future<List<WorkoutSession>> fetchAllSessions() async {
     final db = await _getDatabase();
     final rows = await db.query('workout_sessions', orderBy: 'id DESC');
@@ -873,6 +927,14 @@ class WorkoutStorageService {
         tempo TEXT NOT NULL DEFAULT '3-1-1-0',
         image_path TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (plan_id, exercise_id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS active_workout_session_drafts (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        updated_at TEXT NOT NULL,
+        payload TEXT NOT NULL
       )
     ''');
 

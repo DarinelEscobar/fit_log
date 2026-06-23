@@ -32,7 +32,9 @@ class ActiveSessionExerciseCard extends StatefulWidget {
     required this.saveDraftLog,
     required this.completeLog,
     required this.removeLog,
+    required this.onRestEndsAtChanged,
     this.exercise,
+    this.initialRestEndsAt,
     this.onSwap,
     super.key,
   });
@@ -49,7 +51,9 @@ class ActiveSessionExerciseCard extends StatefulWidget {
   final SessionLogCallback saveDraftLog;
   final SessionLogCallback completeLog;
   final SessionLogCallback removeLog;
+  final ValueChanged<DateTime?> onRestEndsAtChanged;
   final VoidCallback? onSwap;
+  final DateTime? initialRestEndsAt;
 
   @override
   State<ActiveSessionExerciseCard> createState() =>
@@ -72,6 +76,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
   @override
   void initState() {
     super.initState();
+    _restEndsAt = widget.initialRestEndsAt;
     _resetControllers(widget.detail.sets);
   }
 
@@ -80,9 +85,15 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.detail.exerciseId != widget.detail.exerciseId) {
       _showAdjustActions = false;
-      _clearRestTimer(cancelNotification: true);
+      _clearRestTimer(cancelNotification: true, notifyParent: false);
+      _restEndsAt = widget.initialRestEndsAt;
       _resetControllers(widget.detail.sets);
       return;
+    }
+
+    if (oldWidget.initialRestEndsAt != widget.initialRestEndsAt &&
+        widget.initialRestEndsAt != _restEndsAt) {
+      _restEndsAt = widget.initialRestEndsAt;
     }
 
     if (oldWidget.expanded && !widget.expanded) {
@@ -103,7 +114,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     ]) {
       controller.dispose();
     }
-    _clearRestTimer(cancelNotification: true);
+    _clearRestTimer(cancelNotification: true, notifyParent: false);
     super.dispose();
   }
 
@@ -312,10 +323,17 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     setState(() {
       _restEndsAt = now.add(Duration(seconds: widget.detail.restSeconds));
     });
+    widget.onRestEndsAtChanged(_restEndsAt);
   }
 
-  void _clearRestTimer({required bool cancelNotification}) {
+  void _clearRestTimer({
+    required bool cancelNotification,
+    bool notifyParent = true,
+  }) {
     _restEndsAt = null;
+    if (notifyParent) {
+      widget.onRestEndsAtChanged(null);
+    }
     if (cancelNotification) {
       unawaited(
           NotificationService.cancelRest(notificationId: _notificationId));

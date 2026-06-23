@@ -1,5 +1,6 @@
 import 'package:fit_log/src/app.dart';
 import 'package:fit_log/src/features/app_data/presentation/pages/data_screen.dart';
+import 'package:fit_log/src/features/routines/domain/entities/active_workout_session_draft.dart';
 import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
 import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_detail.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
@@ -386,6 +387,46 @@ void main() {
     expect(_fakeVibrationPlatform.vibrateCalls, isEmpty);
   });
 
+  testWidgets('recovered draft restores duration logs notes and rest timer', (
+    tester,
+  ) async {
+    final repo = _FakeWorkoutPlanRepository();
+    final startedAt = DateTime(2026, 5, 20, 10, 0);
+    final currentNow = DateTime(2026, 5, 20, 10, 1, 5);
+    final draft = _activeSessionDraft(
+      startedAt: startedAt,
+      updatedAt: currentNow,
+      restEndsAt: currentNow.add(const Duration(seconds: 30)),
+    );
+
+    await tester.binding.setSurfaceSize(const Size(430, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    _setUpRoutineChannels();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          workoutPlanRepositoryProvider.overrideWithValue(repo),
+        ],
+        child: MaterialApp(
+          home: StartRoutineScreen(
+            plan: draft.plan,
+            recoveredDraft: draft,
+            now: () => currentNow,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('01:05'), findsOneWidget);
+    expect(find.text('1/4 sets'), findsOneWidget);
+    expect(find.textContaining('Rest timer running'), findsOneWidget);
+    expect(find.byKey(const Key('active-set-row-1-4')), findsOneWidget);
+
+    await _openNotesComposer(tester);
+    expect(find.text('Recovered note'), findsOneWidget);
+  });
+
   testWidgets('finish summary resumes with edited notes applied back', (
     tester,
   ) async {
@@ -424,19 +465,22 @@ void main() {
     expect(find.text('Edited from summary'), findsOneWidget);
   });
 
-  testWidgets('finish summary discard keeps active-session notes unchanged', (
+  testWidgets('finish summary discard leaves active session and clears draft', (
     tester,
   ) async {
-    await _pumpStartRoutine(tester);
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutineInHost(tester, repo: repo);
 
     await _openNotesComposer(tester);
     await tester.enterText(
       find.byKey(const Key('active-session-notes')),
       'Original active note',
     );
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
 
     await _completeFirstSet(tester);
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(repo.activeSessionDraft, isNotNull);
 
     await tester.tap(find.byKey(const Key('active-session-finish')));
     await tester.pumpAndSettle();
@@ -454,8 +498,10 @@ void main() {
     await tester.tap(find.byKey(const Key('finish-discard-button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Original active note'), findsOneWidget);
+    expect(find.byKey(const Key('routine-host-open')), findsOneWidget);
+    expect(find.byKey(const Key('active-session-title')), findsNothing);
     expect(find.text('Changed only in summary'), findsNothing);
+    expect(repo.activeSessionDraft, isNull);
   });
 
   testWidgets('save and finish persists logs and summary values', (
@@ -751,6 +797,65 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
   await tester.pump();
 }
 
+ActiveWorkoutSessionDraft _activeSessionDraft({
+  required DateTime startedAt,
+  required DateTime updatedAt,
+  required DateTime restEndsAt,
+}) {
+  return ActiveWorkoutSessionDraft(
+    plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
+    startedAt: startedAt,
+    updatedAt: updatedAt,
+    notes: 'Recovered note',
+    expandedExerciseId: 1,
+    details: [
+      PlanExerciseDetail(
+        exerciseId: 1,
+        name: 'Barbell Bench Press',
+        description: 'Drive through the floor and keep the bar path stacked.',
+        sets: 4,
+        reps: 8,
+        weight: 185,
+        restSeconds: 90,
+        rir: 2,
+        tempo: '3-1-1-0',
+      ),
+    ],
+    exercises: [
+      Exercise(
+        id: 1,
+        name: 'Barbell Bench Press',
+        description: 'Drive through the floor and keep the bar path stacked.',
+        category: 'Strength',
+        mainMuscleGroup: 'Chest',
+      ),
+    ],
+    setCountsByExercise: const {1: 4},
+    logs: [
+      WorkoutLogEntry(
+        date: startedAt,
+        planId: 1,
+        exerciseId: 1,
+        setNumber: 1,
+        reps: 8,
+        weight: 185,
+        rir: 2,
+      ),
+      WorkoutLogEntry(
+        date: startedAt,
+        planId: 1,
+        exerciseId: 1,
+        setNumber: 2,
+        reps: 8,
+        weight: 185,
+        rir: 2,
+        completed: false,
+      ),
+    ],
+    restEndsAtByExercise: {1: restEndsAt},
+  );
+}
+
 class _RoutineHost extends StatelessWidget {
   const _RoutineHost({
     this.now = DateTime.now,
@@ -802,6 +907,7 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   int setPlanActiveCalls = 0;
   final List<WorkoutLogEntry> savedLogs = [];
   final List<WorkoutSession> savedSessions = [];
+  ActiveWorkoutSessionDraft? activeSessionDraft;
 
   final List<Exercise> _exercises = [
     Exercise(
@@ -922,6 +1028,21 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   @override
   Future<void> saveWorkoutSession(WorkoutSession session) async {
     savedSessions.add(session);
+  }
+
+  @override
+  Future<ActiveWorkoutSessionDraft?> getActiveSessionDraft() async {
+    return activeSessionDraft;
+  }
+
+  @override
+  Future<void> saveActiveSessionDraft(ActiveWorkoutSessionDraft draft) async {
+    activeSessionDraft = draft;
+  }
+
+  @override
+  Future<void> clearActiveSessionDraft() async {
+    activeSessionDraft = null;
   }
 
   @override
