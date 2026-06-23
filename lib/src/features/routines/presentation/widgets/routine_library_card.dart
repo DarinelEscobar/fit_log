@@ -166,6 +166,38 @@ class RoutineLibraryCard extends StatelessWidget {
                         ),
                     ],
                   ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Text(
+                      'VIEW ROUTINE',
+                      style: KineticNoirTypography.body(
+                        size: 11,
+                        weight: FontWeight.w800,
+                        color: KineticNoirPalette.primary,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 16,
+                      color: KineticNoirPalette.primary,
+                    ),
+                    const Spacer(),
+                    Text(
+                      plan.isActive ? 'ACTIVE' : 'INACTIVE',
+                      style: KineticNoirTypography.body(
+                        size: 10,
+                        weight: FontWeight.w800,
+                        color: plan.isActive
+                            ? KineticNoirPalette.primary
+                            : KineticNoirPalette.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -204,8 +236,8 @@ class _CardActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         onTap: onPressed,
         child: Ink(
-          width: 34,
-          height: 34,
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
             color: KineticNoirPalette.surfaceBright.withValues(alpha: 0.28),
             borderRadius: BorderRadius.circular(14),

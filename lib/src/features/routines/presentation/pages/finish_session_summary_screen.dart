@@ -133,7 +133,7 @@ class _FinishSessionSummaryScreenState
           backgroundColor: KineticNoirPalette.background,
           surfaceTintColor: Colors.transparent,
           leading: IconButton(
-            icon: const Icon(Icons.menu_rounded),
+            icon: const Icon(Icons.close_rounded),
             color: KineticNoirPalette.onSurfaceVariant,
             onPressed: () => Navigator.of(context)
                 .pop(const FinishSessionSummaryResult.discard()),
@@ -142,13 +142,6 @@ class _FinishSessionSummaryScreenState
             key: Key('finish-session-title'),
             child: FitLogWordmark(),
           ),
-          actions: const [
-            Icon(
-              Icons.more_vert_rounded,
-              color: KineticNoirPalette.onSurfaceVariant,
-            ),
-            SizedBox(width: 12),
-          ],
         ),
         body: SafeArea(
           top: false,

@@ -405,15 +405,20 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                           : KineticNoirPalette.surfaceBright,
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(
-                      _isExerciseComplete
-                          ? Icons.check_rounded
-                          : widget.exerciseNumber == 1
-                              ? Icons.play_arrow_rounded
-                              : Icons.fitness_center_rounded,
-                      color: _isExerciseComplete
-                          ? KineticNoirPalette.primary
-                          : KineticNoirPalette.onSurfaceVariant,
+                    child: Center(
+                      child: _isExerciseComplete
+                          ? const Icon(
+                              Icons.check_rounded,
+                              color: KineticNoirPalette.primary,
+                            )
+                          : Text(
+                              '${widget.exerciseNumber}',
+                              style: KineticNoirTypography.headline(
+                                size: 18,
+                                weight: FontWeight.w700,
+                                color: KineticNoirPalette.onSurfaceVariant,
+                              ),
+                            ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -853,15 +858,20 @@ class _SetRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
-              child: Text(
-                '$setNumber',
-                style: KineticNoirTypography.headline(
-                  size: 18,
-                  color: isActive
-                      ? KineticNoirPalette.primary
-                      : KineticNoirPalette.onSurfaceVariant,
-                ),
-              ),
+              child: isCompleted
+                  ? const Icon(
+                      Icons.check_rounded,
+                      color: KineticNoirPalette.primary,
+                    )
+                  : Text(
+                      '$setNumber',
+                      style: KineticNoirTypography.headline(
+                        size: 18,
+                        color: isActive
+                            ? KineticNoirPalette.primary
+                            : KineticNoirPalette.onSurfaceVariant,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 12),

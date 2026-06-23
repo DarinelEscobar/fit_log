@@ -9,7 +9,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../../../navigation/widgets/kinetic_bottom_nav_bar.dart';
 import '../../../../theme/kinetic_noir.dart';
 import '../../../../theme/toru_brand.dart';
 import '../../../history/presentation/providers/history_providers.dart';
@@ -19,11 +18,6 @@ import '../../domain/usecases/import_app_data_usecase.dart';
 import '../providers/app_data_providers.dart';
 import '../../../routines/presentation/providers/exercises_provider.dart';
 import '../../../routines/presentation/providers/workout_plan_provider.dart';
-
-enum DataScreenResult {
-  goHome,
-  goRoutines,
-}
 
 enum _DataAction {
   export,
@@ -114,11 +108,18 @@ class _DataScreenState extends ConsumerState<DataScreen> {
       final repo = ref.read(appDataRepositoryProvider);
       final file = await ExportAppDataUseCase(repo)();
       if (!mounted) return;
-      _showMessage('Export ready: ${file.path}');
+      _showMessage(
+        title: 'Backup exported',
+        detail: 'Saved as ${p.basename(file.path)}.',
+      );
       await _refreshBackupStatus();
     } catch (error) {
       if (!mounted) return;
-      _showMessage('Export failed: $error', isError: true);
+      _showMessage(
+        title: 'Export failed',
+        detail: _friendlyError(error),
+        isError: true,
+      );
     }
   }
 
@@ -128,11 +129,18 @@ class _DataScreenState extends ConsumerState<DataScreen> {
       final file = await ExportAppDataUseCase(repo)();
       await Share.shareXFiles([XFile(file.path)], text: 'Backup Fit Log');
       if (!mounted) return;
-      _showMessage('Backup ready to share');
+      _showMessage(
+        title: 'Backup ready to share',
+        detail: 'Choose where you want to keep the file.',
+      );
       await _refreshBackupStatus();
     } catch (error) {
       if (!mounted) return;
-      _showMessage('Unable to share backup: $error', isError: true);
+      _showMessage(
+        title: 'Unable to share backup',
+        detail: _friendlyError(error),
+        isError: true,
+      );
     }
   }
 
@@ -144,7 +152,7 @@ class _DataScreenState extends ConsumerState<DataScreen> {
       final result = await FilePicker.platform.pickFiles();
       if (result == null || result.files.single.path == null) {
         if (!mounted) return;
-        _showMessage('Import cancelled');
+        _showMessage(title: 'Import cancelled');
         return;
       }
 
@@ -159,11 +167,18 @@ class _DataScreenState extends ConsumerState<DataScreen> {
       ref.invalidate(exerciseProgressDetailProvider);
       ref.read(routineLibraryMetadataEpochProvider.notifier).state++;
       if (!mounted) return;
-      _showMessage('Data imported');
+      _showMessage(
+        title: 'Data imported',
+        detail: 'Routines, logs, and charts were refreshed.',
+      );
       await _refreshBackupStatus();
     } catch (error) {
       if (!mounted) return;
-      _showMessage('Import failed: $error', isError: true);
+      _showMessage(
+        title: 'Import failed',
+        detail: '${_friendlyError(error)} Current data was not changed.',
+        isError: true,
+      );
     }
   }
 
@@ -225,31 +240,59 @@ class _DataScreenState extends ConsumerState<DataScreen> {
     );
   }
 
-  void _showMessage(String message, {bool isError = false}) {
+  String _friendlyError(Object error) {
+    final message = error is FormatException
+        ? error.message
+        : error.toString().replaceFirst('Exception: ', '');
+    return message.trim().isEmpty ? 'Please try again.' : message;
+  }
+
+  void _showMessage({
+    required String title,
+    String? detail,
+    bool isError = false,
+  }) {
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         backgroundColor: isError
             ? KineticNoirPalette.error
             : KineticNoirPalette.surfaceBright,
-        content: Text(message),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: KineticNoirTypography.body(
+                size: 14,
+                weight: FontWeight.w800,
+                color: isError
+                    ? KineticNoirPalette.onPrimary
+                    : KineticNoirPalette.onSurface,
+              ),
+            ),
+            if (detail != null && detail.trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                detail,
+                style: KineticNoirTypography.body(
+                  size: 12,
+                  weight: FontWeight.w600,
+                  color: isError
+                      ? KineticNoirPalette.onPrimary
+                      : KineticNoirPalette.onSurfaceVariant,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
-  }
-
-  void _handleBottomNavigation(int index) {
-    if (_isBusy) return;
-    switch (index) {
-      case 0:
-        Navigator.pop(context, DataScreenResult.goHome);
-        break;
-      case 1:
-        Navigator.pop(context, DataScreenResult.goRoutines);
-        break;
-      case 2:
-        break;
-    }
   }
 
   @override
@@ -273,18 +316,9 @@ class _DataScreenState extends ConsumerState<DataScreen> {
             color: KineticNoirPalette.primary,
           ),
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 8),
-            child: Icon(
-              Icons.more_vert_rounded,
-              color: KineticNoirPalette.onSurfaceVariant,
-            ),
-          ),
-        ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 10, 24, 130),
+        padding: const EdgeInsets.fromLTRB(24, 10, 24, 40),
         children: [
           const _HeroCard(),
           const SizedBox(height: 22),
@@ -348,16 +382,6 @@ class _DataScreenState extends ConsumerState<DataScreen> {
               ],
             ),
           ),
-        ],
-      ),
-      bottomNavigationBar: KineticBottomNavBar(
-        selectedIndex: 2,
-        onTap: _handleBottomNavigation,
-        items: const [
-          KineticBottomNavItem(icon: Icons.home_rounded, label: 'Home'),
-          KineticBottomNavItem(
-              icon: Icons.fitness_center_rounded, label: 'Routines'),
-          KineticBottomNavItem(icon: Icons.settings_rounded, label: 'Data'),
         ],
       ),
     );

@@ -684,95 +684,9 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                           ),
                         ),
                       ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
-                      sliver: SliverToBoxAdapter(
-                        child: Column(
-                          children: [
-                            _EditorActionCard(
-                              icon: Icons.library_add_rounded,
-                              title: 'Add Existing',
-                              subtitle: 'Select from library',
-                              color: KineticNoirPalette.primary,
-                              onTap: _addExistingExercise,
-                            ),
-                            const SizedBox(height: 12),
-                            _EditorActionCard(
-                              icon: Icons.add_circle_rounded,
-                              title: 'Create New',
-                              subtitle: 'Define new exercise',
-                              color: const Color(0xFFE197FC),
-                              onTap: _createExercise,
-                            ),
-                            const SizedBox(height: 28),
-                            Center(
-                              child: Container(
-                                height: 1,
-                                width: 96,
-                                color: KineticNoirPalette.outlineVariant
-                                    .withValues(alpha: 0.35),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextButton(
-                                    onPressed: _closeEditor,
-                                    child: Text(
-                                      'DISCARD DRAFT',
-                                      textAlign: TextAlign.center,
-                                      style: KineticNoirTypography.body(
-                                        size: 12,
-                                        weight: FontWeight.w800,
-                                        color:
-                                            KineticNoirPalette.onSurfaceVariant,
-                                        letterSpacing: 1.4,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      gradient: kineticPrimaryGradient,
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: FilledButton(
-                                      key: const Key('routine-editor-save'),
-                                      onPressed:
-                                          _isSaving ? null : _saveAllChanges,
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: Colors.transparent,
-                                        shadowColor: Colors.transparent,
-                                        foregroundColor:
-                                            KineticNoirPalette.onPrimary,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(999),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'COMPLETE SETUP',
-                                        style: KineticNoirTypography.body(
-                                          size: 12,
-                                          weight: FontWeight.w800,
-                                          color: KineticNoirPalette.onPrimary,
-                                          letterSpacing: 1.2,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+                    const SliverPadding(
+                      padding: EdgeInsets.fromLTRB(16, 14, 16, 126),
+                      sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
                     ),
                   ],
                 ),
@@ -828,6 +742,11 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
             ],
           );
         },
+      ),
+      bottomNavigationBar: _EditorBottomActions(
+        isEnabled: !_isSaving,
+        onAddExisting: _addExistingExercise,
+        onCreateNew: _createExercise,
       ),
     );
   }
@@ -947,75 +866,88 @@ class _EditorField extends StatelessWidget {
   }
 }
 
-class _EditorActionCard extends StatelessWidget {
-  const _EditorActionCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
+class _EditorBottomActions extends StatelessWidget {
+  const _EditorBottomActions({
+    required this.isEnabled,
+    required this.onAddExisting,
+    required this.onCreateNew,
   });
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-  final VoidCallback onTap;
+  final bool isEnabled;
+  final VoidCallback onAddExisting;
+  final VoidCallback onCreateNew;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Ink(
-          decoration: BoxDecoration(
-            color: KineticNoirPalette.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.18),
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        padding: const EdgeInsets.all(10),
+        decoration: kineticFloatingNavDecoration,
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                key: const Key('routine-editor-add-existing'),
+                onPressed: isEnabled ? onAddExisting : null,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: KineticNoirPalette.primary,
+                  side: BorderSide(
+                    color: KineticNoirPalette.primary.withValues(alpha: 0.35),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                icon: const Icon(Icons.library_add_rounded, size: 18),
+                label: Text(
+                  'ADD EXISTING',
+                  style: KineticNoirTypography.body(
+                    size: 11,
+                    weight: FontWeight.w800,
+                    color: KineticNoirPalette.primary,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
             ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
+            const SizedBox(width: 10),
+            Expanded(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
+                  gradient: kineticPrimaryGradient,
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(icon, color: color),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: KineticNoirTypography.headline(
-                        size: 20,
-                        weight: FontWeight.w700,
-                      ),
+                child: FilledButton.icon(
+                  key: const Key('routine-editor-create-new'),
+                  onPressed: isEnabled ? onCreateNew : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    disabledBackgroundColor:
+                        Colors.transparent.withValues(alpha: 0.24),
+                    shadowColor: Colors.transparent,
+                    foregroundColor: KineticNoirPalette.onPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle.toUpperCase(),
-                      style: KineticNoirTypography.body(
-                        size: 10,
-                        weight: FontWeight.w800,
-                        color: KineticNoirPalette.onSurfaceVariant,
-                        letterSpacing: 1.4,
-                      ),
+                  ),
+                  icon: const Icon(Icons.add_circle_rounded, size: 18),
+                  label: Text(
+                    'CREATE NEW',
+                    style: KineticNoirTypography.body(
+                      size: 11,
+                      weight: FontWeight.w800,
+                      color: KineticNoirPalette.onPrimary,
+                      letterSpacing: 1,
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1050,7 +982,7 @@ class _EditorEmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Use the actions below to add existing library items or create a new exercise entry.',
+            'Use the bottom actions to add existing library items or create a new exercise entry.',
             textAlign: TextAlign.center,
             style: KineticNoirTypography.body(
               size: 14,

@@ -623,7 +623,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                       final result = cardState.logCurrentSet();
                       switch (result) {
                         case LogCurrentSetResult.registered:
-                          _showSnackBar('Set registered.');
+                          _showSnackBar('Set registered. Rest timer started.');
                           break;
                         case LogCurrentSetResult.invalidReps:
                           _showSnackBar('Enter valid reps (>0) for this set.');
@@ -693,15 +693,44 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                         isKeyboardVisible ? 120 + bottomInset : 132,
                       ),
                       children: [
-                        ActiveSessionNotesCard(
-                          controller: _notesCtl,
-                          focusNode: _notesFocusNode,
-                          isVisible: _showNotesComposer,
-                          onToggleVisibility: () {
-                            setState(
-                                () => _showNotesComposer = !_showNotesComposer);
-                          },
-                        ),
+                        if (_showNotesComposer) ...[
+                          ActiveSessionNotesCard(
+                            controller: _notesCtl,
+                            focusNode: _notesFocusNode,
+                            isVisible: _showNotesComposer,
+                            onToggleVisibility: () {
+                              setState(() =>
+                                  _showNotesComposer = !_showNotesComposer);
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _AddSessionExerciseButton(
+                              onPressed: addExercise,
+                            ),
+                          ),
+                        ] else
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: ActiveSessionNotesCard(
+                                  controller: _notesCtl,
+                                  focusNode: _notesFocusNode,
+                                  isVisible: _showNotesComposer,
+                                  onToggleVisibility: () {
+                                    setState(() => _showNotesComposer =
+                                        !_showNotesComposer);
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              _AddSessionExerciseButton(
+                                onPressed: addExercise,
+                              ),
+                            ],
+                          ),
                         const SizedBox(height: 14),
                         for (var index = 0;
                             index < sessionDetails.length;
@@ -743,34 +772,6 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                             ),
                             onSwap: () => swapExercise(index),
                           ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          key: const Key('active-session-add-exercise'),
-                          onPressed: addExercise,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor:
-                                KineticNoirPalette.onSurfaceVariant,
-                            side: BorderSide(
-                              color: KineticNoirPalette.outlineVariant
-                                  .withValues(alpha: 0.35),
-                              style: BorderStyle.solid,
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 18),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(22),
-                            ),
-                          ),
-                          icon: const Icon(Icons.add_circle_outline_rounded),
-                          label: Text(
-                            'ADD EXERCISE',
-                            style: KineticNoirTypography.body(
-                              size: 12,
-                              weight: FontWeight.w800,
-                              color: KineticNoirPalette.onSurfaceVariant,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -778,6 +779,41 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddSessionExerciseButton extends StatelessWidget {
+  const _AddSessionExerciseButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      key: const Key('active-session-add-exercise'),
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: KineticNoirPalette.onSurfaceVariant,
+        side: BorderSide(
+          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.35),
+          style: BorderStyle.solid,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
+      label: Text(
+        'ADD EXERCISE',
+        style: KineticNoirTypography.body(
+          size: 11,
+          weight: FontWeight.w800,
+          color: KineticNoirPalette.onSurfaceVariant,
+          letterSpacing: 1.1,
         ),
       ),
     );
