@@ -8,6 +8,7 @@ import 'package:fit_log/src/features/app_data/data/repositories/app_data_reposit
 import 'package:fit_log/src/features/routines/domain/entities/active_workout_session_draft.dart';
 import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
 import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_detail.dart';
+import 'package:fit_log/src/features/routines/domain/entities/weight_display_unit.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_plan.dart';
 import 'package:flutter/services.dart';
@@ -303,6 +304,7 @@ void main() {
         ),
       ],
       setCountsByExercise: const {10: 4},
+      weightUnitsByExercise: const {10: WeightDisplayUnit.lb},
       logs: [
         WorkoutLogEntry(
           date: startedAt,
@@ -337,9 +339,15 @@ void main() {
     expect(restored!.plan.name, 'Upper A');
     expect(restored.notes, 'Keep elbows stacked.');
     expect(restored.setCountsByExercise[10], 4);
+    expect(restored.weightUnitsByExercise[10], WeightDisplayUnit.lb);
     expect(restored.logs, hasLength(2));
     expect(restored.logs.last.completed, isFalse);
     expect(restored.restEndsAtByExercise[10], restEndsAt);
+
+    final legacyJson = draft.toJson()..remove('weightUnitsByExercise');
+    final legacyDraft = ActiveWorkoutSessionDraft.fromJson(legacyJson);
+    expect(legacyDraft, isNotNull);
+    expect(legacyDraft!.weightUnitsByExercise, isEmpty);
 
     await reopenedService.clearActiveSessionDraft();
     expect(await reopenedService.fetchActiveSessionDraft(), isNull);

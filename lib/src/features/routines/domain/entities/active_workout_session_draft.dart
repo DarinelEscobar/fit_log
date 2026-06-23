@@ -1,5 +1,6 @@
 import 'exercise.dart';
 import 'plan_exercise_detail.dart';
+import 'weight_display_unit.dart';
 import 'workout_log_entry.dart';
 import 'workout_plan.dart';
 
@@ -17,6 +18,7 @@ class ActiveWorkoutSessionDraft {
     this.energy,
     this.mood,
     this.expandedExerciseId,
+    this.weightUnitsByExercise = const {},
   });
 
   final WorkoutPlan plan;
@@ -29,6 +31,7 @@ class ActiveWorkoutSessionDraft {
   final List<PlanExerciseDetail> details;
   final List<Exercise> exercises;
   final Map<int, int> setCountsByExercise;
+  final Map<int, WeightDisplayUnit> weightUnitsByExercise;
   final List<WorkoutLogEntry> logs;
   final Map<int, DateTime> restEndsAtByExercise;
 
@@ -51,6 +54,11 @@ class ActiveWorkoutSessionDraft {
       'setCountsByExercise': {
         for (final entry in setCountsByExercise.entries)
           '${entry.key}': entry.value,
+      },
+      'weightUnitsByExercise': {
+        for (final entry in weightUnitsByExercise.entries)
+          if (entry.value != WeightDisplayUnit.kg)
+            '${entry.key}': entry.value.storageValue,
       },
       'logs': logs.map(_logToJson).toList(growable: false),
       'restEndsAtByExercise': {
@@ -106,6 +114,7 @@ class ActiveWorkoutSessionDraft {
           .whereType<Exercise>()
           .toList(growable: false),
       setCountsByExercise: _intMap(json['setCountsByExercise']),
+      weightUnitsByExercise: _weightUnitMap(json['weightUnitsByExercise']),
       logs: _asList(json['logs'])
           .map(_asMap)
           .whereType<Map<String, Object?>>()
@@ -228,6 +237,18 @@ class ActiveWorkoutSessionDraft {
       for (final entry in map.entries)
         if (int.tryParse(entry.key) != null)
           int.parse(entry.key): _asInt(entry.value),
+    };
+  }
+
+  static Map<int, WeightDisplayUnit> _weightUnitMap(Object? value) {
+    final map = _asMap(value);
+    if (map == null) {
+      return const {};
+    }
+    return {
+      for (final entry in map.entries)
+        if (int.tryParse(entry.key) != null)
+          int.parse(entry.key): WeightDisplayUnit.fromStorageValue(entry.value),
     };
   }
 

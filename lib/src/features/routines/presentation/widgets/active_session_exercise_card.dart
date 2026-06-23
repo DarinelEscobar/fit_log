@@ -9,9 +9,38 @@ import '../../../../theme/kinetic_noir.dart';
 import '../../../../utils/notification_service.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
+import '../../domain/entities/weight_display_unit.dart';
 import '../../domain/entities/workout_log_entry.dart';
 
 typedef SessionLogCallback = void Function(WorkoutLogEntry entry);
+
+const double _kgToLbFactor = 2.2046226218;
+
+WeightDisplayUnit _oppositeUnit(WeightDisplayUnit unit) {
+  return unit == WeightDisplayUnit.kg
+      ? WeightDisplayUnit.lb
+      : WeightDisplayUnit.kg;
+}
+
+double _kgToDisplayWeight(double weightKg, WeightDisplayUnit unit) {
+  return unit == WeightDisplayUnit.kg ? weightKg : weightKg * _kgToLbFactor;
+}
+
+double _displayWeightToKg(double weight, WeightDisplayUnit unit) {
+  return unit == WeightDisplayUnit.kg ? weight : weight / _kgToLbFactor;
+}
+
+String _formatWeight(double weight) {
+  if (!weight.isFinite) {
+    return '0';
+  }
+
+  final rounded = weight.roundToDouble();
+  if ((weight - rounded).abs() < 0.05) {
+    return rounded.toStringAsFixed(0);
+  }
+  return weight.toStringAsFixed(1);
+}
 
 enum LogCurrentSetResult {
   registered,
@@ -27,11 +56,13 @@ class ActiveSessionExerciseCard extends StatefulWidget {
     required this.now,
     required this.expanded,
     required this.logsMap,
+    required this.weightUnit,
     required this.onToggle,
     required this.onSetCountChanged,
     required this.saveDraftLog,
     required this.completeLog,
     required this.removeLog,
+    required this.onWeightUnitChanged,
     required this.onRestEndsAtChanged,
     this.exercise,
     this.initialRestEndsAt,
@@ -46,11 +77,13 @@ class ActiveSessionExerciseCard extends StatefulWidget {
   final DateTime now;
   final bool expanded;
   final Map<String, WorkoutLogEntry> logsMap;
+  final WeightDisplayUnit weightUnit;
   final VoidCallback onToggle;
   final ValueChanged<int> onSetCountChanged;
   final SessionLogCallback saveDraftLog;
   final SessionLogCallback completeLog;
   final SessionLogCallback removeLog;
+  final ValueChanged<WeightDisplayUnit> onWeightUnitChanged;
   final ValueChanged<DateTime?> onRestEndsAtChanged;
   final VoidCallback? onSwap;
   final DateTime? initialRestEndsAt;
@@ -62,7 +95,7 @@ class ActiveSessionExerciseCard extends StatefulWidget {
 
 class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     with AutomaticKeepAliveClientMixin {
-  final List<TextEditingController> _kgControllers = [];
+  final List<TextEditingController> _weightControllers = [];
   final List<TextEditingController> _repControllers = [];
   final List<TextEditingController> _rirControllers = [];
 
@@ -100,6 +133,10 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
       _showAdjustActions = false;
     }
 
+    if (oldWidget.weightUnit != widget.weightUnit) {
+      _convertWeightControllers(oldWidget.weightUnit, widget.weightUnit);
+    }
+
     if (widget.detail.sets > _visibleSets) {
       _resetControllers(widget.detail.sets);
     }
@@ -108,7 +145,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
   @override
   void dispose() {
     for (final controller in [
-      ..._kgControllers,
+      ..._weightControllers,
       ..._repControllers,
       ..._rirControllers,
     ]) {
@@ -136,8 +173,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
         exerciseId: widget.detail.exerciseId,
         setNumber: nextSet,
         reps: reps,
-        weight: _parseDouble(
-            _kgControllers[nextSet - 1].text, widget.detail.weight),
+        weight: _weightControllerValueInKg(nextSet - 1),
         rir: _parseInt(_rirControllers[nextSet - 1].text, widget.detail.rir),
         completed: true,
       ),
@@ -149,13 +185,13 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
 
   void _resetControllers(int targetSets) {
     for (final controller in [
-      ..._kgControllers,
+      ..._weightControllers,
       ..._repControllers,
       ..._rirControllers,
     ]) {
       controller.dispose();
     }
-    _kgControllers.clear();
+    _weightControllers.clear();
     _repControllers.clear();
     _rirControllers.clear();
     _visibleSets = targetSets;
@@ -163,9 +199,14 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     for (var index = 0; index < targetSets; index++) {
       final setNumber = index + 1;
       final existing = _logFor(setNumber);
-      _kgControllers.add(
+      _weightControllers.add(
         TextEditingController(
-          text: (existing?.weight ?? widget.detail.weight).toStringAsFixed(0),
+          text: _formatWeight(
+            _kgToDisplayWeight(
+              existing?.weight ?? widget.detail.weight,
+              widget.weightUnit,
+            ),
+          ),
         ),
       );
       _repControllers.add(
@@ -205,6 +246,39 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     return true;
   }
 
+  double _weightControllerValueInKg(int index) {
+    final fallbackDisplayWeight = _kgToDisplayWeight(
+      widget.detail.weight,
+      widget.weightUnit,
+    );
+    final displayWeight = _parseDouble(
+      _weightControllers[index].text,
+      fallbackDisplayWeight,
+    );
+    return _displayWeightToKg(displayWeight, widget.weightUnit);
+  }
+
+  void _convertWeightControllers(
+    WeightDisplayUnit oldUnit,
+    WeightDisplayUnit newUnit,
+  ) {
+    for (final controller in _weightControllers) {
+      final displayWeight = double.tryParse(controller.text.trim());
+      if (displayWeight == null) {
+        continue;
+      }
+
+      final weightKg = _displayWeightToKg(displayWeight, oldUnit);
+      controller.text = _formatWeight(_kgToDisplayWeight(weightKg, newUnit));
+    }
+  }
+
+  void _switchWeightUnit() {
+    final nextUnit = _oppositeUnit(widget.weightUnit);
+    setState(() => _showAdjustActions = false);
+    widget.onWeightUnitChanged(nextUnit);
+  }
+
   void _saveDraft(int index) {
     final setNumber = index + 1;
     final current = _logFor(setNumber);
@@ -215,7 +289,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
         exerciseId: widget.detail.exerciseId,
         setNumber: setNumber,
         reps: _parseInt(_repControllers[index].text, widget.detail.reps),
-        weight: _parseDouble(_kgControllers[index].text, widget.detail.weight),
+        weight: _weightControllerValueInKg(index),
         rir: _parseInt(_rirControllers[index].text, widget.detail.rir),
         completed: current?.completed ?? false,
       ),
@@ -223,12 +297,14 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
   }
 
   void _addSet() {
-    final lastWeight = _kgControllers.isEmpty
-        ? widget.detail.weight
-        : _parseDouble(
-            _kgControllers.last.text,
-            widget.detail.weight,
-          );
+    final fallbackDisplayWeight = _kgToDisplayWeight(
+      widget.detail.weight,
+      widget.weightUnit,
+    );
+    final lastDisplayWeight = _weightControllers.isEmpty
+        ? fallbackDisplayWeight
+        : _parseDouble(_weightControllers.last.text, fallbackDisplayWeight);
+    final lastWeight = _displayWeightToKg(lastDisplayWeight, widget.weightUnit);
     final lastReps = _repControllers.isEmpty
         ? widget.detail.reps
         : _parseInt(_repControllers.last.text, widget.detail.reps);
@@ -238,8 +314,8 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
 
     setState(() {
       _visibleSets++;
-      _kgControllers.add(
-        TextEditingController(text: lastWeight.toStringAsFixed(0)),
+      _weightControllers.add(
+        TextEditingController(text: _formatWeight(lastDisplayWeight)),
       );
       _repControllers.add(TextEditingController(text: '$lastReps'));
       _rirControllers.add(TextEditingController(text: '$lastRir'));
@@ -268,7 +344,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     final removedSet = _visibleSets;
     setState(() {
       _visibleSets--;
-      _kgControllers.removeLast().dispose();
+      _weightControllers.removeLast().dispose();
       _repControllers.removeLast().dispose();
       _rirControllers.removeLast().dispose();
     });
@@ -568,17 +644,19 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                 ],
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Row(
                 children: <Widget>[
-                  SizedBox(width: 56, child: _HeaderText('SET')),
-                  SizedBox(width: 12),
-                  Expanded(child: Center(child: _HeaderText('KG'))),
-                  SizedBox(width: 12),
-                  Expanded(child: Center(child: _HeaderText('REPS'))),
-                  SizedBox(width: 12),
-                  Expanded(child: Center(child: _HeaderText('RIR'))),
+                  const SizedBox(width: 56, child: _HeaderText('SET')),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Center(child: _HeaderText(widget.weightUnit.label)),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Center(child: _HeaderText('REPS'))),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Center(child: _HeaderText('RIR'))),
                 ],
               ),
             ),
@@ -599,7 +677,8 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                         setNumber: index + 1,
                         isActive: currentSet == index + 1,
                         isCompleted: _isSetCompleted(index + 1),
-                        kgController: _kgControllers[index],
+                        weightController: _weightControllers[index],
+                        weightUnit: widget.weightUnit,
                         repsController: _repControllers[index],
                         rirController: _rirControllers[index],
                         onChanged: () => _saveDraft(index),
@@ -686,6 +765,22 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                             size: 11,
                             weight: FontWeight.w800,
                             color: KineticNoirPalette.primary,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        key: Key(
+                          'active-weight-unit-toggle-${widget.detail.exerciseId}',
+                        ),
+                        onPressed: _switchWeightUnit,
+                        icon: const Icon(Icons.swap_vert_rounded, size: 18),
+                        label: Text(
+                          'SWITCH TO ${_oppositeUnit(widget.weightUnit).label}',
+                          style: KineticNoirTypography.body(
+                            size: 11,
+                            weight: FontWeight.w800,
+                            color: KineticNoirPalette.onSurfaceVariant,
                             letterSpacing: 1.0,
                           ),
                         ),
@@ -812,7 +907,8 @@ class _SetRow extends StatelessWidget {
     required this.setNumber,
     required this.isActive,
     required this.isCompleted,
-    required this.kgController,
+    required this.weightController,
+    required this.weightUnit,
     required this.repsController,
     required this.rirController,
     required this.onChanged,
@@ -823,7 +919,8 @@ class _SetRow extends StatelessWidget {
   final int setNumber;
   final bool isActive;
   final bool isCompleted;
-  final TextEditingController kgController;
+  final TextEditingController weightController;
+  final WeightDisplayUnit weightUnit;
   final TextEditingController repsController;
   final TextEditingController rirController;
   final VoidCallback onChanged;
@@ -876,16 +973,17 @@ class _SetRow extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: _NumberInput(
+            child: _WeightInput(
               semanticKey: Key('active-set-$exerciseId-$setNumber-kg'),
-              controller: kgController,
+              controller: weightController,
+              unit: weightUnit,
               enabled: !isCompleted,
               onChanged: onChanged,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: _NumberInput(
+            child: _NumberInputSlot(
               semanticKey: Key('active-set-$exerciseId-$setNumber-reps'),
               controller: repsController,
               enabled: !isCompleted,
@@ -894,7 +992,7 @@ class _SetRow extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: _NumberInput(
+            child: _NumberInputSlot(
               semanticKey: Key('active-set-$exerciseId-$setNumber-rir'),
               controller: rirController,
               enabled: !isCompleted,
@@ -956,6 +1054,108 @@ class _NumberInput extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _NumberInputSlot extends StatelessWidget {
+  const _NumberInputSlot({
+    required this.semanticKey,
+    required this.controller,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final Key semanticKey;
+  final TextEditingController controller;
+  final bool enabled;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 19),
+        _NumberInput(
+          semanticKey: semanticKey,
+          controller: controller,
+          enabled: enabled,
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _WeightInput extends StatelessWidget {
+  const _WeightInput({
+    required this.semanticKey,
+    required this.controller,
+    required this.unit,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final Key semanticKey;
+  final TextEditingController controller;
+  final WeightDisplayUnit unit;
+  final bool enabled;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 16,
+          child: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, _) {
+              final secondaryLabel = _secondaryWeightLabel(value.text);
+              if (secondaryLabel.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              return Align(
+                alignment: Alignment.center,
+                child: Text(
+                  secondaryLabel,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: KineticNoirTypography.body(
+                    size: 9,
+                    weight: FontWeight.w800,
+                    color: KineticNoirPalette.primary.withValues(alpha: 0.82),
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 3),
+        _NumberInput(
+          semanticKey: semanticKey,
+          controller: controller,
+          enabled: enabled,
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  String _secondaryWeightLabel(String text) {
+    final displayWeight = double.tryParse(text.trim());
+    if (displayWeight == null) {
+      return '';
+    }
+
+    final secondaryUnit = _oppositeUnit(unit);
+    final weightKg = _displayWeightToKg(displayWeight, unit);
+    final secondaryWeight = _kgToDisplayWeight(weightKg, secondaryUnit);
+    return '${_formatWeight(secondaryWeight)} ${secondaryUnit.label}';
   }
 }
 

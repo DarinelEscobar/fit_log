@@ -3,6 +3,7 @@ import 'package:fit_log/src/features/app_data/presentation/pages/data_screen.dar
 import 'package:fit_log/src/features/routines/domain/entities/active_workout_session_draft.dart';
 import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
 import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_detail.dart';
+import 'package:fit_log/src/features/routines/domain/entities/weight_display_unit.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_plan.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_session.dart';
@@ -283,6 +284,39 @@ void main() {
     expect(find.byKey(const Key('active-set-row-1-5')), findsNothing);
   });
 
+  testWidgets('active set can switch to lb and stores kg weight', (
+    tester,
+  ) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutine(tester, repo: repo);
+
+    await tester.tap(find.byKey(const Key('active-set-options-toggle-1')));
+    await tester.pump();
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(const Key('active-weight-unit-toggle-1')),
+    );
+
+    expect(find.text('SWITCH TO LB'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('active-weight-unit-toggle-1')));
+    await tester.pump();
+
+    expect(find.text('LB'), findsOneWidget);
+    expect(find.text('185 KG'), findsWidgets);
+
+    await tester.enterText(find.byKey(const Key('active-set-1-1-kg')), '50');
+    await tester.enterText(find.byKey(const Key('active-set-1-1-reps')), '8');
+    await tester.tap(find.byKey(const Key('active-session-register-set')));
+    await tester.pump(const Duration(milliseconds: 350));
+
+    final log = repo.activeSessionDraft!.logs.singleWhere(
+      (entry) => entry.exerciseId == 1 && entry.setNumber == 1,
+    );
+    expect(log.weight, closeTo(50 / 2.2046226218, 0.001));
+    expect(log.completed, isTrue);
+  });
+
   testWidgets(
       'rest timer schedules a stable notification id and strong completion vibration',
       (tester) async {
@@ -428,9 +462,46 @@ void main() {
     expect(find.text('1/4 sets'), findsOneWidget);
     expect(find.textContaining('Rest timer running'), findsOneWidget);
     expect(find.byKey(const Key('active-set-row-1-4')), findsOneWidget);
+    expect(find.text('KG'), findsOneWidget);
 
     await _openNotesComposer(tester);
     expect(find.text('Recovered note'), findsOneWidget);
+  });
+
+  testWidgets('recovered draft restores active exercise weight unit', (
+    tester,
+  ) async {
+    final repo = _FakeWorkoutPlanRepository();
+    final startedAt = DateTime(2026, 5, 20, 10, 0);
+    final currentNow = DateTime(2026, 5, 20, 10, 1, 5);
+    final draft = _activeSessionDraft(
+      startedAt: startedAt,
+      updatedAt: currentNow,
+      restEndsAt: currentNow.add(const Duration(seconds: 30)),
+      weightUnitsByExercise: const {1: WeightDisplayUnit.lb},
+    );
+
+    await tester.binding.setSurfaceSize(const Size(430, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    _setUpRoutineChannels();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          workoutPlanRepositoryProvider.overrideWithValue(repo),
+        ],
+        child: MaterialApp(
+          home: StartRoutineScreen(
+            plan: draft.plan,
+            recoveredDraft: draft,
+            now: () => currentNow,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('LB'), findsOneWidget);
+    expect(find.text('185 KG'), findsWidgets);
   });
 
   testWidgets('finish summary resumes with edited notes applied back', (
@@ -857,6 +928,7 @@ ActiveWorkoutSessionDraft _activeSessionDraft({
   required DateTime startedAt,
   required DateTime updatedAt,
   required DateTime restEndsAt,
+  Map<int, WeightDisplayUnit> weightUnitsByExercise = const {},
 }) {
   return ActiveWorkoutSessionDraft(
     plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
@@ -887,6 +959,7 @@ ActiveWorkoutSessionDraft _activeSessionDraft({
       ),
     ],
     setCountsByExercise: const {1: 4},
+    weightUnitsByExercise: weightUnitsByExercise,
     logs: [
       WorkoutLogEntry(
         date: startedAt,
