@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../theme/kinetic_noir.dart';
 import '../../../history/presentation/providers/history_providers.dart';
 import '../../../performance/presentation/providers/performance_providers.dart';
+import '../../domain/entities/active_workout_session_draft.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
 import '../../domain/entities/workout_log_entry.dart';
 import '../../domain/entities/workout_plan.dart';
 import '../../domain/entities/workout_session.dart';
+import '../../domain/usecases/active_session_draft_usecases.dart';
 import '../../domain/usecases/save_workout_logs_usecase.dart';
 import '../../domain/usecases/save_workout_session_usecase.dart';
 import '../../services/workout_session_helper.dart';
@@ -27,11 +29,13 @@ import 'select_exercise_screen.dart';
 class StartRoutineScreen extends ConsumerStatefulWidget {
   const StartRoutineScreen({
     required this.plan,
+    this.recoveredDraft,
     this.now = DateTime.now,
     super.key,
   });
 
   final WorkoutPlan plan;
+  final ActiveWorkoutSessionDraft? recoveredDraft;
   final DateTime Function() now;
 
   @override
@@ -45,12 +49,14 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   late final DateTime _sessionStartedAt;
   late final Timer _ticker;
   late DateTime _now;
+  Timer? _draftSaveTimer;
   final TextEditingController _notesCtl = TextEditingController();
   final FocusNode _notesFocusNode = FocusNode();
 
   final Map<int, GlobalKey<ActiveSessionExerciseCardState>> _cardKeys = {};
   final Map<int, int> _setCountsByExercise = {};
   final Map<String, WorkoutLogEntry> _sessionLogs = {};
+  final Map<int, DateTime> _restEndsAtByExercise = {};
 
   List<PlanExerciseDetail>? _sessionDetails;
   Map<int, Exercise>? _exerciseMap;
@@ -64,7 +70,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _now = widget.now();
-    _sessionStartedAt = _now;
+    _sessionStartedAt = widget.recoveredDraft?.startedAt ?? _now;
+    _restoreDraftIfNeeded();
+    _notesCtl.addListener(_scheduleDraftPersist);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       _refreshClock(syncRestTimers: true, vibrateOnCompletion: true);
     });
@@ -78,6 +86,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _draftSaveTimer?.cancel();
     _ticker.cancel();
     _notesCtl.dispose();
     _notesFocusNode.dispose();
@@ -88,7 +97,49 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _refreshClock(syncRestTimers: true, vibrateOnCompletion: false);
+      return;
     }
+
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(_persistDraftNow());
+    }
+  }
+
+  void _restoreDraftIfNeeded() {
+    final draft = widget.recoveredDraft;
+    if (draft == null) {
+      return;
+    }
+
+    _notesCtl.text = draft.notes;
+    _energy = draft.energy;
+    _mood = draft.mood;
+    _sessionDetails = List<PlanExerciseDetail>.from(draft.details);
+    _exerciseMap = {
+      for (final exercise in draft.exercises) exercise.id: exercise,
+    };
+    _setCountsByExercise.addAll(draft.setCountsByExercise);
+    for (final detail in _sessionDetails!) {
+      _setCountsByExercise.putIfAbsent(detail.exerciseId, () => detail.sets);
+      _cardKeys[detail.exerciseId] =
+          GlobalKey<ActiveSessionExerciseCardState>();
+    }
+    for (final log in draft.logs) {
+      _sessionLogs[_logKey(log.exerciseId, log.setNumber)] = log;
+    }
+    _restEndsAtByExercise.addAll(
+      Map<int, DateTime>.fromEntries(
+        draft.restEndsAtByExercise.entries.where(
+          (entry) => entry.value.isAfter(_now),
+        ),
+      ),
+    );
+    _expandedExerciseId = draft.expandedExerciseId ??
+        (_sessionDetails!.isNotEmpty
+            ? _sessionDetails!.first.exerciseId
+            : null);
   }
 
   Duration _sessionDurationAt(DateTime now) =>
@@ -170,13 +221,75 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     );
   }
 
+  void _scheduleDraftPersist() {
+    _draftSaveTimer?.cancel();
+    _draftSaveTimer = Timer(const Duration(milliseconds: 300), () {
+      unawaited(_persistDraftNow());
+    });
+  }
+
+  Future<void> _persistDraftNow() async {
+    final details = _sessionDetails;
+    final exerciseMap = _exerciseMap;
+    if (details == null || details.isEmpty || exerciseMap == null) {
+      return;
+    }
+
+    final activeExerciseIds =
+        details.map((detail) => detail.exerciseId).toSet();
+    final draft = ActiveWorkoutSessionDraft(
+      plan: widget.plan,
+      startedAt: _sessionStartedAt,
+      updatedAt: widget.now(),
+      notes: _notesCtl.text,
+      energy: _energy,
+      mood: _mood,
+      expandedExerciseId: _expandedExerciseId,
+      details: List<PlanExerciseDetail>.from(details),
+      exercises: [
+        for (final exercise in exerciseMap.values)
+          if (activeExerciseIds.contains(exercise.id)) exercise,
+      ],
+      setCountsByExercise: {
+        for (final detail in details)
+          detail.exerciseId:
+              _setCountsByExercise[detail.exerciseId] ?? detail.sets,
+      },
+      logs: _sessionLogs.values.toList(growable: false),
+      restEndsAtByExercise: Map<int, DateTime>.from(_restEndsAtByExercise),
+    );
+
+    final repo = ref.read(workoutPlanRepositoryProvider);
+    await SaveActiveSessionDraftUseCase(repo)(draft);
+  }
+
+  Future<void> _clearPersistedDraft() async {
+    _draftSaveTimer?.cancel();
+    final repo = ref.read(workoutPlanRepositoryProvider);
+    await ClearActiveSessionDraftUseCase(repo)();
+  }
+
   void _initializeSessionData(
     List<PlanExerciseDetail> details,
     List<Exercise> exercises,
   ) {
-    _exerciseMap ??= {for (final exercise in exercises) exercise.id: exercise};
+    final allExercises = {
+      for (final exercise in exercises) exercise.id: exercise
+    };
+    _exerciseMap ??= allExercises;
+    _exerciseMap!.addEntries(
+      allExercises.entries
+          .where((entry) => !_exerciseMap!.containsKey(entry.key)),
+    );
 
     if (_sessionDetails != null) {
+      for (final detail in _sessionDetails!) {
+        _setCountsByExercise.putIfAbsent(detail.exerciseId, () => detail.sets);
+        _cardKeys.putIfAbsent(
+          detail.exerciseId,
+          () => GlobalKey<ActiveSessionExerciseCardState>(),
+        );
+      }
       return;
     }
 
@@ -189,12 +302,14 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     if (_sessionDetails!.isNotEmpty) {
       _expandedExerciseId = _sessionDetails!.first.exerciseId;
     }
+    _scheduleDraftPersist();
   }
 
   String _logKey(int exerciseId, int setNumber) => '$exerciseId-$setNumber';
 
   void _saveDraftLog(WorkoutLogEntry entry) {
     _sessionLogs[_logKey(entry.exerciseId, entry.setNumber)] = entry;
+    _scheduleDraftPersist();
   }
 
   void _completeLog(WorkoutLogEntry entry) {
@@ -202,12 +317,23 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       _sessionLogs[_logKey(entry.exerciseId, entry.setNumber)] =
           entry.copyWith(completed: true);
     });
+    _scheduleDraftPersist();
   }
 
   void _removeLog(WorkoutLogEntry entry) {
     setState(() {
       _sessionLogs.remove(_logKey(entry.exerciseId, entry.setNumber));
     });
+    _scheduleDraftPersist();
+  }
+
+  void _updateRestEndsAt(int exerciseId, DateTime? restEndsAt) {
+    if (restEndsAt == null || !restEndsAt.isAfter(widget.now())) {
+      _restEndsAtByExercise.remove(exerciseId);
+    } else {
+      _restEndsAtByExercise[exerciseId] = restEndsAt;
+    }
+    _scheduleDraftPersist();
   }
 
   Future<void> swapExercise(int index) async {
@@ -238,6 +364,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     for (final key in existingKeys) {
       _sessionLogs.remove(key);
     }
+    _restEndsAtByExercise.remove(detail.exerciseId);
 
     setState(() {
       _cardKeys.remove(detail.exerciseId);
@@ -257,6 +384,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         _expandedExerciseId = newDetail.exerciseId;
       }
     });
+    _scheduleDraftPersist();
   }
 
   Future<void> addExercise() async {
@@ -300,11 +428,16 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
           GlobalKey<ActiveSessionExerciseCardState>();
       _expandedExerciseId = newDetail.exerciseId;
     });
+    _scheduleDraftPersist();
   }
 
   Future<void> _handleExitAttempt() async {
     final exit = await showConfirmExitSheet(context);
     if (!mounted || !exit) {
+      return;
+    }
+    await _clearPersistedDraft();
+    if (!mounted) {
       return;
     }
     Navigator.of(context).pop();
@@ -339,6 +472,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
 
     switch (result.action) {
       case FinishSessionSummaryAction.discard:
+        await _clearPersistedDraft();
+        if (!mounted) {
+          return;
+        }
+        Navigator.of(context).pop();
         return;
       case FinishSessionSummaryAction.resume:
         setState(() {
@@ -346,9 +484,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
           _mood = result.mood;
           _notesCtl.text = result.notes;
         });
+        _scheduleDraftPersist();
         return;
       case FinishSessionSummaryAction.save:
         final repo = ref.read(workoutPlanRepositoryProvider);
+        _draftSaveTimer?.cancel();
         await SaveWorkoutLogsUseCase(repo)(_completedLogs);
         await SaveWorkoutSessionUseCase(repo)(
           WorkoutSession(
@@ -360,6 +500,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
             notes: result.notes,
           ),
         );
+        await ClearActiveSessionDraftUseCase(repo)();
         ref.invalidate(workoutLogsProvider);
         ref.invalidate(workoutSessionsProvider);
         ref.invalidate(performanceDashboardProvider);
@@ -576,6 +717,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                             expanded: _expandedExerciseId ==
                                 sessionDetails[index].exerciseId,
                             logsMap: _sessionLogs,
+                            initialRestEndsAt: _restEndsAtByExercise[
+                                sessionDetails[index].exerciseId],
                             onToggle: () => setState(() {
                               final exerciseId =
                                   sessionDetails[index].exerciseId;
@@ -583,14 +726,21 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                                   _expandedExerciseId == exerciseId
                                       ? null
                                       : exerciseId;
+                              _scheduleDraftPersist();
                             }),
                             onSetCountChanged: (count) => setState(() {
                               _setCountsByExercise[
                                   sessionDetails[index].exerciseId] = count;
+                              _scheduleDraftPersist();
                             }),
                             saveDraftLog: _saveDraftLog,
                             completeLog: _completeLog,
                             removeLog: _removeLog,
+                            onRestEndsAtChanged: (restEndsAt) =>
+                                _updateRestEndsAt(
+                              sessionDetails[index].exerciseId,
+                              restEndsAt,
+                            ),
                             onSwap: () => swapExercise(index),
                           ),
                         const SizedBox(height: 12),

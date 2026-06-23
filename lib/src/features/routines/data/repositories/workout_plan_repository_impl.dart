@@ -1,3 +1,4 @@
+import 'package:fit_log/src/features/routines/domain/entities/active_workout_session_draft.dart';
 import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
 import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_detail.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
@@ -116,5 +117,20 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   @override
   Future<void> saveWorkoutSession(WorkoutSession session) {
     return _storageService.saveWorkoutSession(session);
+  }
+
+  @override
+  Future<ActiveWorkoutSessionDraft?> getActiveSessionDraft() {
+    return _storageService.fetchActiveSessionDraft();
+  }
+
+  @override
+  Future<void> saveActiveSessionDraft(ActiveWorkoutSessionDraft draft) {
+    return _storageService.saveActiveSessionDraft(draft);
+  }
+
+  @override
+  Future<void> clearActiveSessionDraft() {
+    return _storageService.clearActiveSessionDraft();
   }
 }

@@ -5,6 +5,11 @@ import 'package:excel/excel.dart';
 import 'package:fit_log/src/data/create/initialize_xlsx.dart';
 import 'package:fit_log/src/data/services/workout_storage_service.dart';
 import 'package:fit_log/src/features/app_data/data/repositories/app_data_repository_impl.dart';
+import 'package:fit_log/src/features/routines/domain/entities/active_workout_session_draft.dart';
+import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
+import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_detail.dart';
+import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
+import 'package:fit_log/src/features/routines/domain/entities/workout_plan.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -261,6 +266,84 @@ void main() {
       ),
       0,
     );
+  });
+
+  test('active session draft survives reopen and can be cleared', () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    final startedAt = DateTime(2026, 5, 20, 10, 0);
+    final restEndsAt = DateTime(2026, 5, 20, 10, 2);
+    final draft = ActiveWorkoutSessionDraft(
+      plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
+      startedAt: startedAt,
+      updatedAt: DateTime(2026, 5, 20, 10, 1),
+      notes: 'Keep elbows stacked.',
+      energy: 'High',
+      mood: 'Focused',
+      expandedExerciseId: 10,
+      details: [
+        PlanExerciseDetail(
+          exerciseId: 10,
+          name: 'Bench Press',
+          description: 'Controlled reps.',
+          sets: 3,
+          reps: 8,
+          weight: 100,
+          restSeconds: 90,
+          rir: 2,
+          tempo: '3-1-1-0',
+        ),
+      ],
+      exercises: [
+        Exercise(
+          id: 10,
+          name: 'Bench Press',
+          description: 'Controlled reps.',
+          category: 'Strength',
+          mainMuscleGroup: 'Chest',
+        ),
+      ],
+      setCountsByExercise: const {10: 4},
+      logs: [
+        WorkoutLogEntry(
+          date: startedAt,
+          planId: 1,
+          exerciseId: 10,
+          setNumber: 1,
+          reps: 8,
+          weight: 100,
+          rir: 2,
+        ),
+        WorkoutLogEntry(
+          date: startedAt,
+          planId: 1,
+          exerciseId: 10,
+          setNumber: 2,
+          reps: 8,
+          weight: 100,
+          rir: 2,
+          completed: false,
+        ),
+      ],
+      restEndsAtByExercise: {10: restEndsAt},
+    );
+
+    await service.saveActiveSessionDraft(draft);
+    await service.close();
+
+    final reopenedService =
+        WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    final restored = await reopenedService.fetchActiveSessionDraft();
+    expect(restored, isNotNull);
+    expect(restored!.plan.name, 'Upper A');
+    expect(restored.notes, 'Keep elbows stacked.');
+    expect(restored.setCountsByExercise[10], 4);
+    expect(restored.logs, hasLength(2));
+    expect(restored.logs.last.completed, isFalse);
+    expect(restored.restEndsAtByExercise[10], restEndsAt);
+
+    await reopenedService.clearActiveSessionDraft();
+    expect(await reopenedService.fetchActiveSessionDraft(), isNull);
+    await reopenedService.close();
   });
 
   test('xlsx initializer creates files with headers only by default', () async {
