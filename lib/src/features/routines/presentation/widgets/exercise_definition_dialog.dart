@@ -77,24 +77,28 @@ class _ExerciseDefinitionDialogState extends State<ExerciseDefinitionDialog> {
             ),
             const SizedBox(height: 20),
             _ExerciseField(
+              fieldKey: const Key('exercise-definition-name'),
               controller: _nameController,
               label: 'Exercise Name',
               hintText: 'Incline Dumbbell Press',
             ),
             const SizedBox(height: 14),
             _ExerciseField(
+              fieldKey: const Key('exercise-definition-category'),
               controller: _categoryController,
               label: 'Category',
               hintText: 'Strength',
             ),
             const SizedBox(height: 14),
             _ExerciseField(
+              fieldKey: const Key('exercise-definition-muscle'),
               controller: _muscleController,
               label: 'Primary Muscle',
               hintText: 'Upper Chest',
             ),
             const SizedBox(height: 14),
             _ExerciseField(
+              fieldKey: const Key('exercise-definition-description'),
               controller: _descriptionController,
               label: 'Description',
               hintText: 'Brief movement cues or intent.',
@@ -159,6 +163,7 @@ class _ExerciseDefinitionDialogState extends State<ExerciseDefinitionDialog> {
 
 class _ExerciseField extends StatelessWidget {
   const _ExerciseField({
+    required this.fieldKey,
     required this.controller,
     required this.label,
     required this.hintText,
@@ -166,6 +171,7 @@ class _ExerciseField extends StatelessWidget {
     this.maxLines = 1,
   });
 
+  final Key fieldKey;
   final TextEditingController controller;
   final String label;
   final String hintText;
@@ -188,6 +194,7 @@ class _ExerciseField extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         TextField(
+          key: fieldKey,
           controller: controller,
           minLines: minLines,
           maxLines: maxLines,
