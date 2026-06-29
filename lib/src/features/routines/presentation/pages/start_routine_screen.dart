@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../theme/kinetic_noir.dart';
 import '../../../history/presentation/providers/history_providers.dart';
 import '../../../performance/presentation/providers/performance_providers.dart';
+import '../../../performance/presentation/providers/active_exercise_progress_provider.dart';
 import '../../domain/entities/active_workout_session_draft.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
@@ -525,6 +526,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         ref.invalidate(workoutSessionsProvider);
         ref.invalidate(performanceDashboardProvider);
         ref.invalidate(exerciseProgressDetailProvider);
+        ref.invalidate(activeExerciseProgressProvider);
         if (!mounted) {
           return;
         }

@@ -1,4 +1,6 @@
 import 'package:fit_log/src/app.dart';
+import 'package:fit_log/src/data/providers/workout_storage_service_provider.dart';
+import 'package:fit_log/src/data/services/workout_storage_service.dart';
 import 'package:fit_log/src/features/app_data/presentation/pages/data_screen.dart';
 import 'package:fit_log/src/features/routines/domain/entities/active_workout_session_draft.dart';
 import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
@@ -19,6 +21,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:vibration/vibration_presets.dart';
 import 'package:vibration_platform_interface/vibration_platform_interface.dart';
 
@@ -30,6 +33,8 @@ late VibrationPlatform _originalVibrationPlatform;
 
 void main() {
   setUpAll(() {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
     _originalVibrationPlatform = VibrationPlatform.instance;
   });
 
@@ -184,6 +189,95 @@ void main() {
     expect(find.textContaining('LOG HISTORY'), findsNothing);
     expect(find.text('ACTIVE WORKOUT'), findsNothing);
     expect(find.text('Current Session'), findsNothing);
+  });
+
+  testWidgets('active progress panel appears with previous exercise history', (
+    tester,
+  ) async {
+    final sessionNow = DateTime.now().add(const Duration(minutes: 5));
+    await _pumpStartRoutine(
+      tester,
+      storage: _FakeWorkoutStorageService(
+        exerciseLogs: [
+          _historyLog(
+            date: sessionNow.subtract(const Duration(days: 9)),
+            weight: 90,
+            reps: 8,
+          ),
+          _historyLog(
+            date: sessionNow.subtract(const Duration(days: 9)),
+            setNumber: 2,
+            weight: 90,
+            reps: 8,
+          ),
+        ],
+      ),
+      now: () => sessionNow,
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('active-progress-panel-1')), findsOneWidget);
+    expect(find.text('LIVE PROGRESS'), findsOneWidget);
+    expect(find.text('LAST'), findsWidgets);
+    expect(find.text('TREND'), findsOneWidget);
+    expect(find.text('TODAY'), findsWidgets);
+  });
+
+  testWidgets('registering a set updates the active progress today delta', (
+    tester,
+  ) async {
+    final sessionNow = DateTime.now().add(const Duration(minutes: 5));
+    await _pumpStartRoutine(
+      tester,
+      storage: _FakeWorkoutStorageService(
+        exerciseLogs: [
+          _historyLog(
+            date: sessionNow.subtract(const Duration(days: 9)),
+            weight: 75,
+            reps: 8,
+          ),
+          _historyLog(
+            date: sessionNow.subtract(const Duration(days: 8)),
+            weight: 75,
+            reps: 8,
+          ),
+          _historyLog(
+            date: sessionNow.subtract(const Duration(days: 7)),
+            weight: 75,
+            reps: 8,
+          ),
+        ],
+      ),
+      now: () => sessionNow,
+    );
+    await tester.pump();
+
+    expect(find.text('LOG FIRST SET'), findsOneWidget);
+
+    await _completeFirstSet(tester);
+    await tester.pump();
+
+    expect(find.textContaining('AHEAD'), findsOneWidget);
+  });
+
+  testWidgets('active progress provider errors do not block normal logging', (
+    tester,
+  ) async {
+    await _pumpStartRoutine(
+      tester,
+      storage: _FakeWorkoutStorageService(throwOnFetch: true),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('active-progress-error-1')), findsOneWidget);
+
+    await _completeFirstSet(tester);
+
+    expect(find.textContaining('Rest timer running'), findsOneWidget);
+    expect(
+      _notificationCalls.where((call) => call.method == 'zonedSchedule'),
+      hasLength(1),
+    );
   });
 
   testWidgets('numeric workout inputs select all current text on tap', (
@@ -446,6 +540,9 @@ void main() {
       ProviderScope(
         overrides: [
           workoutPlanRepositoryProvider.overrideWithValue(repo),
+          workoutStorageServiceProvider.overrideWithValue(
+            _FakeWorkoutStorageService(),
+          ),
         ],
         child: MaterialApp(
           home: StartRoutineScreen(
@@ -488,6 +585,9 @@ void main() {
       ProviderScope(
         overrides: [
           workoutPlanRepositoryProvider.overrideWithValue(repo),
+          workoutStorageServiceProvider.overrideWithValue(
+            _FakeWorkoutStorageService(),
+          ),
         ],
         child: MaterialApp(
           home: StartRoutineScreen(
@@ -759,6 +859,7 @@ Future<void> _pumpApp(
 Future<void> _pumpStartRoutine(
   WidgetTester tester, {
   _FakeWorkoutPlanRepository? repo,
+  WorkoutStorageService? storage,
   DateTime Function()? now,
 }) async {
   await tester.binding.setSurfaceSize(const Size(430, 1000));
@@ -770,6 +871,9 @@ Future<void> _pumpStartRoutine(
     ProviderScope(
       overrides: [
         workoutPlanRepositoryProvider.overrideWithValue(effectiveRepo),
+        workoutStorageServiceProvider.overrideWithValue(
+          storage ?? _FakeWorkoutStorageService(),
+        ),
       ],
       child: MaterialApp(
         home: StartRoutineScreen(
@@ -792,6 +896,7 @@ Future<void> _pumpStartRoutine(
 Future<void> _pumpStartRoutineInHost(
   WidgetTester tester, {
   _FakeWorkoutPlanRepository? repo,
+  WorkoutStorageService? storage,
   DateTime Function()? now,
 }) async {
   await tester.binding.setSurfaceSize(const Size(430, 1000));
@@ -803,6 +908,9 @@ Future<void> _pumpStartRoutineInHost(
     ProviderScope(
       overrides: [
         workoutPlanRepositoryProvider.overrideWithValue(effectiveRepo),
+        workoutStorageServiceProvider.overrideWithValue(
+          storage ?? _FakeWorkoutStorageService(),
+        ),
       ],
       child: MaterialApp(
         home: _RoutineHost(now: now ?? DateTime.now),
@@ -1055,6 +1163,71 @@ class _SelectExerciseHostState extends State<_SelectExerciseHost> {
     );
   }
 }
+
+class _FakeWorkoutStorageService extends WorkoutStorageService {
+  _FakeWorkoutStorageService({
+    this.exerciseLogs = const [],
+    this.throwOnFetch = false,
+  });
+
+  final List<WorkoutLogEntry> exerciseLogs;
+  final bool throwOnFetch;
+
+  @override
+  Future<List<WorkoutLogEntry>> fetchWorkoutLogs({
+    List<int>? planIds,
+    List<int>? exerciseIds,
+    int? exerciseId,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    if (throwOnFetch) {
+      throw StateError('progress history failed');
+    }
+
+    return exerciseLogs.where((log) {
+      if (planIds != null && !planIds.contains(log.planId)) {
+        return false;
+      }
+      if (exerciseIds != null && !exerciseIds.contains(log.exerciseId)) {
+        return false;
+      }
+      if (exerciseId != null && log.exerciseId != exerciseId) {
+        return false;
+      }
+      final logDay = DateTime(log.date.year, log.date.month, log.date.day);
+      if (startDate != null && logDay.isBefore(_day(startDate))) {
+        return false;
+      }
+      if (endDate != null && logDay.isAfter(_day(endDate))) {
+        return false;
+      }
+      return true;
+    }).toList(growable: false);
+  }
+}
+
+WorkoutLogEntry _historyLog({
+  required DateTime date,
+  int planId = 1,
+  int exerciseId = 1,
+  int setNumber = 1,
+  required double weight,
+  required int reps,
+  int rir = 2,
+}) {
+  return WorkoutLogEntry(
+    date: date,
+    planId: planId,
+    exerciseId: exerciseId,
+    setNumber: setNumber,
+    reps: reps,
+    weight: weight,
+    rir: rir,
+  );
+}
+
+DateTime _day(DateTime date) => DateTime(date.year, date.month, date.day);
 
 class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   _FakeWorkoutPlanRepository({

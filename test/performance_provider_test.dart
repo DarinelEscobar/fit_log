@@ -1,6 +1,8 @@
+import 'package:fit_log/src/features/performance/domain/models/active_exercise_progress.dart';
 import 'package:fit_log/src/data/providers/workout_storage_service_provider.dart';
 import 'package:fit_log/src/data/services/workout_storage_service.dart';
 import 'package:fit_log/src/features/performance/presentation/models/performance_models.dart';
+import 'package:fit_log/src/features/performance/presentation/providers/active_exercise_progress_provider.dart';
 import 'package:fit_log/src/features/performance/presentation/providers/performance_providers.dart';
 import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
@@ -82,6 +84,50 @@ void main() {
     expect(summary.hasData, isTrue);
     expect(summary.totalVolumeKg, 400);
     expect(summary.totalReps, 8);
+  });
+
+  test('active exercise progress excludes current-day logs from baseline',
+      () async {
+    final storage = _FakePerformanceStorage(
+      activeExerciseIds: const [],
+      exerciseLogs: [
+        WorkoutLogEntry(
+          date: DateTime(2024, 2, 9),
+          planId: 1,
+          exerciseId: 10,
+          setNumber: 1,
+          reps: 5,
+          weight: 100,
+          rir: 2,
+        ),
+        WorkoutLogEntry(
+          date: DateTime(2024, 2, 10),
+          planId: 1,
+          exerciseId: 10,
+          setNumber: 1,
+          reps: 5,
+          weight: 200,
+          rir: 2,
+        ),
+      ],
+    );
+    final container = _container(storage);
+    addTearDown(container.dispose);
+
+    final insight = await container.read(
+      activeExerciseProgressProvider(
+        ActiveExerciseProgressRequest(
+          exerciseId: 10,
+          sessionDate: DateTime(2024, 2, 10, 16),
+        ),
+      ).future,
+    );
+
+    expect(insight.lastSession?.date, DateTime(2024, 2, 9));
+    expect(
+      insight.recentBaseline?.comparableStrengthKg,
+      closeTo(100 * (1 + 5 / 30), 0.01),
+    );
   });
 }
 
