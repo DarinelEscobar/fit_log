@@ -11,6 +11,7 @@ import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
 import '../../domain/entities/weight_display_unit.dart';
 import '../../domain/entities/workout_log_entry.dart';
+import 'active_exercise_progress_panel.dart';
 
 typedef SessionLogCallback = void Function(WorkoutLogEntry entry);
 
@@ -244,6 +245,17 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
       }
     }
     return true;
+  }
+
+  List<WorkoutLogEntry> get _completedExerciseLogs {
+    final logs = widget.logsMap.values
+        .where(
+          (entry) =>
+              entry.exerciseId == widget.detail.exerciseId && entry.completed,
+        )
+        .toList(growable: false)
+      ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
+    return logs;
   }
 
   double _weightControllerValueInKg(int index) {
@@ -643,6 +655,12 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                   ),
                 ],
               ),
+            ),
+            ActiveExerciseProgressPanel(
+              exerciseId: widget.detail.exerciseId,
+              sessionDate: widget.now,
+              currentLogs: _completedExerciseLogs,
+              weightUnit: widget.weightUnit,
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
