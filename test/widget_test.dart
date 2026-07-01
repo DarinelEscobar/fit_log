@@ -273,7 +273,10 @@ void main() {
 
     await _completeFirstSet(tester);
 
-    expect(find.textContaining('Rest timer running'), findsOneWidget);
+    expect(
+      find.byKey(const Key('active-session-floating-rest-timer')),
+      findsOneWidget,
+    );
     expect(
       _notificationCalls.where((call) => call.method == 'zonedSchedule'),
       hasLength(1),
@@ -303,6 +306,23 @@ void main() {
     );
   });
 
+  testWidgets('register set stays just above the keyboard', (tester) async {
+    const keyboardInset = 320.0;
+    await _pumpStartRoutine(
+      tester,
+      viewInsets: const EdgeInsets.only(bottom: keyboardInset),
+    );
+
+    final buttonBottom = tester
+        .getRect(
+          find.byKey(const Key('active-session-register-set')),
+        )
+        .bottom;
+
+    expect(buttonBottom, lessThanOrEqualTo(1000 - keyboardInset));
+    expect(buttonBottom, greaterThan(1000 - keyboardInset - 48));
+  });
+
   testWidgets('register set blocks when reps is empty', (tester) async {
     await _pumpStartRoutine(tester);
 
@@ -312,7 +332,10 @@ void main() {
     await tester.tap(find.byKey(const Key('active-session-register-set')));
     await tester.pump();
 
-    expect(find.textContaining('Rest timer running'), findsNothing);
+    expect(
+      find.byKey(const Key('active-session-floating-rest-timer')),
+      findsNothing,
+    );
     expect(
       _notificationCalls.where((call) => call.method == 'zonedSchedule'),
       isEmpty,
@@ -328,7 +351,10 @@ void main() {
     await tester.tap(find.byKey(const Key('active-session-register-set')));
     await tester.pump();
 
-    expect(find.textContaining('Rest timer running'), findsNothing);
+    expect(
+      find.byKey(const Key('active-session-floating-rest-timer')),
+      findsNothing,
+    );
     expect(
       _notificationCalls.where((call) => call.method == 'zonedSchedule'),
       isEmpty,
@@ -353,6 +379,31 @@ void main() {
       hasLength(1),
     );
   });
+
+  testWidgets(
+    'floating rest timer remains visible when exercise is collapsed',
+    (tester) async {
+      await _pumpStartRoutine(tester);
+
+      await _completeFirstSet(tester);
+      await tester.tap(find.byKey(const Key('active-session-register-set')));
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('active-session-floating-rest-timer')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Rest 01:30'), findsOneWidget);
+
+      await tester.tap(find.text('Barbell Bench Press'));
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('active-session-floating-rest-timer')),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('add and remove set update the visible set rows', (tester) async {
     await _pumpStartRoutine(tester);
@@ -462,7 +513,10 @@ void main() {
     );
     expect(vibrationPattern, [0, 1200, 250, 1200, 250, 1800]);
 
-    expect(find.textContaining('Rest timer running'), findsOneWidget);
+    expect(
+      find.byKey(const Key('active-session-floating-rest-timer')),
+      findsOneWidget,
+    );
 
     currentNow = currentNow.add(const Duration(seconds: 91));
     final cardState = tester.state<ActiveSessionExerciseCardState>(
@@ -474,7 +528,10 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.textContaining('Rest timer running'), findsNothing);
+    expect(
+      find.byKey(const Key('active-session-floating-rest-timer')),
+      findsNothing,
+    );
     expect(cardState.restRemainingSeconds, 0);
     expect(_notificationCalls.where((call) => call.method == 'cancel'),
         hasLength(2));
@@ -499,7 +556,10 @@ void main() {
     );
 
     await _completeFirstSet(tester);
-    expect(find.textContaining('Rest timer running'), findsOneWidget);
+    expect(
+      find.byKey(const Key('active-session-floating-rest-timer')),
+      findsOneWidget,
+    );
 
     currentNow = currentNow.add(const Duration(minutes: 2));
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
@@ -510,7 +570,10 @@ void main() {
       find.byType(ActiveSessionExerciseCard).first,
     );
 
-    expect(find.textContaining('Rest timer running'), findsNothing);
+    expect(
+      find.byKey(const Key('active-session-floating-rest-timer')),
+      findsNothing,
+    );
     expect(cardState.restRemainingSeconds, 0);
     final cancelIds = _notificationCalls
         .where((call) => call.method == 'cancel')
@@ -557,7 +620,10 @@ void main() {
 
     expect(find.text('01:05'), findsOneWidget);
     expect(find.text('1/4 sets'), findsOneWidget);
-    expect(find.textContaining('Rest timer running'), findsOneWidget);
+    expect(
+      find.byKey(const Key('active-session-floating-rest-timer')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('active-set-row-1-4')), findsOneWidget);
     expect(find.text('KG'), findsOneWidget);
 
@@ -861,6 +927,7 @@ Future<void> _pumpStartRoutine(
   _FakeWorkoutPlanRepository? repo,
   WorkoutStorageService? storage,
   DateTime Function()? now,
+  EdgeInsets viewInsets = EdgeInsets.zero,
 }) async {
   await tester.binding.setSurfaceSize(const Size(430, 1000));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -876,9 +943,14 @@ Future<void> _pumpStartRoutine(
         ),
       ],
       child: MaterialApp(
-        home: StartRoutineScreen(
-          plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
-          now: now ?? DateTime.now,
+        home: MediaQuery(
+          data: const MediaQueryData(size: Size(430, 1000)).copyWith(
+            viewInsets: viewInsets,
+          ),
+          child: StartRoutineScreen(
+            plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
+            now: now ?? DateTime.now,
+          ),
         ),
       ),
     ),

@@ -174,6 +174,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     DateTime now, {
     required bool vibrateOnCompletion,
   }) {
+    for (final entry in _restEndsAtByExercise.entries.toList()) {
+      if (!entry.value.isAfter(now)) {
+        _restEndsAtByExercise.remove(entry.key);
+      }
+    }
     for (final key in _cardKeys.values) {
       unawaited(
         key.currentState?.syncRestTimer(
@@ -217,6 +222,31 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       return 0;
     }
     return _completedSetCount / totalSets;
+  }
+
+  _ActiveRestTimerSummary? _activeRestTimerSummary(DateTime now) {
+    final details = _sessionDetails;
+    if (details == null || details.isEmpty || _restEndsAtByExercise.isEmpty) {
+      return null;
+    }
+
+    _ActiveRestTimerSummary? nextTimer;
+    for (final detail in details) {
+      final endsAt = _restEndsAtByExercise[detail.exerciseId];
+      if (endsAt == null || !endsAt.isAfter(now)) {
+        continue;
+      }
+
+      final remaining = endsAt.difference(now);
+      final summary = _ActiveRestTimerSummary(
+        exerciseName: detail.name,
+        remaining: remaining,
+      );
+      if (nextTimer == null || summary.remaining < nextTimer.remaining) {
+        nextTimer = summary;
+      }
+    }
+    return nextTimer;
   }
 
   void _showSnackBar(String message) {
@@ -346,11 +376,13 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   }
 
   void _updateRestEndsAt(int exerciseId, DateTime? restEndsAt) {
-    if (restEndsAt == null || !restEndsAt.isAfter(widget.now())) {
-      _restEndsAtByExercise.remove(exerciseId);
-    } else {
-      _restEndsAtByExercise[exerciseId] = restEndsAt;
-    }
+    setState(() {
+      if (restEndsAt == null || !restEndsAt.isAfter(widget.now())) {
+        _restEndsAtByExercise.remove(exerciseId);
+      } else {
+        _restEndsAtByExercise[exerciseId] = restEndsAt;
+      }
+    });
     _scheduleDraftPersist();
   }
 
@@ -543,6 +575,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     final asyncExercises = ref.watch(allExercisesProvider);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final isKeyboardVisible = bottomInset > 0;
+    final activeRestTimer = _activeRestTimerSummary(now);
+    final floatingBottomGap = isKeyboardVisible ? 8.0 : 24.0;
+    final scrollBottomPadding = activeRestTimer == null ? 132.0 : 188.0;
 
     return PopScope<void>(
       canPop: false,
@@ -617,71 +652,83 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         floatingActionButton: Padding(
-          padding: EdgeInsets.only(
-            bottom: isKeyboardVisible ? bottomInset : 24,
-          ),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: kineticPrimaryGradient,
-              borderRadius: BorderRadius.circular(999),
-              boxShadow: [
-                BoxShadow(
-                  color: KineticNoirPalette.shadow.withValues(alpha: 0.18),
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
-                ),
+          padding: EdgeInsets.only(bottom: floatingBottomGap),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (activeRestTimer != null) ...[
+                _FloatingRestTimerPill(summary: activeRestTimer),
+                const SizedBox(height: 10),
               ],
-            ),
-            child: FilledButton.icon(
-              key: const Key('active-session-register-set'),
-              onPressed: _expandedExerciseId == null
-                  ? null
-                  : () {
-                      final cardState =
-                          _cardKeys[_expandedExerciseId!]?.currentState;
-                      if (cardState == null) {
-                        return;
-                      }
-                      final result = cardState.logCurrentSet();
-                      switch (result) {
-                        case LogCurrentSetResult.registered:
-                          _showSnackBar('Set registered. Rest timer started.');
-                          break;
-                        case LogCurrentSetResult.invalidReps:
-                          _showSnackBar('Enter valid reps (>0) for this set.');
-                          break;
-                        case LogCurrentSetResult.noPendingSet:
-                          _showSnackBar(
-                            'All visible sets are complete. Add a new set to keep going.',
-                          );
-                          break;
-                      }
-                    },
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                disabledBackgroundColor:
-                    Colors.transparent.withValues(alpha: 0.4),
-                shadowColor: Colors.transparent,
-                foregroundColor: KineticNoirPalette.onPrimary,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 18,
-                ),
-                shape: RoundedRectangleBorder(
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: kineticPrimaryGradient,
                   borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: KineticNoirPalette.shadow.withValues(alpha: 0.18),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: FilledButton.icon(
+                  key: const Key('active-session-register-set'),
+                  onPressed: _expandedExerciseId == null
+                      ? null
+                      : () {
+                          final cardState =
+                              _cardKeys[_expandedExerciseId!]?.currentState;
+                          if (cardState == null) {
+                            return;
+                          }
+                          final result = cardState.logCurrentSet();
+                          switch (result) {
+                            case LogCurrentSetResult.registered:
+                              _showSnackBar(
+                                'Set registered. Rest timer started.',
+                              );
+                              break;
+                            case LogCurrentSetResult.invalidReps:
+                              _showSnackBar(
+                                'Enter valid reps (>0) for this set.',
+                              );
+                              break;
+                            case LogCurrentSetResult.noPendingSet:
+                              _showSnackBar(
+                                'All visible sets are complete. Add a new set to keep going.',
+                              );
+                              break;
+                          }
+                        },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    disabledBackgroundColor:
+                        Colors.transparent.withValues(alpha: 0.4),
+                    shadowColor: Colors.transparent,
+                    foregroundColor: KineticNoirPalette.onPrimary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 18,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  icon: const Icon(Icons.check_rounded),
+                  label: Text(
+                    'REGISTER SET',
+                    style: KineticNoirTypography.body(
+                      size: 13,
+                      weight: FontWeight.w800,
+                      color: KineticNoirPalette.onPrimary,
+                      letterSpacing: 1.3,
+                    ),
+                  ),
                 ),
               ),
-              icon: const Icon(Icons.check_rounded),
-              label: Text(
-                'REGISTER SET',
-                style: KineticNoirTypography.body(
-                  size: 13,
-                  weight: FontWeight.w800,
-                  color: KineticNoirPalette.onPrimary,
-                  letterSpacing: 1.3,
-                ),
-              ),
-            ),
+            ],
           ),
         ),
         body: asyncExercises.when(
@@ -712,7 +759,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                         24,
                         12,
                         24,
-                        isKeyboardVisible ? 120 + bottomInset : 132,
+                        scrollBottomPadding,
                       ),
                       children: [
                         if (_showNotesComposer) ...[
@@ -810,6 +857,84 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ActiveRestTimerSummary {
+  const _ActiveRestTimerSummary({
+    required this.exerciseName,
+    required this.remaining,
+  });
+
+  final String exerciseName;
+  final Duration remaining;
+
+  String get remainingLabel {
+    final seconds = remaining.inSeconds;
+    final minutesPart = seconds ~/ 60;
+    final secondsPart = seconds % 60;
+    return '${minutesPart.toString().padLeft(2, '0')}:'
+        '${secondsPart.toString().padLeft(2, '0')}';
+  }
+}
+
+class _FloatingRestTimerPill extends StatelessWidget {
+  const _FloatingRestTimerPill({required this.summary});
+
+  final _ActiveRestTimerSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('active-session-floating-rest-timer'),
+      constraints: const BoxConstraints(maxWidth: 260),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: KineticNoirPalette.surface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: KineticNoirPalette.primary.withValues(alpha: 0.28),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: KineticNoirPalette.shadow.withValues(alpha: 0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: KineticNoirPalette.primary.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.timer_outlined,
+              size: 18,
+              color: KineticNoirPalette.primary,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              'Rest ${summary.remainingLabel} - ${summary.exerciseName}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: KineticNoirTypography.body(
+                size: 12,
+                weight: FontWeight.w800,
+                color: KineticNoirPalette.onSurface,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
