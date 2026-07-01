@@ -705,55 +705,6 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                 ],
               ),
             ),
-            if (restRemainingSeconds > 0)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: KineticNoirPalette.surfaceLow,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: KineticNoirPalette.primary.withValues(alpha: 0.18),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: KineticNoirPalette.primary
-                              .withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            '$restRemainingSeconds',
-                            style: KineticNoirTypography.body(
-                              size: 12,
-                              weight: FontWeight.w800,
-                              color: KineticNoirPalette.primary,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Rest timer running · ${widget.detail.restSeconds}s target',
-                          style: KineticNoirTypography.body(
-                            size: 12,
-                            weight: FontWeight.w700,
-                            color: KineticNoirPalette.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             if (_showAdjustActions)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
