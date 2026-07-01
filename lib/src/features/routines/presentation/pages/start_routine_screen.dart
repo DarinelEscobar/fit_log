@@ -7,6 +7,7 @@ import '../../../../theme/kinetic_noir.dart';
 import '../../../history/presentation/providers/history_providers.dart';
 import '../../../performance/presentation/providers/performance_providers.dart';
 import '../../../performance/presentation/providers/active_exercise_progress_provider.dart';
+import '../../domain/entities/active_session_exercise_setup_preset.dart';
 import '../../domain/entities/active_workout_session_draft.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
@@ -15,6 +16,7 @@ import '../../domain/entities/workout_log_entry.dart';
 import '../../domain/entities/workout_plan.dart';
 import '../../domain/entities/workout_session.dart';
 import '../../domain/usecases/active_session_draft_usecases.dart';
+import '../../domain/usecases/active_session_exercise_setup_preset_usecases.dart';
 import '../../domain/usecases/save_workout_logs_usecase.dart';
 import '../../domain/usecases/save_workout_session_usecase.dart';
 import '../../services/workout_session_helper.dart';
@@ -23,6 +25,7 @@ import '../providers/exercises_provider.dart';
 import '../providers/plan_exercise_details_provider.dart';
 import '../providers/workout_plan_repository_provider.dart';
 import '../widgets/active_session_exercise_card.dart';
+import '../widgets/active_session_exercise_setup_sheet.dart';
 import '../widgets/active_session_notes_card.dart';
 import '../widgets/confirm_exit_sheet.dart';
 import 'finish_session_summary_screen.dart';
@@ -60,6 +63,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   final Map<int, WeightDisplayUnit> _weightUnitsByExercise = {};
   final Map<String, WorkoutLogEntry> _sessionLogs = {};
   final Map<int, DateTime> _restEndsAtByExercise = {};
+  final Set<int> _setupEditableExerciseIds = <int>{};
 
   List<PlanExerciseDetail>? _sessionDetails;
   Map<int, Exercise>? _exerciseMap;
@@ -125,6 +129,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     };
     _setCountsByExercise.addAll(draft.setCountsByExercise);
     _weightUnitsByExercise.addAll(draft.weightUnitsByExercise);
+    _setupEditableExerciseIds.addAll(draft.setupEditableExerciseIds);
     for (final detail in _sessionDetails!) {
       _setCountsByExercise.putIfAbsent(detail.exerciseId, () => detail.sets);
       _weightUnitsByExercise.putIfAbsent(
@@ -298,6 +303,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
           detail.exerciseId:
               _weightUnitsByExercise[detail.exerciseId] ?? WeightDisplayUnit.kg,
       },
+      setupEditableExerciseIds:
+          _setupEditableExerciseIds.intersection(activeExerciseIds),
       logs: _sessionLogs.values.toList(growable: false),
       restEndsAtByExercise: Map<int, DateTime>.from(_restEndsAtByExercise),
     );
@@ -386,6 +393,83 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _scheduleDraftPersist();
   }
 
+  PlanExerciseDetail _genericSessionDetail(Exercise exercise) {
+    return PlanExerciseDetail(
+      exerciseId: exercise.id,
+      name: exercise.name,
+      description: exercise.description,
+      sets: _defaultSets,
+      reps: 10,
+      weight: 0,
+      restSeconds: 90,
+      rir: 2,
+      tempo: '3-1-1-0',
+    );
+  }
+
+  Future<ActiveSessionExerciseSetupPreset?> _loadSetupPreset(
+    int exerciseId,
+  ) {
+    final repo = ref.read(workoutPlanRepositoryProvider);
+    return GetActiveSessionExerciseSetupPresetUseCase(repo)(exerciseId);
+  }
+
+  void _removeLogsAboveSetCount(int exerciseId, int setCount) {
+    _sessionLogs.removeWhere(
+      (_, log) => log.exerciseId == exerciseId && log.setNumber > setCount,
+    );
+  }
+
+  Future<void> _editSessionExerciseSetup(int exerciseId) async {
+    final details = _sessionDetails;
+    if (details == null) {
+      return;
+    }
+
+    final index =
+        details.indexWhere((detail) => detail.exerciseId == exerciseId);
+    if (index == -1) {
+      return;
+    }
+
+    final currentDetail = details[index].copyWith(
+      sets: _setCountsByExercise[exerciseId] ?? details[index].sets,
+    );
+    final updatedDetail = await showActiveSessionExerciseSetupSheet(
+      context,
+      detail: currentDetail,
+    );
+    if (!mounted || updatedDetail == null) {
+      return;
+    }
+
+    try {
+      final repo = ref.read(workoutPlanRepositoryProvider);
+      await SaveActiveSessionExerciseSetupPresetUseCase(repo)(
+        ActiveSessionExerciseSetupPreset.fromDetail(updatedDetail),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar('Unable to save exercise setup: $error');
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      details[index] = updatedDetail;
+      _setCountsByExercise[exerciseId] = updatedDetail.sets;
+      _setupEditableExerciseIds.remove(exerciseId);
+      _removeLogsAboveSetCount(exerciseId, updatedDetail.sets);
+    });
+    _scheduleDraftPersist();
+    _showSnackBar('Exercise setup saved.');
+  }
+
   Future<void> swapExercise(int index) async {
     if (_sessionDetails == null || _exerciseMap == null) {
       return;
@@ -407,6 +491,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     if (picked == null) {
       return;
     }
+    final hasSavedSetup = await _loadSetupPreset(picked.id) != null;
+    if (!mounted) {
+      return;
+    }
 
     final existingKeys = _sessionLogs.keys
         .where((key) => key.startsWith('${detail.exerciseId}-'))
@@ -425,6 +513,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         exerciseId: picked.id,
         name: picked.name,
         description: picked.description,
+        sets: existingSetCount,
       );
       _sessionDetails![index] = newDetail;
       _exerciseMap![picked.id] = picked;
@@ -434,6 +523,12 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
           GlobalKey<ActiveSessionExerciseCardState>();
       if (_expandedExerciseId == detail.exerciseId) {
         _expandedExerciseId = newDetail.exerciseId;
+      }
+      _setupEditableExerciseIds.remove(detail.exerciseId);
+      if (hasSavedSetup) {
+        _setupEditableExerciseIds.remove(newDetail.exerciseId);
+      } else {
+        _setupEditableExerciseIds.add(newDetail.exerciseId);
       }
     });
     _scheduleDraftPersist();
@@ -459,19 +554,15 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     if (exercise == null) {
       return;
     }
+    final preset = await _loadSetupPreset(exercise.id);
+    if (!mounted) {
+      return;
+    }
+    final genericDetail = _genericSessionDetail(exercise);
+    final newDetail = preset?.applyTo(genericDetail) ?? genericDetail;
+    final shouldOfferSetup = preset == null;
 
     setState(() {
-      final newDetail = PlanExerciseDetail(
-        exerciseId: exercise.id,
-        name: exercise.name,
-        description: exercise.description,
-        sets: _defaultSets,
-        reps: 10,
-        weight: 0,
-        restSeconds: 90,
-        rir: 2,
-        tempo: '3-1-1-0',
-      );
       _sessionDetails ??= [];
       _sessionDetails!.add(newDetail);
       _exerciseMap![exercise.id] = exercise;
@@ -480,6 +571,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       _cardKeys[newDetail.exerciseId] =
           GlobalKey<ActiveSessionExerciseCardState>();
       _expandedExerciseId = newDetail.exerciseId;
+      if (shouldOfferSetup) {
+        _setupEditableExerciseIds.add(newDetail.exerciseId);
+      } else {
+        _setupEditableExerciseIds.remove(newDetail.exerciseId);
+      }
     });
     _scheduleDraftPersist();
   }
@@ -847,6 +943,13 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                               sessionDetails[index].exerciseId,
                               restEndsAt,
                             ),
+                            onEditSetup: _setupEditableExerciseIds.contains(
+                              sessionDetails[index].exerciseId,
+                            )
+                                ? () => _editSessionExerciseSetup(
+                                      sessionDetails[index].exerciseId,
+                                    )
+                                : null,
                             onSwap: () => swapExercise(index),
                           ),
                       ],

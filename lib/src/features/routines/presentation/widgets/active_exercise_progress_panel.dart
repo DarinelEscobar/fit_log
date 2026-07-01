@@ -130,8 +130,9 @@ class ActiveExerciseProgressPanel extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              _ProgressSparkline(
-                points: insight.recentTrendPoints,
+              _SetComparisonChart(
+                lastSession: insight.lastSession,
+                currentSession: currentSession,
                 weightUnit: weightUnit,
               ),
               const SizedBox(height: 10),
@@ -359,75 +360,193 @@ class _ProgressMetricTile extends StatelessWidget {
   }
 }
 
-class _ProgressSparkline extends StatelessWidget {
-  const _ProgressSparkline({
-    required this.points,
+class _SetComparisonChart extends StatelessWidget {
+  const _SetComparisonChart({
+    required this.lastSession,
+    required this.currentSession,
     required this.weightUnit,
   });
 
-  final List<ActiveExerciseTrendPoint> points;
+  final ActiveExerciseSessionSummary? lastSession;
+  final ActiveExerciseSessionSummary? currentSession;
   final WeightDisplayUnit weightUnit;
 
   @override
   Widget build(BuildContext context) {
-    if (points.isEmpty) {
+    final lastSpots = _setComparisonSpots(lastSession, weightUnit);
+    final todaySpots = _setComparisonSpots(currentSession, weightUnit);
+    final allSpots = [...lastSpots, ...todaySpots];
+
+    if (allSpots.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final spots = [
-      for (var index = 0; index < points.length; index++)
-        FlSpot(
-          index.toDouble(),
-          _kgToDisplayWeight(points[index].comparableStrengthKg, weightUnit),
-        ),
-    ];
-    final minValue = spots.fold<double>(
-      spots.first.y,
+    final minValue = allSpots.fold<double>(
+      allSpots.first.y,
       (min, spot) => spot.y < min ? spot.y : min,
     );
-    final maxValue = spots.fold<double>(
-      spots.first.y,
+    final maxValue = allSpots.fold<double>(
+      allSpots.first.y,
       (max, spot) => spot.y > max ? spot.y : max,
+    );
+    final maxSet = allSpots.fold<double>(
+      allSpots.first.x,
+      (max, spot) => spot.x > max ? spot.x : max,
     );
     final minY = minValue <= 0 ? 0.0 : minValue * 0.92;
     final maxY = maxValue <= 0 ? 1.0 : maxValue * 1.08;
     final safeMaxY = maxY <= minY ? minY + 1 : maxY;
-    final maxX = points.length <= 1 ? 1.0 : (points.length - 1).toDouble();
+    final safeMaxX = maxSet <= 1 ? 1.2 : maxSet;
 
-    return SizedBox(
-      height: 54,
-      child: LineChart(
-        LineChartData(
-          minX: 0,
-          maxX: maxX,
-          minY: minY,
-          maxY: safeMaxY,
-          gridData: const FlGridData(show: false),
-          borderData: FlBorderData(show: false),
-          titlesData: const FlTitlesData(show: false),
-          lineTouchData: const LineTouchData(enabled: false),
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              barWidth: 2.5,
-              color: KineticNoirPalette.primary,
-              dotData: FlDotData(show: points.length <= 3),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    KineticNoirPalette.primary.withValues(alpha: 0.18),
-                    Colors.transparent,
-                  ],
+    return Container(
+      key: const Key('active-progress-comparison-chart'),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: KineticNoirPalette.surfaceBright.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'COMPARISON',
+                  style: KineticNoirTypography.body(
+                    size: 9,
+                    weight: FontWeight.w900,
+                    color: KineticNoirPalette.onSurfaceVariant,
+                    letterSpacing: 1.2,
+                  ),
                 ),
               ),
+              Text(
+                'EST. 1RM / SET',
+                style: KineticNoirTypography.body(
+                  size: 9,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.onSurfaceVariant,
+                  letterSpacing: 0.9,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 72,
+            child: LineChart(
+              LineChartData(
+                minX: 1,
+                maxX: safeMaxX,
+                minY: minY,
+                maxY: safeMaxY,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: (safeMaxY - minY) / 2,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: KineticNoirPalette.outlineVariant
+                        .withValues(alpha: 0.12),
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: const FlTitlesData(show: false),
+                lineTouchData: const LineTouchData(enabled: false),
+                lineBarsData: [
+                  if (lastSpots.isNotEmpty)
+                    LineChartBarData(
+                      spots: lastSpots,
+                      isCurved: false,
+                      barWidth: 2,
+                      color: KineticNoirPalette.onSurfaceVariant
+                          .withValues(alpha: 0.76),
+                      dotData: FlDotData(show: lastSpots.length <= 4),
+                    ),
+                  if (todaySpots.isNotEmpty)
+                    LineChartBarData(
+                      spots: todaySpots,
+                      isCurved: false,
+                      barWidth: 3,
+                      color: KineticNoirPalette.primary,
+                      dotData: const FlDotData(show: true),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            KineticNoirPalette.primary.withValues(alpha: 0.16),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 10,
+            runSpacing: 6,
+            children: [
+              if (lastSpots.isNotEmpty)
+                _ChartLegendItem(
+                  key: const Key('active-progress-comparison-last-legend'),
+                  label: 'LAST',
+                  color: KineticNoirPalette.onSurfaceVariant
+                      .withValues(alpha: 0.76),
+                ),
+              if (todaySpots.isNotEmpty)
+                const _ChartLegendItem(
+                  key: Key('active-progress-comparison-today-legend'),
+                  label: 'TODAY',
+                  color: KineticNoirPalette.primary,
+                ),
+            ],
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _ChartLegendItem extends StatelessWidget {
+  const _ChartLegendItem({
+    required this.label,
+    required this.color,
+    super.key,
+  });
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 18,
+          height: 3,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: KineticNoirTypography.body(
+            size: 9,
+            weight: FontWeight.w900,
+            color: KineticNoirPalette.onSurfaceVariant,
+            letterSpacing: 1.0,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -591,6 +710,27 @@ String _formatWorkingSetSummary(
   return workingSets.take(3).map((set) {
     return '${_formatDisplayLoad(set.weightKg, unit)} x ${set.reps}';
   }).join(' / ');
+}
+
+List<FlSpot> _setComparisonSpots(
+  ActiveExerciseSessionSummary? summary,
+  WeightDisplayUnit unit,
+) {
+  if (summary == null) {
+    return const [];
+  }
+
+  final sets = [...summary.sets]
+    ..sort((a, b) => a.setNumber.compareTo(b.setNumber));
+
+  return [
+    for (final set in sets)
+      if (set.estimatedOneRmKg.isFinite)
+        FlSpot(
+          set.setNumber.toDouble(),
+          _kgToDisplayWeight(set.estimatedOneRmKg, unit),
+        ),
+  ];
 }
 
 String _formatDisplayLoad(

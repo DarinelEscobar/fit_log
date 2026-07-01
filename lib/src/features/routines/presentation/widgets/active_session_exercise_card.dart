@@ -67,6 +67,7 @@ class ActiveSessionExerciseCard extends StatefulWidget {
     required this.onRestEndsAtChanged,
     this.exercise,
     this.initialRestEndsAt,
+    this.onEditSetup,
     this.onSwap,
     super.key,
   });
@@ -86,6 +87,7 @@ class ActiveSessionExerciseCard extends StatefulWidget {
   final SessionLogCallback removeLog;
   final ValueChanged<WeightDisplayUnit> onWeightUnitChanged;
   final ValueChanged<DateTime?> onRestEndsAtChanged;
+  final VoidCallback? onEditSetup;
   final VoidCallback? onSwap;
   final DateTime? initialRestEndsAt;
 
@@ -136,6 +138,15 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
 
     if (oldWidget.weightUnit != widget.weightUnit) {
       _convertWeightControllers(oldWidget.weightUnit, widget.weightUnit);
+    }
+
+    final setupChanged = oldWidget.detail.sets != widget.detail.sets ||
+        oldWidget.detail.reps != widget.detail.reps ||
+        oldWidget.detail.weight != widget.detail.weight ||
+        oldWidget.detail.rir != widget.detail.rir;
+    if (setupChanged) {
+      _resetControllers(widget.detail.sets);
+      return;
     }
 
     if (widget.detail.sets > _visibleSets) {
@@ -594,6 +605,23 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                       ],
                     ),
                   ),
+                  if (widget.onEditSetup != null)
+                    Tooltip(
+                      message: 'Edit setup',
+                      child: IconButton(
+                        key: Key(
+                          'active-session-edit-setup-${widget.detail.exerciseId}',
+                        ),
+                        onPressed: widget.onEditSetup,
+                        color: KineticNoirPalette.primary,
+                        icon: const Icon(Icons.edit_rounded, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 36,
+                          height: 36,
+                        ),
+                      ),
+                    ),
                   TextButton.icon(
                     key: Key(
                       'active-set-options-toggle-${widget.detail.exerciseId}',

@@ -1,4 +1,5 @@
 import 'package:fit_log/src/features/routines/domain/entities/active_workout_session_draft.dart';
+import 'package:fit_log/src/features/routines/domain/entities/active_session_exercise_setup_preset.dart';
 import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
 import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_detail.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
@@ -107,6 +108,20 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   @override
   Future<void> deleteExerciseFromPlan(int planId, int exerciseId) {
     return _storageService.deleteExerciseFromPlan(planId, exerciseId);
+  }
+
+  @override
+  Future<ActiveSessionExerciseSetupPreset?> getActiveSessionExerciseSetupPreset(
+    int exerciseId,
+  ) {
+    return _storageService.fetchActiveSessionExerciseSetupPreset(exerciseId);
+  }
+
+  @override
+  Future<void> saveActiveSessionExerciseSetupPreset(
+    ActiveSessionExerciseSetupPreset preset,
+  ) {
+    return _storageService.saveActiveSessionExerciseSetupPreset(preset);
   }
 
   @override

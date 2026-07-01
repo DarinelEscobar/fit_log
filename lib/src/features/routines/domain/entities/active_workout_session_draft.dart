@@ -19,6 +19,7 @@ class ActiveWorkoutSessionDraft {
     this.mood,
     this.expandedExerciseId,
     this.weightUnitsByExercise = const {},
+    this.setupEditableExerciseIds = const <int>{},
   });
 
   final WorkoutPlan plan;
@@ -32,6 +33,7 @@ class ActiveWorkoutSessionDraft {
   final List<Exercise> exercises;
   final Map<int, int> setCountsByExercise;
   final Map<int, WeightDisplayUnit> weightUnitsByExercise;
+  final Set<int> setupEditableExerciseIds;
   final List<WorkoutLogEntry> logs;
   final Map<int, DateTime> restEndsAtByExercise;
 
@@ -60,6 +62,9 @@ class ActiveWorkoutSessionDraft {
           if (entry.value != WeightDisplayUnit.kg)
             '${entry.key}': entry.value.storageValue,
       },
+      'setupEditableExerciseIds': setupEditableExerciseIds.toList(
+        growable: false,
+      ),
       'logs': logs.map(_logToJson).toList(growable: false),
       'restEndsAtByExercise': {
         for (final entry in restEndsAtByExercise.entries)
@@ -115,6 +120,7 @@ class ActiveWorkoutSessionDraft {
           .toList(growable: false),
       setCountsByExercise: _intMap(json['setCountsByExercise']),
       weightUnitsByExercise: _weightUnitMap(json['weightUnitsByExercise']),
+      setupEditableExerciseIds: _intSet(json['setupEditableExerciseIds']),
       logs: _asList(json['logs'])
           .map(_asMap)
           .whereType<Map<String, Object?>>()
@@ -249,6 +255,13 @@ class ActiveWorkoutSessionDraft {
       for (final entry in map.entries)
         if (int.tryParse(entry.key) != null)
           int.parse(entry.key): WeightDisplayUnit.fromStorageValue(entry.value),
+    };
+  }
+
+  static Set<int> _intSet(Object? value) {
+    return {
+      for (final item in _asList(value))
+        if (_asInt(item) > 0) _asInt(item),
     };
   }
 

@@ -2,6 +2,7 @@ import 'package:fit_log/src/app.dart';
 import 'package:fit_log/src/data/providers/workout_storage_service_provider.dart';
 import 'package:fit_log/src/data/services/workout_storage_service.dart';
 import 'package:fit_log/src/features/app_data/presentation/pages/data_screen.dart';
+import 'package:fit_log/src/features/routines/domain/entities/active_session_exercise_setup_preset.dart';
 import 'package:fit_log/src/features/routines/domain/entities/active_workout_session_draft.dart';
 import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
 import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_detail.dart';
@@ -191,6 +192,48 @@ void main() {
     expect(find.text('Current Session'), findsNothing);
   });
 
+  testWidgets(
+    'added exercise without preset can save active session setup',
+    (tester) async {
+      final repo = _FakeWorkoutPlanRepository();
+      await _pumpStartRoutine(tester, repo: repo);
+
+      await tester.tap(find.byKey(const Key('active-session-add-exercise')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Romanian Deadlift'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('active-session-edit-setup-3')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('active-session-edit-setup-3')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('session-setup-sets')), '5');
+      await tester.enterText(find.byKey(const Key('session-setup-reps')), '12');
+      await tester.enterText(find.byKey(const Key('session-setup-rest')), '75');
+      await tester.enterText(find.byKey(const Key('session-setup-rir')), '1');
+      await tester.enterText(
+        find.byKey(const Key('session-setup-tempo')),
+        '2-0-2-0',
+      );
+      await tester.tap(find.byKey(const Key('session-setup-save')));
+      await tester.pumpAndSettle();
+
+      final preset = repo.activeSessionSetupPresets[3];
+      expect(preset, isNotNull);
+      expect(preset!.sets, 5);
+      expect(preset.reps, 12);
+      expect(preset.restSeconds, 75);
+      expect(preset.rir, 1);
+      expect(preset.tempo, '2-0-2-0');
+      expect(
+          find.byKey(const Key('active-session-edit-setup-3')), findsNothing);
+      expect(find.text('5 x 12'), findsOneWidget);
+    },
+  );
+
   testWidgets('active progress panel appears with previous exercise history', (
     tester,
   ) async {
@@ -216,11 +259,37 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byKey(const Key('active-progress-panel-1')), findsOneWidget);
+    final panel = find.byKey(const Key('active-progress-panel-1'));
+    expect(panel, findsOneWidget);
     expect(find.text('LIVE PROGRESS'), findsOneWidget);
     expect(find.text('LAST'), findsWidgets);
     expect(find.text('TREND'), findsOneWidget);
     expect(find.text('TODAY'), findsWidgets);
+    expect(
+      find.descendant(
+        of: panel,
+        matching: find.byKey(const Key('active-progress-comparison-chart')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: panel,
+        matching:
+            find.byKey(const Key('active-progress-comparison-last-legend')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: panel,
+        matching:
+            find.byKey(const Key('active-progress-comparison-today-legend')),
+      ),
+      findsNothing,
+    );
+    expect(
+        find.descendant(of: panel, matching: find.text('BEST')), findsNothing);
   });
 
   testWidgets('registering a set updates the active progress today delta', (
@@ -252,12 +321,37 @@ void main() {
     );
     await tester.pump();
 
+    final panel = find.byKey(const Key('active-progress-panel-1'));
     expect(find.text('LOG FIRST SET'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: panel,
+        matching:
+            find.byKey(const Key('active-progress-comparison-last-legend')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: panel,
+        matching:
+            find.byKey(const Key('active-progress-comparison-today-legend')),
+      ),
+      findsNothing,
+    );
 
     await _completeFirstSet(tester);
     await tester.pump();
 
     expect(find.textContaining('AHEAD'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: panel,
+        matching:
+            find.byKey(const Key('active-progress-comparison-today-legend')),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('active progress provider errors do not block normal logging', (
@@ -1324,6 +1418,8 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   final List<String> createdExerciseNames = [];
   final List<WorkoutLogEntry> savedLogs = [];
   final List<WorkoutSession> savedSessions = [];
+  final Map<int, ActiveSessionExerciseSetupPreset> activeSessionSetupPresets =
+      {};
   ActiveWorkoutSessionDraft? activeSessionDraft;
 
   final List<Exercise> _exercises = [
@@ -1450,6 +1546,20 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
 
   @override
   Future<List<Exercise>> getSimilarExercises(int exerciseId) async => const [];
+
+  @override
+  Future<ActiveSessionExerciseSetupPreset?> getActiveSessionExerciseSetupPreset(
+    int exerciseId,
+  ) async {
+    return activeSessionSetupPresets[exerciseId];
+  }
+
+  @override
+  Future<void> saveActiveSessionExerciseSetupPreset(
+    ActiveSessionExerciseSetupPreset preset,
+  ) async {
+    activeSessionSetupPresets[preset.exerciseId] = preset;
+  }
 
   @override
   Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs) async {

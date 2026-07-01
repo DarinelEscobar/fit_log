@@ -1,4 +1,5 @@
 import '../entities/active_workout_session_draft.dart';
+import '../entities/active_session_exercise_setup_preset.dart';
 import '../entities/workout_plan.dart';
 import '../entities/exercise.dart';
 import '../entities/plan_exercise_detail.dart';
@@ -40,6 +41,12 @@ abstract class WorkoutPlanRepository {
   );
 
   Future<void> deleteExerciseFromPlan(int planId, int exerciseId);
+  Future<ActiveSessionExerciseSetupPreset?> getActiveSessionExerciseSetupPreset(
+    int exerciseId,
+  );
+  Future<void> saveActiveSessionExerciseSetupPreset(
+    ActiveSessionExerciseSetupPreset preset,
+  );
 
   //Start session
   Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs);
