@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../features/routines/domain/entities/exercise.dart';
 import '../../features/routines/domain/entities/active_workout_session_draft.dart';
+import '../../features/routines/domain/entities/active_session_exercise_setup_preset.dart';
 import '../../features/routines/domain/entities/plan_exercise_detail.dart';
 import '../../features/routines/domain/entities/workout_log_entry.dart';
 import '../../features/routines/domain/entities/workout_plan.dart';
@@ -400,6 +401,45 @@ class WorkoutStorageService {
       },
       where: 'plan_id = ? AND exercise_id = ?',
       whereArgs: [planId, detail.exerciseId],
+    );
+  }
+
+  Future<ActiveSessionExerciseSetupPreset?>
+      fetchActiveSessionExerciseSetupPreset(
+    int exerciseId,
+  ) async {
+    await warmUpRoutineRuntimeCache();
+    final db = await _getDatabase();
+    final rows = await db.query(
+      'active_session_exercise_setup_presets',
+      where: 'exercise_id = ?',
+      whereArgs: [exerciseId],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return _mapActiveSessionExerciseSetupPresetRow(rows.first);
+  }
+
+  Future<void> saveActiveSessionExerciseSetupPreset(
+    ActiveSessionExerciseSetupPreset preset,
+  ) async {
+    await warmUpRoutineRuntimeCache();
+    final db = await _getDatabase();
+    await db.insert(
+      'active_session_exercise_setup_presets',
+      {
+        'exercise_id': preset.exerciseId,
+        'target_sets': preset.sets,
+        'target_reps': preset.reps,
+        'estimated_weight': preset.weight,
+        'rest_seconds': preset.restSeconds,
+        'rir': preset.rir,
+        'tempo': preset.tempo,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
@@ -938,6 +978,19 @@ class WorkoutStorageService {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS active_session_exercise_setup_presets (
+        exercise_id INTEGER PRIMARY KEY,
+        target_sets INTEGER NOT NULL,
+        target_reps INTEGER NOT NULL,
+        estimated_weight REAL NOT NULL DEFAULT 0,
+        rest_seconds INTEGER NOT NULL,
+        rir INTEGER NOT NULL,
+        tempo TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
     await _deduplicateWorkoutData(db);
 
     await db.execute('''
@@ -1326,6 +1379,20 @@ class WorkoutStorageService {
       description: _stringValue(row['description']),
       sets: _intValue(row['suggested_sets']),
       reps: _intValue(row['suggested_reps']),
+      weight: _doubleValue(row['estimated_weight']),
+      restSeconds: _intValue(row['rest_seconds']),
+      rir: _intValue(row['rir']),
+      tempo: _stringValue(row['tempo']),
+    );
+  }
+
+  ActiveSessionExerciseSetupPreset _mapActiveSessionExerciseSetupPresetRow(
+    Map<String, Object?> row,
+  ) {
+    return ActiveSessionExerciseSetupPreset(
+      exerciseId: _intValue(row['exercise_id']),
+      sets: _intValue(row['target_sets']),
+      reps: _intValue(row['target_reps']),
       weight: _doubleValue(row['estimated_weight']),
       restSeconds: _intValue(row['rest_seconds']),
       rir: _intValue(row['rir']),
