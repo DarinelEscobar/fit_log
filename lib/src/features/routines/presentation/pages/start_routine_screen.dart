@@ -229,6 +229,19 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     return _completedSetCount / totalSets;
   }
 
+  int? get _expandedExerciseIndex {
+    final details = _sessionDetails;
+    final expandedExerciseId = _expandedExerciseId;
+    if (details == null || expandedExerciseId == null) {
+      return null;
+    }
+
+    final index = details.indexWhere(
+      (detail) => detail.exerciseId == expandedExerciseId,
+    );
+    return index == -1 ? null : index;
+  }
+
   _ActiveRestTimerSummary? _activeRestTimerSummary(DateTime now) {
     final details = _sessionDetails;
     if (details == null || details.isEmpty || _restEndsAtByExercise.isEmpty) {
@@ -311,6 +324,72 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
 
     final repo = ref.read(workoutPlanRepositoryProvider);
     await SaveActiveSessionDraftUseCase(repo)(draft);
+  }
+
+  void _ensureExerciseVisible(int exerciseId) {
+    final cardState = _cardKeys[exerciseId]?.currentState;
+    if (cardState != null) {
+      unawaited(cardState.ensurePrimarySetVisible());
+      return;
+    }
+
+    final exerciseContext = _cardKeys[exerciseId]?.currentContext;
+    if (exerciseContext == null) {
+      return;
+    }
+
+    unawaited(
+      Scrollable.ensureVisible(
+        exerciseContext,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        alignment: 0.06,
+      ),
+    );
+  }
+
+  void _openExerciseAtIndex(int index) {
+    final details = _sessionDetails;
+    if (details == null || index < 0 || index >= details.length) {
+      return;
+    }
+
+    final exerciseId = details[index].exerciseId;
+    if (_expandedExerciseId == exerciseId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _ensureExerciseVisible(exerciseId);
+      });
+      return;
+    }
+
+    setState(() {
+      _expandedExerciseId = exerciseId;
+      _scheduleDraftPersist();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _ensureExerciseVisible(exerciseId);
+    });
+  }
+
+  void _moveExpandedExercise(int offset) {
+    final index = _expandedExerciseIndex;
+    final details = _sessionDetails;
+    if (index == null || details == null) {
+      return;
+    }
+
+    final nextIndex = index + offset;
+    if (nextIndex < 0 || nextIndex >= details.length) {
+      return;
+    }
+
+    _openExerciseAtIndex(nextIndex);
   }
 
   Future<void> _clearPersistedDraft() async {
@@ -673,7 +752,25 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     final isKeyboardVisible = bottomInset > 0;
     final activeRestTimer = _activeRestTimerSummary(now);
     final floatingBottomGap = isKeyboardVisible ? 8.0 : 24.0;
-    final scrollBottomPadding = activeRestTimer == null ? 132.0 : 188.0;
+    final resolvedSessionDetails =
+        (_sessionDetails ?? asyncDetails.asData?.value) ??
+            const <PlanExerciseDetail>[];
+    final activeExpandedExerciseId = _expandedExerciseId ??
+        (_sessionDetails == null && resolvedSessionDetails.isNotEmpty
+            ? resolvedSessionDetails.first.exerciseId
+            : null);
+    final scrollBottomPadding = activeRestTimer == null ? 196.0 : 252.0;
+    final expandedExerciseIndex = activeExpandedExerciseId == null
+        ? null
+        : resolvedSessionDetails.indexWhere(
+            (detail) => detail.exerciseId == activeExpandedExerciseId,
+          );
+    final resolvedExpandedExerciseIndex =
+        expandedExerciseIndex == -1 ? null : expandedExerciseIndex;
+    final canNavigateUp = resolvedExpandedExerciseIndex != null &&
+        resolvedExpandedExerciseIndex > 0;
+    final canNavigateDown = resolvedExpandedExerciseIndex != null &&
+        resolvedExpandedExerciseIndex < resolvedSessionDetails.length - 1;
 
     return PopScope<void>(
       canPop: false,
@@ -757,72 +854,127 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                 _FloatingRestTimerPill(summary: activeRestTimer),
                 const SizedBox(height: 10),
               ],
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: kineticPrimaryGradient,
-                  borderRadius: BorderRadius.circular(999),
-                  boxShadow: [
-                    BoxShadow(
-                      color: KineticNoirPalette.shadow.withValues(alpha: 0.18),
-                      blurRadius: 24,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
-                ),
-                child: FilledButton.icon(
-                  key: const Key('active-session-register-set'),
-                  onPressed: _expandedExerciseId == null
-                      ? null
-                      : () {
-                          final cardState =
-                              _cardKeys[_expandedExerciseId!]?.currentState;
-                          if (cardState == null) {
-                            return;
-                          }
-                          final result = cardState.logCurrentSet();
-                          switch (result) {
-                            case LogCurrentSetResult.registered:
-                              _showSnackBar(
-                                'Set registered. Rest timer started.',
-                              );
-                              break;
-                            case LogCurrentSetResult.invalidReps:
-                              _showSnackBar(
-                                'Enter valid reps (>0) for this set.',
-                              );
-                              break;
-                            case LogCurrentSetResult.noPendingSet:
-                              _showSnackBar(
-                                'All visible sets are complete. Add a new set to keep going.',
-                              );
-                              break;
-                          }
-                        },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    disabledBackgroundColor:
-                        Colors.transparent.withValues(alpha: 0.4),
-                    shadowColor: Colors.transparent,
-                    foregroundColor: KineticNoirPalette.onPrimary,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 18,
-                    ),
-                    shape: RoundedRectangleBorder(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: kineticPrimaryGradient,
                       borderRadius: BorderRadius.circular(999),
+                      boxShadow: [
+                        BoxShadow(
+                          color: KineticNoirPalette.shadow.withValues(
+                            alpha: 0.18,
+                          ),
+                          blurRadius: 24,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: FilledButton.icon(
+                      key: const Key('active-session-register-set'),
+                      onPressed: activeExpandedExerciseId == null
+                          ? null
+                          : () {
+                              final cardState =
+                                  _cardKeys[activeExpandedExerciseId]
+                                      ?.currentState;
+                              if (cardState == null) {
+                                return;
+                              }
+                              final result = cardState.logCurrentSet();
+                              switch (result) {
+                                case LogCurrentSetResult.registered:
+                                  _showSnackBar(
+                                    'Set registered. Rest timer started.',
+                                  );
+                                  break;
+                                case LogCurrentSetResult.invalidReps:
+                                  _showSnackBar(
+                                    'Enter valid reps (>0) for this set.',
+                                  );
+                                  break;
+                                case LogCurrentSetResult.noPendingSet:
+                                  _showSnackBar(
+                                    'All visible sets are complete. Add a new set to keep going.',
+                                  );
+                                  break;
+                              }
+                            },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        disabledBackgroundColor:
+                            Colors.transparent.withValues(alpha: 0.4),
+                        shadowColor: Colors.transparent,
+                        foregroundColor: KineticNoirPalette.onPrimary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 18,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      icon: const Icon(Icons.check_rounded),
+                      label: Text(
+                        'REGISTER SET',
+                        style: KineticNoirTypography.body(
+                          size: 13,
+                          weight: FontWeight.w800,
+                          color: KineticNoirPalette.onPrimary,
+                          letterSpacing: 1.3,
+                        ),
+                      ),
                     ),
                   ),
-                  icon: const Icon(Icons.check_rounded),
-                  label: Text(
-                    'REGISTER SET',
-                    style: KineticNoirTypography.body(
-                      size: 13,
-                      weight: FontWeight.w800,
-                      color: KineticNoirPalette.onPrimary,
-                      letterSpacing: 1.3,
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 44,
+                    height: 60,
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    decoration: BoxDecoration(
+                      color: KineticNoirPalette.surface,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: KineticNoirPalette.primary.withValues(
+                          alpha: 0.22,
+                        ),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: KineticNoirPalette.shadow.withValues(
+                            alpha: 0.14,
+                          ),
+                          blurRadius: 18,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _SessionNavigationButton(
+                          buttonKey: const Key('active-session-nav-up'),
+                          icon: Icons.keyboard_arrow_up_rounded,
+                          compact: true,
+                          onPressed: canNavigateUp
+                              ? () => _moveExpandedExercise(-1)
+                              : null,
+                        ),
+                        const SizedBox(height: 6),
+                        _SessionNavigationButton(
+                          buttonKey: const Key('active-session-nav-down'),
+                          icon: Icons.keyboard_arrow_down_rounded,
+                          compact: true,
+                          onPressed: canNavigateDown
+                              ? () => _moveExpandedExercise(1)
+                              : null,
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
@@ -1039,6 +1191,48 @@ class _FloatingRestTimerPill extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SessionNavigationButton extends StatelessWidget {
+  const _SessionNavigationButton({
+    required this.buttonKey,
+    required this.icon,
+    required this.onPressed,
+    this.compact = false,
+  });
+
+  final Key buttonKey;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: buttonKey,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        backgroundColor: onPressed == null
+            ? KineticNoirPalette.surfaceLow
+            : KineticNoirPalette.primary.withValues(alpha: 0.12),
+        foregroundColor: onPressed == null
+            ? KineticNoirPalette.outlineVariant
+            : KineticNoirPalette.primary,
+        disabledBackgroundColor: KineticNoirPalette.surfaceLow,
+        disabledForegroundColor: KineticNoirPalette.outlineVariant,
+        minimumSize: compact ? const Size(32, 20) : const Size(44, 44),
+        maximumSize: compact ? const Size(32, 20) : null,
+        padding: compact ? EdgeInsets.zero : const EdgeInsets.all(10),
+        tapTargetSize: compact
+            ? MaterialTapTargetSize.shrinkWrap
+            : MaterialTapTargetSize.padded,
+      ),
+      icon: Icon(icon, size: compact ? 18 : 22),
+      tooltip: icon == Icons.keyboard_arrow_up_rounded
+          ? 'Open previous exercise'
+          : 'Open next exercise',
     );
   }
 }

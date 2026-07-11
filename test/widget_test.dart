@@ -174,6 +174,8 @@ void main() {
     await _pumpStartRoutine(tester);
 
     expect(find.byKey(const Key('active-session-title')), findsOneWidget);
+    expect(find.byKey(const Key('active-session-nav-up')), findsOneWidget);
+    expect(find.byKey(const Key('active-session-nav-down')), findsOneWidget);
     expect(
         find.byKey(const Key('active-session-register-set')), findsOneWidget);
     expect(
@@ -190,6 +192,51 @@ void main() {
     expect(find.textContaining('LOG HISTORY'), findsNothing);
     expect(find.text('ACTIVE WORKOUT'), findsNothing);
     expect(find.text('Current Session'), findsNothing);
+  });
+
+  testWidgets('exercise navigation moves the expanded card and disables edges',
+      (tester) async {
+    await _pumpStartRoutine(tester);
+
+    final upFinder = find.byKey(const Key('active-session-nav-up'));
+    final downFinder = find.byKey(const Key('active-session-nav-down'));
+
+    expect(tester.widget<IconButton>(upFinder).onPressed, isNull);
+    expect(tester.widget<IconButton>(downFinder).onPressed, isNotNull);
+    expect(find.byKey(const Key('active-set-row-1-1')), findsOneWidget);
+    expect(find.byKey(const Key('active-set-row-2-1')), findsNothing);
+
+    await tester.tap(downFinder);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('active-set-row-1-1')), findsNothing);
+    expect(find.byKey(const Key('active-set-row-2-1')), findsOneWidget);
+    expect(tester.widget<IconButton>(upFinder).onPressed, isNotNull);
+    expect(tester.widget<IconButton>(downFinder).onPressed, isNull);
+
+    await tester.tap(upFinder);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('active-set-row-1-1')), findsOneWidget);
+    expect(find.byKey(const Key('active-set-row-2-1')), findsNothing);
+    expect(tester.widget<IconButton>(upFinder).onPressed, isNull);
+    expect(tester.widget<IconButton>(downFinder).onPressed, isNotNull);
+  });
+
+  testWidgets('exercise navigation scrolls the next expanded card into view', (
+    tester,
+  ) async {
+    const surfaceSize = Size(430, 620);
+    await _pumpStartRoutine(tester, surfaceSize: surfaceSize);
+
+    await tester.tap(find.byKey(const Key('active-session-nav-down')));
+    await tester.pumpAndSettle();
+
+    final nextRowRect = tester.getRect(
+      find.byKey(const Key('active-set-row-2-1')),
+    );
+    expect(nextRowRect.top, greaterThanOrEqualTo(0));
+    expect(nextRowRect.bottom, lessThanOrEqualTo(surfaceSize.height));
   });
 
   testWidgets(
@@ -384,6 +431,7 @@ void main() {
 
     await _openNotesComposer(tester);
     final inputFinder = find.byKey(const Key('active-set-1-1-kg'));
+    await _scrollUntilVisible(tester, inputFinder);
     await tester.tap(inputFinder);
     await tester.pump();
 
@@ -398,6 +446,97 @@ void main() {
       editableState.textEditingValue.selection.extentOffset,
       editableState.textEditingValue.text.length,
     );
+  });
+
+  testWidgets('three-digit kg waits before auto-advancing to reps', (
+    tester,
+  ) async {
+    await _pumpStartRoutine(tester);
+
+    await _enterActiveSetValue(
+      tester,
+      const Key('active-set-1-1-kg'),
+      '18',
+    );
+    await tester.pump(const Duration(milliseconds: 320));
+    _expectActiveFieldHasFocus(tester, const Key('active-set-1-1-kg'));
+
+    await _enterActiveSetValue(
+      tester,
+      const Key('active-set-1-1-kg'),
+      '180',
+    );
+    await tester.pump(const Duration(milliseconds: 320));
+    _expectActiveFieldHasFocus(tester, const Key('active-set-1-1-reps'));
+  });
+
+  testWidgets('two-digit kg auto-advances to reps', (tester) async {
+    await _pumpStartRoutine(tester);
+
+    await tester.tap(find.byKey(const Key('active-session-nav-down')));
+    await tester.pumpAndSettle();
+
+    await _enterActiveSetValue(
+      tester,
+      const Key('active-set-2-1-kg'),
+      '40',
+    );
+    await tester.pump(const Duration(milliseconds: 320));
+    _expectActiveFieldHasFocus(tester, const Key('active-set-2-1-reps'));
+  });
+
+  testWidgets('reps auto-advance to rir after two digits', (tester) async {
+    await _pumpStartRoutine(tester);
+
+    await _enterActiveSetValue(
+      tester,
+      const Key('active-set-1-1-reps'),
+      '10',
+    );
+    await tester.pump(const Duration(milliseconds: 320));
+    _expectActiveFieldHasFocus(tester, const Key('active-set-1-1-rir'));
+  });
+
+  testWidgets('rir auto-advances to the next set kg', (tester) async {
+    await _pumpStartRoutine(tester);
+
+    await _enterActiveSetValue(
+      tester,
+      const Key('active-set-1-1-rir'),
+      '1',
+    );
+    await tester.pump(const Duration(milliseconds: 320));
+    _expectActiveFieldHasFocus(tester, const Key('active-set-1-2-kg'));
+  });
+
+  testWidgets('last visible set rir does not auto-advance past the row', (
+    tester,
+  ) async {
+    await _pumpStartRoutine(tester);
+
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(const Key('active-set-1-4-rir')),
+    );
+    await _enterActiveSetValue(
+      tester,
+      const Key('active-set-1-4-rir'),
+      '1',
+    );
+    await tester.pump(const Duration(milliseconds: 320));
+    _expectActiveFieldHasFocus(tester, const Key('active-set-1-4-rir'));
+  });
+
+  testWidgets('decimal kg entry does not auto-advance', (tester) async {
+    await _pumpStartRoutine(tester);
+
+    await _enterActiveSetValue(
+      tester,
+      const Key('active-set-1-1-kg'),
+      '7.5',
+    );
+    await tester.pump(const Duration(milliseconds: 320));
+    _expectActiveFieldHasFocus(tester, const Key('active-set-1-1-kg'));
   });
 
   testWidgets('register set stays just above the keyboard', (tester) async {
@@ -471,6 +610,29 @@ void main() {
     expect(
       _notificationCalls.where((call) => call.method == 'zonedSchedule'),
       hasLength(1),
+    );
+  });
+
+  testWidgets('register set follows the newly expanded exercise', (
+    tester,
+  ) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutine(tester, repo: repo);
+
+    await tester.tap(find.byKey(const Key('active-session-nav-down')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('active-session-register-set')));
+    await tester.pump(const Duration(milliseconds: 350));
+
+    final secondExerciseLog = repo.activeSessionDraft!.logs.singleWhere(
+      (entry) => entry.exerciseId == 2 && entry.setNumber == 1,
+    );
+    expect(secondExerciseLog.completed, isTrue);
+    expect(secondExerciseLog.reps, 6);
+    expect(
+      repo.activeSessionDraft!.logs.where((entry) => entry.exerciseId == 1),
+      isEmpty,
     );
   });
 
@@ -1022,8 +1184,9 @@ Future<void> _pumpStartRoutine(
   WorkoutStorageService? storage,
   DateTime Function()? now,
   EdgeInsets viewInsets = EdgeInsets.zero,
+  Size surfaceSize = const Size(430, 1000),
 }) async {
-  await tester.binding.setSurfaceSize(const Size(430, 1000));
+  await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
   _setUpRoutineChannels();
@@ -1038,9 +1201,8 @@ Future<void> _pumpStartRoutine(
       ],
       child: MaterialApp(
         home: MediaQuery(
-          data: const MediaQueryData(size: Size(430, 1000)).copyWith(
-            viewInsets: viewInsets,
-          ),
+          data: MediaQueryData(size: surfaceSize)
+              .copyWith(viewInsets: viewInsets),
           child: StartRoutineScreen(
             plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
             now: now ?? DateTime.now,
@@ -1187,6 +1349,23 @@ Future<void> _completeFirstSet(WidgetTester tester) async {
 Future<void> _openNotesComposer(WidgetTester tester) async {
   await tester.tap(find.byKey(const Key('active-session-notes-toggle')));
   await tester.pumpAndSettle();
+}
+
+Future<void> _enterActiveSetValue(
+  WidgetTester tester,
+  Key fieldKey,
+  String value,
+) async {
+  final finder = find.byKey(fieldKey);
+  await tester.tap(finder);
+  await tester.pump();
+  await tester.enterText(finder, value);
+  await tester.pump();
+}
+
+void _expectActiveFieldHasFocus(WidgetTester tester, Key fieldKey) {
+  final field = tester.widget<TextField>(find.byKey(fieldKey));
+  expect(field.focusNode?.hasPrimaryFocus, isTrue);
 }
 
 Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {

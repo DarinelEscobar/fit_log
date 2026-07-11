@@ -16,6 +16,7 @@ import 'active_exercise_progress_panel.dart';
 typedef SessionLogCallback = void Function(WorkoutLogEntry entry);
 
 const double _kgToLbFactor = 2.2046226218;
+const _autoAdvanceDelay = Duration(milliseconds: 260);
 
 WeightDisplayUnit _oppositeUnit(WeightDisplayUnit unit) {
   return unit == WeightDisplayUnit.kg
@@ -47,6 +48,12 @@ enum LogCurrentSetResult {
   registered,
   noPendingSet,
   invalidReps,
+}
+
+enum _AutoAdvanceField {
+  kg,
+  reps,
+  rir,
 }
 
 class ActiveSessionExerciseCard extends StatefulWidget {
@@ -101,10 +108,18 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
   final List<TextEditingController> _weightControllers = [];
   final List<TextEditingController> _repControllers = [];
   final List<TextEditingController> _rirControllers = [];
+  final List<FocusNode> _weightFocusNodes = [];
+  final List<FocusNode> _repFocusNodes = [];
+  final List<FocusNode> _rirFocusNodes = [];
+  final List<int> _weightAutoAdvanceDigits = [];
+  final List<int> _repAutoAdvanceDigits = [];
+  final List<int> _rirAutoAdvanceDigits = [];
+  final List<GlobalKey> _setRowKeys = [];
 
   int _visibleSets = 0;
   DateTime? _restEndsAt;
   bool _showAdjustActions = false;
+  Timer? _autoAdvanceTimer;
 
   @override
   bool get wantKeepAlive => true;
@@ -156,13 +171,8 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
 
   @override
   void dispose() {
-    for (final controller in [
-      ..._weightControllers,
-      ..._repControllers,
-      ..._rirControllers,
-    ]) {
-      controller.dispose();
-    }
+    _autoAdvanceTimer?.cancel();
+    _disposeInputState();
     _clearRestTimer(cancelNotification: true, notifyParent: false);
     super.dispose();
   }
@@ -195,22 +205,35 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     return LogCurrentSetResult.registered;
   }
 
-  void _resetControllers(int targetSets) {
-    for (final controller in [
-      ..._weightControllers,
-      ..._repControllers,
-      ..._rirControllers,
-    ]) {
-      controller.dispose();
+  Future<void> ensurePrimarySetVisible() {
+    if (_setRowKeys.isEmpty) {
+      return Future.value();
     }
-    _weightControllers.clear();
-    _repControllers.clear();
-    _rirControllers.clear();
+
+    final pendingSetNumber = _nextPendingSetNumber ?? 1;
+    final pendingIndex = (pendingSetNumber - 1).clamp(0, _setRowKeys.length - 1);
+    final targetContext = _setRowKeys[pendingIndex].currentContext;
+    if (targetContext == null) {
+      return Future.value();
+    }
+
+    return Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: 0.12,
+    );
+  }
+
+  void _resetControllers(int targetSets) {
+    _autoAdvanceTimer?.cancel();
+    _disposeInputState();
     _visibleSets = targetSets;
 
     for (var index = 0; index < targetSets; index++) {
       final setNumber = index + 1;
       final existing = _logFor(setNumber);
+      _setRowKeys.add(GlobalKey());
       _weightControllers.add(
         TextEditingController(
           text: _formatWeight(
@@ -231,7 +254,63 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
           text: '${existing?.rir ?? widget.detail.rir}',
         ),
       );
+      _weightFocusNodes.add(FocusNode(debugLabel: 'weight-$setNumber'));
+      _repFocusNodes.add(FocusNode(debugLabel: 'reps-$setNumber'));
+      _rirFocusNodes.add(FocusNode(debugLabel: 'rir-$setNumber'));
     }
+
+    _syncAutoAdvanceHints();
+  }
+
+  void _disposeInputState() {
+    for (final controller in [
+      ..._weightControllers,
+      ..._repControllers,
+      ..._rirControllers,
+    ]) {
+      controller.dispose();
+    }
+    for (final focusNode in [
+      ..._weightFocusNodes,
+      ..._repFocusNodes,
+      ..._rirFocusNodes,
+    ]) {
+      focusNode.dispose();
+    }
+    _weightControllers.clear();
+    _repControllers.clear();
+    _rirControllers.clear();
+    _weightFocusNodes.clear();
+    _repFocusNodes.clear();
+    _rirFocusNodes.clear();
+    _weightAutoAdvanceDigits.clear();
+    _repAutoAdvanceDigits.clear();
+    _rirAutoAdvanceDigits.clear();
+    _setRowKeys.clear();
+  }
+
+  void _syncAutoAdvanceHints() {
+    _weightAutoAdvanceDigits
+      ..clear()
+      ..addAll(
+        _weightControllers.map(
+          (controller) => _expectedWeightDigits(controller.text),
+        ),
+      );
+    _repAutoAdvanceDigits
+      ..clear()
+      ..addAll(
+        _repControllers.map(
+          (controller) => _expectedRepDigits(controller.text),
+        ),
+      );
+    _rirAutoAdvanceDigits
+      ..clear()
+      ..addAll(
+        _rirControllers.map(
+          (controller) => _expectedRirDigits(controller.text),
+        ),
+      );
   }
 
   WorkoutLogEntry? _logFor(int setNumber) {
@@ -294,6 +373,8 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
       final weightKg = _displayWeightToKg(displayWeight, oldUnit);
       controller.text = _formatWeight(_kgToDisplayWeight(weightKg, newUnit));
     }
+
+    _syncAutoAdvanceHints();
   }
 
   void _switchWeightUnit() {
@@ -319,7 +400,128 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     );
   }
 
+  void _handleFieldChanged(int index, _AutoAdvanceField field) {
+    _saveDraft(index);
+    _scheduleAutoAdvance(index, field);
+  }
+
+  void _scheduleAutoAdvance(int index, _AutoAdvanceField field) {
+    _autoAdvanceTimer?.cancel();
+
+    final controller = _controllerForField(index, field);
+    final focusNode = _focusNodeForField(index, field);
+    final value = controller.text.trim();
+    if (!focusNode.hasFocus || !_shouldAutoAdvance(value, index, field)) {
+      return;
+    }
+
+    _autoAdvanceTimer = Timer(_autoAdvanceDelay, () {
+      if (!mounted || !focusNode.hasFocus) {
+        return;
+      }
+      if (controller.text.trim() != value) {
+        return;
+      }
+      _moveFocusToNextField(index, field);
+    });
+  }
+
+  bool _shouldAutoAdvance(String value, int index, _AutoAdvanceField field) {
+    if (value.isEmpty || value.contains('.')) {
+      return false;
+    }
+
+    final parsed = int.tryParse(value);
+    if (parsed == null) {
+      return false;
+    }
+
+    return value.length >= _expectedDigitsForField(index, field);
+  }
+
+  int _expectedDigitsForField(int index, _AutoAdvanceField field) {
+    return switch (field) {
+      _AutoAdvanceField.kg => _weightAutoAdvanceDigits[index],
+      _AutoAdvanceField.reps => _repAutoAdvanceDigits[index],
+      _AutoAdvanceField.rir => _rirAutoAdvanceDigits[index],
+    };
+  }
+
+  int _expectedWeightDigits(String prefilledText) {
+    return _expectedIntegerDigits(prefilledText, fallback: 2);
+  }
+
+  int _expectedRepDigits(String prefilledText) {
+    final inferred = _expectedIntegerDigits(prefilledText, fallback: 2);
+    return inferred < 2 ? 2 : inferred;
+  }
+
+  int _expectedRirDigits(String prefilledText) {
+    return _expectedIntegerDigits(prefilledText, fallback: 1) <= 1 ? 1 : 2;
+  }
+
+  int _expectedIntegerDigits(String text, {required int fallback}) {
+    final parsed = double.tryParse(text.trim());
+    if (parsed == null || !parsed.isFinite) {
+      return fallback;
+    }
+
+    final rounded = parsed.abs().round();
+    return rounded == 0 ? 1 : rounded.toString().length;
+  }
+
+  TextEditingController _controllerForField(int index, _AutoAdvanceField field) {
+    return switch (field) {
+      _AutoAdvanceField.kg => _weightControllers[index],
+      _AutoAdvanceField.reps => _repControllers[index],
+      _AutoAdvanceField.rir => _rirControllers[index],
+    };
+  }
+
+  FocusNode _focusNodeForField(int index, _AutoAdvanceField field) {
+    return switch (field) {
+      _AutoAdvanceField.kg => _weightFocusNodes[index],
+      _AutoAdvanceField.reps => _repFocusNodes[index],
+      _AutoAdvanceField.rir => _rirFocusNodes[index],
+    };
+  }
+
+  void _moveFocusToNextField(int index, _AutoAdvanceField field) {
+    switch (field) {
+      case _AutoAdvanceField.kg:
+        _focusAndSelect(_repFocusNodes[index], _repControllers[index]);
+        return;
+      case _AutoAdvanceField.reps:
+        _focusAndSelect(_rirFocusNodes[index], _rirControllers[index]);
+        return;
+      case _AutoAdvanceField.rir:
+        final nextIndex = index + 1;
+        if (nextIndex >= _visibleSets || _isSetCompleted(nextIndex + 1)) {
+          return;
+        }
+        _focusAndSelect(
+          _weightFocusNodes[nextIndex],
+          _weightControllers[nextIndex],
+        );
+        return;
+    }
+  }
+
+  void _focusAndSelect(FocusNode focusNode, TextEditingController controller) {
+    focusNode.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !focusNode.hasFocus) {
+        return;
+      }
+      controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: controller.text.length,
+      );
+    });
+  }
+
   void _addSet() {
+    _autoAdvanceTimer?.cancel();
     final fallbackDisplayWeight = _kgToDisplayWeight(
       widget.detail.weight,
       widget.weightUnit,
@@ -337,13 +539,18 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
 
     setState(() {
       _visibleSets++;
+      _setRowKeys.add(GlobalKey());
       _weightControllers.add(
         TextEditingController(text: _formatWeight(lastDisplayWeight)),
       );
       _repControllers.add(TextEditingController(text: '$lastReps'));
       _rirControllers.add(TextEditingController(text: '$lastRir'));
+      _weightFocusNodes.add(FocusNode(debugLabel: 'weight-$_visibleSets'));
+      _repFocusNodes.add(FocusNode(debugLabel: 'reps-$_visibleSets'));
+      _rirFocusNodes.add(FocusNode(debugLabel: 'rir-$_visibleSets'));
     });
 
+    _syncAutoAdvanceHints();
     widget.onSetCountChanged(_visibleSets);
     widget.saveDraftLog(
       WorkoutLogEntry(
@@ -365,11 +572,19 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     }
 
     final removedSet = _visibleSets;
+    _autoAdvanceTimer?.cancel();
     setState(() {
       _visibleSets--;
+      _setRowKeys.removeLast();
       _weightControllers.removeLast().dispose();
       _repControllers.removeLast().dispose();
       _rirControllers.removeLast().dispose();
+      _weightFocusNodes.removeLast().dispose();
+      _repFocusNodes.removeLast().dispose();
+      _rirFocusNodes.removeLast().dispose();
+      _weightAutoAdvanceDigits.removeLast();
+      _repAutoAdvanceDigits.removeLast();
+      _rirAutoAdvanceDigits.removeLast();
     });
 
     widget.onSetCountChanged(_visibleSets);
@@ -712,6 +927,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                 children: [
                   for (var index = 0; index < _visibleSets; index++)
                     Padding(
+                      key: _setRowKeys[index],
                       padding: EdgeInsets.only(
                         bottom: index == _visibleSets - 1 ? 0 : 10,
                       ),
@@ -724,10 +940,18 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                         isActive: currentSet == index + 1,
                         isCompleted: _isSetCompleted(index + 1),
                         weightController: _weightControllers[index],
+                        weightFocusNode: _weightFocusNodes[index],
                         weightUnit: widget.weightUnit,
                         repsController: _repControllers[index],
+                        repsFocusNode: _repFocusNodes[index],
                         rirController: _rirControllers[index],
-                        onChanged: () => _saveDraft(index),
+                        rirFocusNode: _rirFocusNodes[index],
+                        onWeightChanged: (_) =>
+                            _handleFieldChanged(index, _AutoAdvanceField.kg),
+                        onRepsChanged: (_) =>
+                            _handleFieldChanged(index, _AutoAdvanceField.reps),
+                        onRirChanged: (_) =>
+                            _handleFieldChanged(index, _AutoAdvanceField.rir),
                       ),
                     ),
                 ],
@@ -905,10 +1129,15 @@ class _SetRow extends StatelessWidget {
     required this.isActive,
     required this.isCompleted,
     required this.weightController,
+    required this.weightFocusNode,
     required this.weightUnit,
     required this.repsController,
+    required this.repsFocusNode,
     required this.rirController,
-    required this.onChanged,
+    required this.rirFocusNode,
+    required this.onWeightChanged,
+    required this.onRepsChanged,
+    required this.onRirChanged,
     super.key,
   });
 
@@ -917,10 +1146,15 @@ class _SetRow extends StatelessWidget {
   final bool isActive;
   final bool isCompleted;
   final TextEditingController weightController;
+  final FocusNode weightFocusNode;
   final WeightDisplayUnit weightUnit;
   final TextEditingController repsController;
+  final FocusNode repsFocusNode;
   final TextEditingController rirController;
-  final VoidCallback onChanged;
+  final FocusNode rirFocusNode;
+  final ValueChanged<String> onWeightChanged;
+  final ValueChanged<String> onRepsChanged;
+  final ValueChanged<String> onRirChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -973,9 +1207,10 @@ class _SetRow extends StatelessWidget {
             child: _WeightInput(
               semanticKey: Key('active-set-$exerciseId-$setNumber-kg'),
               controller: weightController,
+              focusNode: weightFocusNode,
               unit: weightUnit,
               enabled: !isCompleted,
-              onChanged: onChanged,
+              onChanged: onWeightChanged,
             ),
           ),
           const SizedBox(width: 12),
@@ -983,8 +1218,9 @@ class _SetRow extends StatelessWidget {
             child: _NumberInputSlot(
               semanticKey: Key('active-set-$exerciseId-$setNumber-reps'),
               controller: repsController,
+              focusNode: repsFocusNode,
               enabled: !isCompleted,
-              onChanged: onChanged,
+              onChanged: onRepsChanged,
             ),
           ),
           const SizedBox(width: 12),
@@ -992,8 +1228,9 @@ class _SetRow extends StatelessWidget {
             child: _NumberInputSlot(
               semanticKey: Key('active-set-$exerciseId-$setNumber-rir'),
               controller: rirController,
+              focusNode: rirFocusNode,
               enabled: !isCompleted,
-              onChanged: onChanged,
+              onChanged: onRirChanged,
             ),
           ),
         ],
@@ -1006,27 +1243,30 @@ class _NumberInput extends StatelessWidget {
   const _NumberInput({
     required this.semanticKey,
     required this.controller,
+    required this.focusNode,
     required this.enabled,
     required this.onChanged,
   });
 
   final Key semanticKey;
   final TextEditingController controller;
+  final FocusNode focusNode;
   final bool enabled;
-  final VoidCallback onChanged;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       key: semanticKey,
       controller: controller,
+      focusNode: focusNode,
       enabled: enabled,
       textAlign: TextAlign.center,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [
         FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
       ],
-      onChanged: (_) => onChanged(),
+      onChanged: onChanged,
       onTap: () {
         controller.selection = TextSelection(
           baseOffset: 0,
@@ -1058,14 +1298,16 @@ class _NumberInputSlot extends StatelessWidget {
   const _NumberInputSlot({
     required this.semanticKey,
     required this.controller,
+    required this.focusNode,
     required this.enabled,
     required this.onChanged,
   });
 
   final Key semanticKey;
   final TextEditingController controller;
+  final FocusNode focusNode;
   final bool enabled;
-  final VoidCallback onChanged;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1076,6 +1318,7 @@ class _NumberInputSlot extends StatelessWidget {
         _NumberInput(
           semanticKey: semanticKey,
           controller: controller,
+          focusNode: focusNode,
           enabled: enabled,
           onChanged: onChanged,
         ),
@@ -1088,6 +1331,7 @@ class _WeightInput extends StatelessWidget {
   const _WeightInput({
     required this.semanticKey,
     required this.controller,
+    required this.focusNode,
     required this.unit,
     required this.enabled,
     required this.onChanged,
@@ -1095,9 +1339,10 @@ class _WeightInput extends StatelessWidget {
 
   final Key semanticKey;
   final TextEditingController controller;
+  final FocusNode focusNode;
   final WeightDisplayUnit unit;
   final bool enabled;
-  final VoidCallback onChanged;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1136,6 +1381,7 @@ class _WeightInput extends StatelessWidget {
         _NumberInput(
           semanticKey: semanticKey,
           controller: controller,
+          focusNode: focusNode,
           enabled: enabled,
           onChanged: onChanged,
         ),
