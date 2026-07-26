@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vibration/vibration.dart';
+import 'package:vibration/vibration_presets.dart';
 
 import '../../../../theme/kinetic_noir.dart';
 import '../../../history/presentation/providers/history_providers.dart';
@@ -15,6 +17,8 @@ import '../../domain/entities/weight_display_unit.dart';
 import '../../domain/entities/workout_log_entry.dart';
 import '../../domain/entities/workout_plan.dart';
 import '../../domain/entities/workout_session.dart';
+import '../../domain/entities/warm_up_session_state.dart';
+import '../../domain/entities/warm_up_step.dart';
 import '../../domain/usecases/active_session_draft_usecases.dart';
 import '../../domain/usecases/active_session_exercise_setup_preset_usecases.dart';
 import '../../domain/usecases/save_workout_logs_usecase.dart';
@@ -24,10 +28,13 @@ import '../models/finish_session_summary_draft.dart';
 import '../providers/exercises_provider.dart';
 import '../providers/plan_exercise_details_provider.dart';
 import '../providers/workout_plan_repository_provider.dart';
+import '../providers/warm_up_steps_provider.dart';
 import '../widgets/active_session_exercise_card.dart';
 import '../widgets/active_session_exercise_setup_sheet.dart';
 import '../widgets/active_session_notes_card.dart';
 import '../widgets/confirm_exit_sheet.dart';
+import '../widgets/warm_up_flow.dart';
+import '../../../../utils/notification_service.dart';
 import 'finish_session_summary_screen.dart';
 import 'select_exercise_screen.dart';
 
@@ -71,6 +78,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   String? _energy;
   String? _mood;
   bool _showNotesComposer = false;
+  List<WarmUpStep>? _warmUpSteps;
+  WarmUpSessionState? _warmUpState;
+  final ValueNotifier<bool> _warmUpVisible = ValueNotifier(false);
 
   @override
   void initState() {
@@ -97,6 +107,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _ticker.cancel();
     _notesCtl.dispose();
     _notesFocusNode.dispose();
+    _warmUpVisible.dispose();
     super.dispose();
   }
 
@@ -130,6 +141,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _setCountsByExercise.addAll(draft.setCountsByExercise);
     _weightUnitsByExercise.addAll(draft.weightUnitsByExercise);
     _setupEditableExerciseIds.addAll(draft.setupEditableExerciseIds);
+    _warmUpState = draft.warmUpState;
     for (final detail in _sessionDetails!) {
       _setCountsByExercise.putIfAbsent(detail.exerciseId, () => detail.sets);
       _weightUnitsByExercise.putIfAbsent(
@@ -172,7 +184,212 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     });
     if (syncRestTimers) {
       _syncRestTimers(now, vibrateOnCompletion: vibrateOnCompletion);
+      _syncWarmUpTimer(now, vibrateOnCompletion: vibrateOnCompletion);
     }
+  }
+
+  bool get _isWarmUpActive {
+    final state = _warmUpState;
+    return _warmUpSteps?.isNotEmpty == true &&
+        state != null &&
+        state.status != WarmUpSessionStatus.completed;
+  }
+
+  void _initializeWarmUp(List<WarmUpStep> steps) {
+    _warmUpSteps ??= List<WarmUpStep>.from(steps);
+    if (_warmUpSteps!.isEmpty) {
+      return;
+    }
+    if (_warmUpState != null) {
+      _warmUpVisible.value =
+          _warmUpState!.status != WarmUpSessionStatus.completed;
+      return;
+    }
+    final first = _warmUpSteps!.first;
+    _warmUpState = WarmUpSessionState(
+      status: WarmUpSessionStatus.running,
+      stepIndex: 0,
+      setNumber: 1,
+      phase: WarmUpPhase.work,
+      side: first.perSide ? WarmUpSide.left : WarmUpSide.none,
+      phaseEndsAt: _now.add(Duration(seconds: first.workSeconds)),
+    );
+    _scheduleWarmUpNotification(_warmUpState!);
+    _warmUpVisible.value = true;
+    _scheduleDraftPersist();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _scheduleWarmUpNotification(WarmUpSessionState state) async {
+    if (state.status != WarmUpSessionStatus.running ||
+        state.phaseEndsAt == null) {
+      return;
+    }
+    final remainingSeconds =
+        state.phaseEndsAt!.difference(_now).inSeconds.clamp(1, 86400).toInt();
+    final steps = _warmUpSteps;
+    final step = steps == null || state.stepIndex >= steps.length
+        ? null
+        : steps[state.stepIndex];
+    final nextPhase = state.phase == WarmUpPhase.work &&
+            step?.perSide == true &&
+            state.side == WarmUpSide.left
+        ? 'right side'
+        : state.phase == WarmUpPhase.work
+            ? 'rest'
+            : 'work';
+    await NotificationService.scheduleWarmUpPhaseDone(
+      remainingSeconds,
+      nextPhase: nextPhase,
+      notificationId: 700000 + widget.plan.id,
+      scheduledAt: _now,
+    );
+  }
+
+  void _syncWarmUpTimer(
+    DateTime now, {
+    required bool vibrateOnCompletion,
+  }) {
+    final state = _warmUpState;
+    if (state == null || state.status != WarmUpSessionStatus.running) {
+      return;
+    }
+    final endsAt = state.phaseEndsAt;
+    if (endsAt == null || now.isBefore(endsAt)) return;
+    _advanceWarmUp(now, vibrateOnCompletion: vibrateOnCompletion);
+  }
+
+  void _advanceWarmUp(DateTime now, {required bool vibrateOnCompletion}) {
+    final state = _warmUpState;
+    final steps = _warmUpSteps;
+    if (state == null || steps == null || state.stepIndex >= steps.length) {
+      return;
+    }
+    final step = steps[state.stepIndex];
+    WarmUpSessionState next;
+    if (state.phase == WarmUpPhase.work &&
+        step.perSide &&
+        state.side == WarmUpSide.left) {
+      next = state.copyWith(
+        side: WarmUpSide.right,
+        phaseEndsAt: now.add(Duration(seconds: step.workSeconds)),
+      );
+    } else if (state.phase == WarmUpPhase.work &&
+        step.restSeconds > 0 &&
+        state.setNumber < step.sets) {
+      next = state.copyWith(
+        phase: WarmUpPhase.rest,
+        side: WarmUpSide.none,
+        phaseEndsAt: now.add(Duration(seconds: step.restSeconds)),
+      );
+    } else if (state.phase == WarmUpPhase.rest) {
+      next = _nextWarmUpSet(state, step, now);
+    } else if (state.setNumber < step.sets) {
+      next = _nextWarmUpSet(state, step, now);
+    } else {
+      next = _nextWarmUpStep(state, now);
+    }
+    setState(() => _warmUpState = next);
+    _warmUpVisible.value = next.status != WarmUpSessionStatus.completed;
+    unawaited(NotificationService.cancelRest(
+        notificationId: 700000 + widget.plan.id));
+    _scheduleWarmUpNotification(next);
+    _scheduleDraftPersist();
+    if (vibrateOnCompletion) {
+      unawaited(Vibration.vibrate(preset: VibrationPreset.countdownTimerAlert));
+    }
+  }
+
+  WarmUpSessionState _nextWarmUpSet(
+    WarmUpSessionState state,
+    WarmUpStep step,
+    DateTime now,
+  ) =>
+      state.copyWith(
+        status: WarmUpSessionStatus.running,
+        setNumber: state.setNumber + 1,
+        phase: WarmUpPhase.work,
+        side: step.perSide ? WarmUpSide.left : WarmUpSide.none,
+        phaseEndsAt: now.add(Duration(seconds: step.workSeconds)),
+      );
+
+  WarmUpSessionState _nextWarmUpStep(WarmUpSessionState state, DateTime now) {
+    final steps = _warmUpSteps!;
+    var nextIndex = state.stepIndex + 1;
+    while (state.skippedStepIndexes.contains(nextIndex)) {
+      nextIndex++;
+    }
+    if (nextIndex >= steps.length) {
+      return state.copyWith(
+        status: WarmUpSessionStatus.completed,
+        clearPhaseEndsAt: true,
+      );
+    }
+    final nextStep = steps[nextIndex];
+    return state.copyWith(
+      status: WarmUpSessionStatus.running,
+      stepIndex: nextIndex,
+      setNumber: 1,
+      phase: WarmUpPhase.work,
+      side: nextStep.perSide ? WarmUpSide.left : WarmUpSide.none,
+      phaseEndsAt: now.add(Duration(seconds: nextStep.workSeconds)),
+    );
+  }
+
+  void _toggleWarmUpPause() {
+    final state = _warmUpState;
+    if (state == null) return;
+    if (state.status == WarmUpSessionStatus.paused) {
+      final resumed = state.copyWith(
+        status: WarmUpSessionStatus.running,
+        phaseEndsAt: _now.add(Duration(seconds: state.pausedRemainingSeconds)),
+        pausedRemainingSeconds: 0,
+      );
+      setState(() => _warmUpState = resumed);
+      _warmUpVisible.value = true;
+      _scheduleWarmUpNotification(resumed);
+    } else {
+      final remaining = (state.phaseEndsAt?.difference(_now).inSeconds ?? 0)
+          .clamp(0, 86400)
+          .toInt();
+      setState(() => _warmUpState = state.copyWith(
+            status: WarmUpSessionStatus.paused,
+            clearPhaseEndsAt: true,
+            pausedRemainingSeconds: remaining,
+          ));
+      unawaited(NotificationService.cancelRest(
+          notificationId: 700000 + widget.plan.id));
+    }
+    _scheduleDraftPersist();
+  }
+
+  void _skipWarmUpStep() {
+    final state = _warmUpState;
+    if (state == null) return;
+    final skipped = {...state.skippedStepIndexes, state.stepIndex};
+    final next =
+        _nextWarmUpStep(state.copyWith(skippedStepIndexes: skipped), _now);
+    setState(() => _warmUpState = next);
+    _warmUpVisible.value = next.status != WarmUpSessionStatus.completed;
+    unawaited(NotificationService.cancelRest(
+        notificationId: 700000 + widget.plan.id));
+    _scheduleWarmUpNotification(next);
+    _scheduleDraftPersist();
+  }
+
+  void _finishWarmUp() {
+    final state = _warmUpState;
+    if (state == null) return;
+    setState(() => _warmUpState = state.copyWith(
+          status: WarmUpSessionStatus.completed,
+          clearPhaseEndsAt: true,
+        ));
+    _warmUpVisible.value = false;
+    unawaited(NotificationService.cancelRest(
+        notificationId: 700000 + widget.plan.id));
+    _scheduleDraftPersist();
   }
 
   void _syncRestTimers(
@@ -318,6 +535,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       },
       setupEditableExerciseIds:
           _setupEditableExerciseIds.intersection(activeExerciseIds),
+      warmUpState: _warmUpState,
       logs: _sessionLogs.values.toList(growable: false),
       restEndsAtByExercise: Map<int, DateTime>.from(_restEndsAtByExercise),
     );
@@ -748,6 +966,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     final sessionDuration = _sessionDurationAt(now);
     final asyncDetails = ref.watch(planExerciseDetailsProvider(widget.plan.id));
     final asyncExercises = ref.watch(allExercisesProvider);
+    final asyncWarmUpSteps = ref.watch(warmUpStepsProvider(widget.plan.id));
+    final showWarmUpChrome = _isWarmUpActive ||
+        (_warmUpState == null &&
+            (asyncWarmUpSteps.asData?.value.isNotEmpty ?? false));
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final isKeyboardVisible = bottomInset > 0;
     final activeRestTimer = _activeRestTimerSummary(now);
@@ -797,7 +1019,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.plan.name,
+                showWarmUpChrome ? 'WARM-UP' : widget.plan.name,
                 key: const Key('active-session-title'),
                 style: KineticNoirTypography.headline(
                   size: 20,
@@ -827,157 +1049,165 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
             ],
           ),
           actions: [
-            TextButton(
-              key: const Key('active-session-finish'),
-              onPressed: _openFinishSummary,
-              child: Text(
-                'FINISH',
-                style: KineticNoirTypography.body(
-                  size: 13,
-                  weight: FontWeight.w800,
-                  color: KineticNoirPalette.primary,
-                  letterSpacing: 1.4,
+            if (!showWarmUpChrome)
+              TextButton(
+                key: const Key('active-session-finish'),
+                onPressed: _openFinishSummary,
+                child: Text(
+                  'FINISH',
+                  style: KineticNoirTypography.body(
+                    size: 13,
+                    weight: FontWeight.w800,
+                    color: KineticNoirPalette.primary,
+                    letterSpacing: 1.4,
+                  ),
                 ),
               ),
-            ),
             const SizedBox(width: 8),
           ],
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-        floatingActionButton: Padding(
-          padding: EdgeInsets.only(bottom: floatingBottomGap),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (activeRestTimer != null) ...[
-                _FloatingRestTimerPill(summary: activeRestTimer),
-                const SizedBox(height: 10),
-              ],
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: kineticPrimaryGradient,
-                      borderRadius: BorderRadius.circular(999),
-                      boxShadow: [
-                        BoxShadow(
-                          color: KineticNoirPalette.shadow.withValues(
-                            alpha: 0.18,
+        floatingActionButton: ValueListenableBuilder<bool>(
+          valueListenable: _warmUpVisible,
+          builder: (context, warmUpVisible, _) => showWarmUpChrome ||
+                  warmUpVisible
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: EdgeInsets.only(bottom: floatingBottomGap),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (activeRestTimer != null) ...[
+                        _FloatingRestTimerPill(summary: activeRestTimer),
+                        const SizedBox(height: 10),
+                      ],
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: kineticPrimaryGradient,
+                              borderRadius: BorderRadius.circular(999),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: KineticNoirPalette.shadow.withValues(
+                                    alpha: 0.18,
+                                  ),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 12),
+                                ),
+                              ],
+                            ),
+                            child: FilledButton.icon(
+                              key: const Key('active-session-register-set'),
+                              onPressed: activeExpandedExerciseId == null
+                                  ? null
+                                  : () {
+                                      final cardState =
+                                          _cardKeys[activeExpandedExerciseId]
+                                              ?.currentState;
+                                      if (cardState == null) {
+                                        return;
+                                      }
+                                      final result = cardState.logCurrentSet();
+                                      switch (result) {
+                                        case LogCurrentSetResult.registered:
+                                          _showSnackBar(
+                                            'Set registered. Rest timer started.',
+                                          );
+                                          break;
+                                        case LogCurrentSetResult.invalidReps:
+                                          _showSnackBar(
+                                            'Enter valid reps (>0) for this set.',
+                                          );
+                                          break;
+                                        case LogCurrentSetResult.noPendingSet:
+                                          _showSnackBar(
+                                            'All visible sets are complete. Add a new set to keep going.',
+                                          );
+                                          break;
+                                      }
+                                    },
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                disabledBackgroundColor:
+                                    Colors.transparent.withValues(alpha: 0.4),
+                                shadowColor: Colors.transparent,
+                                foregroundColor: KineticNoirPalette.onPrimary,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 18,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                              icon: const Icon(Icons.check_rounded),
+                              label: Text(
+                                'REGISTER SET',
+                                style: KineticNoirTypography.body(
+                                  size: 13,
+                                  weight: FontWeight.w800,
+                                  color: KineticNoirPalette.onPrimary,
+                                  letterSpacing: 1.3,
+                                ),
+                              ),
+                            ),
                           ),
-                          blurRadius: 24,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
-                    ),
-                    child: FilledButton.icon(
-                      key: const Key('active-session-register-set'),
-                      onPressed: activeExpandedExerciseId == null
-                          ? null
-                          : () {
-                              final cardState =
-                                  _cardKeys[activeExpandedExerciseId]
-                                      ?.currentState;
-                              if (cardState == null) {
-                                return;
-                              }
-                              final result = cardState.logCurrentSet();
-                              switch (result) {
-                                case LogCurrentSetResult.registered:
-                                  _showSnackBar(
-                                    'Set registered. Rest timer started.',
-                                  );
-                                  break;
-                                case LogCurrentSetResult.invalidReps:
-                                  _showSnackBar(
-                                    'Enter valid reps (>0) for this set.',
-                                  );
-                                  break;
-                                case LogCurrentSetResult.noPendingSet:
-                                  _showSnackBar(
-                                    'All visible sets are complete. Add a new set to keep going.',
-                                  );
-                                  break;
-                              }
-                            },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        disabledBackgroundColor:
-                            Colors.transparent.withValues(alpha: 0.4),
-                        shadowColor: Colors.transparent,
-                        foregroundColor: KineticNoirPalette.onPrimary,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 18,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                      icon: const Icon(Icons.check_rounded),
-                      label: Text(
-                        'REGISTER SET',
-                        style: KineticNoirTypography.body(
-                          size: 13,
-                          weight: FontWeight.w800,
-                          color: KineticNoirPalette.onPrimary,
-                          letterSpacing: 1.3,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    width: 44,
-                    height: 60,
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    decoration: BoxDecoration(
-                      color: KineticNoirPalette.surface,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: KineticNoirPalette.primary.withValues(
-                          alpha: 0.22,
-                        ),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: KineticNoirPalette.shadow.withValues(
-                            alpha: 0.14,
+                          const SizedBox(width: 10),
+                          Container(
+                            width: 44,
+                            height: 60,
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            decoration: BoxDecoration(
+                              color: KineticNoirPalette.surface,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: KineticNoirPalette.primary.withValues(
+                                  alpha: 0.22,
+                                ),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: KineticNoirPalette.shadow.withValues(
+                                    alpha: 0.14,
+                                  ),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _SessionNavigationButton(
+                                  buttonKey: const Key('active-session-nav-up'),
+                                  icon: Icons.keyboard_arrow_up_rounded,
+                                  compact: true,
+                                  onPressed: canNavigateUp
+                                      ? () => _moveExpandedExercise(-1)
+                                      : null,
+                                ),
+                                const SizedBox(height: 6),
+                                _SessionNavigationButton(
+                                  buttonKey:
+                                      const Key('active-session-nav-down'),
+                                  icon: Icons.keyboard_arrow_down_rounded,
+                                  compact: true,
+                                  onPressed: canNavigateDown
+                                      ? () => _moveExpandedExercise(1)
+                                      : null,
+                                ),
+                              ],
+                            ),
                           ),
-                          blurRadius: 18,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _SessionNavigationButton(
-                          buttonKey: const Key('active-session-nav-up'),
-                          icon: Icons.keyboard_arrow_up_rounded,
-                          compact: true,
-                          onPressed: canNavigateUp
-                              ? () => _moveExpandedExercise(-1)
-                              : null,
-                        ),
-                        const SizedBox(height: 6),
-                        _SessionNavigationButton(
-                          buttonKey: const Key('active-session-nav-down'),
-                          icon: Icons.keyboard_arrow_down_rounded,
-                          compact: true,
-                          onPressed: canNavigateDown
-                              ? () => _moveExpandedExercise(1)
-                              : null,
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
         ),
         body: asyncExercises.when(
           loading: () => const Center(
@@ -991,123 +1221,146 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
             ),
             error: (error, _) => _AsyncErrorState(error: '$error'),
             data: (details) {
-              _initializeSessionData(details, exercises);
+              return asyncWarmUpSteps.when(
+                loading: () => const Center(
+                  child: CircularProgressIndicator(
+                    color: KineticNoirPalette.primary,
+                  ),
+                ),
+                error: (error, _) => _AsyncErrorState(error: '$error'),
+                data: (warmUpSteps) {
+                  _initializeSessionData(details, exercises);
+                  _initializeWarmUp(warmUpSteps);
 
-              final sessionDetails =
-                  _sessionDetails ?? const <PlanExerciseDetail>[];
-              if (sessionDetails.isEmpty) {
-                return const _EmptySessionState();
-              }
+                  if (_isWarmUpActive) {
+                    return WarmUpFlow(
+                      steps: _warmUpSteps!,
+                      state: _warmUpState!,
+                      now: now,
+                      onPauseResume: _toggleWarmUpPause,
+                      onSkipStep: _skipWarmUpStep,
+                      onFinish: _finishWarmUp,
+                    );
+                  }
 
-              return Column(
-                children: [
-                  Expanded(
-                    child: ListView(
-                      padding: EdgeInsets.fromLTRB(
-                        24,
-                        12,
-                        24,
-                        scrollBottomPadding,
-                      ),
-                      children: [
-                        if (_showNotesComposer) ...[
-                          ActiveSessionNotesCard(
-                            controller: _notesCtl,
-                            focusNode: _notesFocusNode,
-                            isVisible: _showNotesComposer,
-                            onToggleVisibility: () {
-                              setState(() =>
-                                  _showNotesComposer = !_showNotesComposer);
-                            },
+                  final sessionDetails =
+                      _sessionDetails ?? const <PlanExerciseDetail>[];
+                  if (sessionDetails.isEmpty) {
+                    return const _EmptySessionState();
+                  }
+
+                  return Column(
+                    children: [
+                      Expanded(
+                        child: ListView(
+                          padding: EdgeInsets.fromLTRB(
+                            24,
+                            12,
+                            24,
+                            scrollBottomPadding,
                           ),
-                          const SizedBox(height: 10),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: _AddSessionExerciseButton(
-                              onPressed: addExercise,
-                            ),
-                          ),
-                        ] else
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: ActiveSessionNotesCard(
-                                  controller: _notesCtl,
-                                  focusNode: _notesFocusNode,
-                                  isVisible: _showNotesComposer,
-                                  onToggleVisibility: () {
-                                    setState(() => _showNotesComposer =
-                                        !_showNotesComposer);
-                                  },
+                          children: [
+                            if (_showNotesComposer) ...[
+                              ActiveSessionNotesCard(
+                                controller: _notesCtl,
+                                focusNode: _notesFocusNode,
+                                isVisible: _showNotesComposer,
+                                onToggleVisibility: () {
+                                  setState(() =>
+                                      _showNotesComposer = !_showNotesComposer);
+                                },
+                              ),
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: _AddSessionExerciseButton(
+                                  onPressed: addExercise,
                                 ),
                               ),
-                              const SizedBox(width: 10),
-                              _AddSessionExerciseButton(
-                                onPressed: addExercise,
+                            ] else
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: ActiveSessionNotesCard(
+                                      controller: _notesCtl,
+                                      focusNode: _notesFocusNode,
+                                      isVisible: _showNotesComposer,
+                                      onToggleVisibility: () {
+                                        setState(() => _showNotesComposer =
+                                            !_showNotesComposer);
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  _AddSessionExerciseButton(
+                                    onPressed: addExercise,
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        const SizedBox(height: 14),
-                        for (var index = 0;
-                            index < sessionDetails.length;
-                            index++)
-                          ActiveSessionExerciseCard(
-                            key: _cardKeys[sessionDetails[index].exerciseId],
-                            detail: sessionDetails[index],
-                            exercise:
-                                _exerciseMap?[sessionDetails[index].exerciseId],
-                            planId: widget.plan.id,
-                            exerciseNumber: index + 1,
-                            now: now,
-                            expanded: _expandedExerciseId ==
-                                sessionDetails[index].exerciseId,
-                            logsMap: _sessionLogs,
-                            weightUnit: _weightUnitsByExercise[
-                                    sessionDetails[index].exerciseId] ??
-                                WeightDisplayUnit.kg,
-                            initialRestEndsAt: _restEndsAtByExercise[
-                                sessionDetails[index].exerciseId],
-                            onToggle: () => setState(() {
-                              final exerciseId =
-                                  sessionDetails[index].exerciseId;
-                              _expandedExerciseId =
-                                  _expandedExerciseId == exerciseId
-                                      ? null
-                                      : exerciseId;
-                              _scheduleDraftPersist();
-                            }),
-                            onSetCountChanged: (count) => setState(() {
-                              _setCountsByExercise[
-                                  sessionDetails[index].exerciseId] = count;
-                              _scheduleDraftPersist();
-                            }),
-                            saveDraftLog: _saveDraftLog,
-                            completeLog: _completeLog,
-                            removeLog: _removeLog,
-                            onWeightUnitChanged: (unit) => setState(() {
-                              _weightUnitsByExercise[
-                                  sessionDetails[index].exerciseId] = unit;
-                              _scheduleDraftPersist();
-                            }),
-                            onRestEndsAtChanged: (restEndsAt) =>
-                                _updateRestEndsAt(
-                              sessionDetails[index].exerciseId,
-                              restEndsAt,
-                            ),
-                            onEditSetup: _setupEditableExerciseIds.contains(
-                              sessionDetails[index].exerciseId,
-                            )
-                                ? () => _editSessionExerciseSetup(
-                                      sessionDetails[index].exerciseId,
-                                    )
-                                : null,
-                            onSwap: () => swapExercise(index),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
+                            const SizedBox(height: 14),
+                            for (var index = 0;
+                                index < sessionDetails.length;
+                                index++)
+                              ActiveSessionExerciseCard(
+                                key:
+                                    _cardKeys[sessionDetails[index].exerciseId],
+                                detail: sessionDetails[index],
+                                exercise: _exerciseMap?[
+                                    sessionDetails[index].exerciseId],
+                                planId: widget.plan.id,
+                                exerciseNumber: index + 1,
+                                now: now,
+                                expanded: _expandedExerciseId ==
+                                    sessionDetails[index].exerciseId,
+                                logsMap: _sessionLogs,
+                                weightUnit: _weightUnitsByExercise[
+                                        sessionDetails[index].exerciseId] ??
+                                    WeightDisplayUnit.kg,
+                                initialRestEndsAt: _restEndsAtByExercise[
+                                    sessionDetails[index].exerciseId],
+                                onToggle: () => setState(() {
+                                  final exerciseId =
+                                      sessionDetails[index].exerciseId;
+                                  _expandedExerciseId =
+                                      _expandedExerciseId == exerciseId
+                                          ? null
+                                          : exerciseId;
+                                  _scheduleDraftPersist();
+                                }),
+                                onSetCountChanged: (count) => setState(() {
+                                  _setCountsByExercise[
+                                      sessionDetails[index].exerciseId] = count;
+                                  _scheduleDraftPersist();
+                                }),
+                                saveDraftLog: _saveDraftLog,
+                                completeLog: _completeLog,
+                                removeLog: _removeLog,
+                                onWeightUnitChanged: (unit) => setState(() {
+                                  _weightUnitsByExercise[
+                                      sessionDetails[index].exerciseId] = unit;
+                                  _scheduleDraftPersist();
+                                }),
+                                onRestEndsAtChanged: (restEndsAt) =>
+                                    _updateRestEndsAt(
+                                  sessionDetails[index].exerciseId,
+                                  restEndsAt,
+                                ),
+                                onEditSetup: _setupEditableExerciseIds.contains(
+                                  sessionDetails[index].exerciseId,
+                                )
+                                    ? () => _editSessionExerciseSetup(
+                                          sessionDetails[index].exerciseId,
+                                        )
+                                    : null,
+                                onSwap: () => swapExercise(index),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               );
             },
           ),

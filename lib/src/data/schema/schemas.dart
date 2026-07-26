@@ -224,6 +224,24 @@ const Map<String, TableSchema> kTableSchemas = {
   ),
 
 
+'warm_up_step.xlsx': TableSchema(
+  sheetName: 'WarmUpStep',
+  headers: [
+    'plan_id',
+    'position',
+    'name',
+    'notes',
+    'sets',
+    'work_seconds',
+    'rest_seconds',
+    'per_side',
+  ],
+  sample: const [
+    [1, 0, 'Leg swim', '30 seconds on each leg', 3, 30, 0, 1],
+    [1, 1, 'Air squat', 'Controlled bodyweight reps', 3, 30, 30, 0],
+  ],
+),
+
 'workout_log.xlsx': TableSchema(
   sheetName: 'WorkoutLog',
   headers: [

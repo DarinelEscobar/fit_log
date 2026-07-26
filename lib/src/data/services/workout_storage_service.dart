@@ -14,6 +14,7 @@ import '../../features/routines/domain/entities/plan_exercise_detail.dart';
 import '../../features/routines/domain/entities/workout_log_entry.dart';
 import '../../features/routines/domain/entities/workout_plan.dart';
 import '../../features/routines/domain/entities/workout_session.dart';
+import '../../features/routines/domain/entities/warm_up_step.dart';
 import '../schema/schemas.dart';
 
 class WorkoutStorageService {
@@ -21,7 +22,7 @@ class WorkoutStorageService {
       : _databaseFactory = dbFactory ?? databaseFactory;
 
   static const String _databaseName = 'fit_log.db';
-  static const int _databaseVersion = 2;
+  static const int _databaseVersion = 3;
   static const String _routineRuntimeSeededKey = 'routine_runtime_seeded';
   static const String _routineRuntimeSeededAtKey = 'routine_runtime_seeded_at';
   static const List<String> _requiredDatabaseTables = [
@@ -323,6 +324,41 @@ class WorkoutStorageService {
       [planId],
     );
     return rows.map(_mapPlanExerciseDetailRow).toList(growable: false);
+  }
+
+  Future<List<WarmUpStep>> fetchWarmUpSteps(int planId) async {
+    await warmUpRoutineRuntimeCache();
+    final db = await _getDatabase();
+    final rows = await db.query(
+      'plan_warmup_steps',
+      where: 'plan_id = ?',
+      whereArgs: [planId],
+      orderBy: 'position ASC, id ASC',
+    );
+    return rows.map(_mapWarmUpStepRow).toList(growable: false);
+  }
+
+  Future<void> replaceWarmUpSteps(
+    int planId,
+    List<WarmUpStep> steps,
+  ) async {
+    await warmUpRoutineRuntimeCache();
+    final db = await _getDatabase();
+    await db.transaction((txn) async {
+      await txn.delete(
+        'plan_warmup_steps',
+        where: 'plan_id = ?',
+        whereArgs: [planId],
+      );
+      final batch = txn.batch();
+      for (var index = 0; index < steps.length; index++) {
+        batch.insert(
+          'plan_warmup_steps',
+          _warmUpStepRow(planId, steps[index], position: index),
+        );
+      }
+      await batch.commit(noResult: true);
+    });
   }
 
   Future<List<Exercise>> fetchSimilarExercises(int exerciseId) async {
@@ -689,6 +725,10 @@ class WorkoutStorageService {
       'plan_exercises',
       orderBy: 'plan_id ASC, position ASC',
     );
+    final warmUpSteps = await db.query(
+      'plan_warmup_steps',
+      orderBy: 'plan_id ASC, position ASC, id ASC',
+    );
 
     await _writeExcelExport(directory, 'workout_plan.xlsx', [
       for (final row in plans)
@@ -723,6 +763,20 @@ class WorkoutStorageService {
           _intValue(row['rir']),
           _stringValue(row['tempo']),
           _stringValue(row['image_path']),
+        ],
+    ]);
+
+    await _writeExcelExport(directory, 'warm_up_step.xlsx', [
+      for (final row in warmUpSteps)
+        [
+          _intValue(row['plan_id']),
+          _intValue(row['position']),
+          _stringValue(row['name']),
+          _stringValue(row['notes']),
+          _intValue(row['sets']),
+          _intValue(row['work_seconds']),
+          _intValue(row['rest_seconds']),
+          _boolValue(row['per_side']) ? 1 : 0,
         ],
     ]);
   }
@@ -780,8 +834,11 @@ class WorkoutStorageService {
           payload[_routineSeedExercisesKey] ?? const <Map<String, Object?>>[];
       final planExercises = payload[_routineSeedPlanExercisesKey] ??
           const <Map<String, Object?>>[];
+      final warmUpSteps =
+          payload[_routineSeedWarmUpStepsKey] ?? const <Map<String, Object?>>[];
 
       await db.transaction((txn) async {
+        await txn.delete('plan_warmup_steps');
         await txn.delete('plan_exercises');
         await txn.delete('exercises');
         await txn.delete('workout_plans');
@@ -807,6 +864,9 @@ class WorkoutStorageService {
             row,
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
+        }
+        for (final row in warmUpSteps) {
+          batch.insert('plan_warmup_steps', row);
         }
         await batch.commit(noResult: true);
 
@@ -971,6 +1031,20 @@ class WorkoutStorageService {
     ''');
 
     await db.execute('''
+      CREATE TABLE IF NOT EXISTS plan_warmup_steps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id INTEGER NOT NULL,
+        position INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        notes TEXT NOT NULL DEFAULT '',
+        sets INTEGER NOT NULL DEFAULT 1,
+        work_seconds INTEGER NOT NULL DEFAULT 30,
+        rest_seconds INTEGER NOT NULL DEFAULT 0,
+        per_side INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
       CREATE TABLE IF NOT EXISTS active_workout_session_drafts (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         updated_at TEXT NOT NULL,
@@ -1031,6 +1105,11 @@ class WorkoutStorageService {
     await db.execute('''
       CREATE INDEX IF NOT EXISTS idx_plan_exercises_exercise
       ON plan_exercises(exercise_id)
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_plan_warmup_steps_plan_position
+      ON plan_warmup_steps(plan_id, position)
     ''');
 
     await db.execute('''
@@ -1386,6 +1465,18 @@ class WorkoutStorageService {
     );
   }
 
+  WarmUpStep _mapWarmUpStepRow(Map<String, Object?> row) {
+    return WarmUpStep(
+      id: _intValue(row['id']),
+      name: _stringValue(row['name']),
+      notes: _stringValue(row['notes']),
+      sets: _intValue(row['sets']),
+      workSeconds: _intValue(row['work_seconds']),
+      restSeconds: _intValue(row['rest_seconds']),
+      perSide: _boolValue(row['per_side']),
+    );
+  }
+
   ActiveSessionExerciseSetupPreset _mapActiveSessionExerciseSetupPresetRow(
     Map<String, Object?> row,
   ) {
@@ -1416,6 +1507,23 @@ class WorkoutStorageService {
       'rir': detail.rir,
       'tempo': detail.tempo,
       'image_path': '',
+    };
+  }
+
+  Map<String, Object?> _warmUpStepRow(
+    int planId,
+    WarmUpStep step, {
+    required int position,
+  }) {
+    return {
+      'plan_id': planId,
+      'position': position,
+      'name': step.name.trim(),
+      'notes': step.notes.trim(),
+      'sets': step.sets,
+      'work_seconds': step.workSeconds,
+      'rest_seconds': step.restSeconds,
+      'per_side': step.perSide ? 1 : 0,
     };
   }
 }
@@ -1636,6 +1744,7 @@ const List<Map<String, Object?>> _kCommonExerciseSeedRows = [
 const String _routineSeedPlansKey = 'plans';
 const String _routineSeedExercisesKey = 'exercises';
 const String _routineSeedPlanExercisesKey = 'plan_exercises';
+const String _routineSeedWarmUpStepsKey = 'warm_up_steps';
 
 Map<String, List<Map<String, Object?>>> _parseRoutineRuntimeSeed(
   String directoryPath,
@@ -1675,12 +1784,54 @@ Map<String, List<Map<String, Object?>>> _parseRoutineRuntimeSeed(
     idRemap: idRemap,
     exerciseDescriptionsById: exerciseDescriptionsById,
   );
+  final warmUpSteps = _parseWarmUpStepSeed(directoryPath);
 
   return {
     _routineSeedPlansKey: planRows,
     _routineSeedExercisesKey: normalizedExercises,
     _routineSeedPlanExercisesKey: normalizedPlanExercises,
+    _routineSeedWarmUpStepsKey: warmUpSteps,
   };
+}
+
+List<Map<String, Object?>> _parseWarmUpStepSeed(String directoryPath) {
+  const filename = 'warm_up_step.xlsx';
+  final schema = kTableSchemas[filename];
+  if (schema == null) return const [];
+  final sheet =
+      _readSheet(path.join(directoryPath, filename), schema.sheetName);
+  if (sheet == null || sheet.rows.isEmpty) return const [];
+
+  final headers = _headerIndexMap(sheet.rows.first);
+  final rows = <Map<String, Object?>>[];
+  for (final row in sheet.rows.skip(1)) {
+    final planId = _intValueOrNull(_headerValue(row, headers, ['plan_id']));
+    final name = _stringValue(_headerValue(row, headers, ['name'])).trim();
+    final sets = _intValue(_headerValue(row, headers, ['sets']));
+    final workSeconds = _intValue(
+      _headerValue(row, headers, ['work_seconds']),
+    );
+    if (planId == null ||
+        planId <= 0 ||
+        name.isEmpty ||
+        sets <= 0 ||
+        workSeconds <= 0) {
+      continue;
+    }
+    rows.add({
+      'plan_id': planId,
+      'position': _intValue(_headerValue(row, headers, ['position'])),
+      'name': name,
+      'notes': _stringValue(_headerValue(row, headers, ['notes'])),
+      'sets': sets,
+      'work_seconds': workSeconds,
+      'rest_seconds': _intValue(
+        _headerValue(row, headers, ['rest_seconds']),
+      ),
+      'per_side': _boolValue(_headerValue(row, headers, ['per_side'])) ? 1 : 0,
+    });
+  }
+  return rows;
 }
 
 List<Map<String, Object?>> _parseWorkoutPlanSeed(String directoryPath) {

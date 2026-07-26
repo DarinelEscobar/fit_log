@@ -24,6 +24,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
     'workout_plan.xlsx',
     'exercise.xlsx',
     'plan_exercise.xlsx',
+    'warm_up_step.xlsx',
   };
 
   final WorkoutStorageService _storageService;
@@ -389,6 +390,13 @@ class AppDataRepositoryImpl implements AppDataRepository {
           'suggested_reps': ['suggested_reps'],
           'estimated_weight': ['estimated_weight'],
           'rest_seconds': ['rest_seconds'],
+        };
+      case 'warm_up_step.xlsx':
+        return const {
+          'plan_id': ['plan_id'],
+          'name': ['name'],
+          'sets': ['sets'],
+          'work_seconds': ['work_seconds'],
         };
       case 'workout_log.xlsx':
         return const {

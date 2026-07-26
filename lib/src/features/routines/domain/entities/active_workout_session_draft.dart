@@ -3,6 +3,7 @@ import 'plan_exercise_detail.dart';
 import 'weight_display_unit.dart';
 import 'workout_log_entry.dart';
 import 'workout_plan.dart';
+import 'warm_up_session_state.dart';
 
 class ActiveWorkoutSessionDraft {
   const ActiveWorkoutSessionDraft({
@@ -20,6 +21,7 @@ class ActiveWorkoutSessionDraft {
     this.expandedExerciseId,
     this.weightUnitsByExercise = const {},
     this.setupEditableExerciseIds = const <int>{},
+    this.warmUpState,
   });
 
   final WorkoutPlan plan;
@@ -34,6 +36,7 @@ class ActiveWorkoutSessionDraft {
   final Map<int, int> setCountsByExercise;
   final Map<int, WeightDisplayUnit> weightUnitsByExercise;
   final Set<int> setupEditableExerciseIds;
+  final WarmUpSessionState? warmUpState;
   final List<WorkoutLogEntry> logs;
   final Map<int, DateTime> restEndsAtByExercise;
 
@@ -65,6 +68,7 @@ class ActiveWorkoutSessionDraft {
       'setupEditableExerciseIds': setupEditableExerciseIds.toList(
         growable: false,
       ),
+      'warmUpState': warmUpState?.toJson(),
       'logs': logs.map(_logToJson).toList(growable: false),
       'restEndsAtByExercise': {
         for (final entry in restEndsAtByExercise.entries)
@@ -121,6 +125,7 @@ class ActiveWorkoutSessionDraft {
       setCountsByExercise: _intMap(json['setCountsByExercise']),
       weightUnitsByExercise: _weightUnitMap(json['weightUnitsByExercise']),
       setupEditableExerciseIds: _intSet(json['setupEditableExerciseIds']),
+      warmUpState: _warmUpState(json['warmUpState']),
       logs: _asList(json['logs'])
           .map(_asMap)
           .whereType<Map<String, Object?>>()
@@ -263,6 +268,11 @@ class ActiveWorkoutSessionDraft {
       for (final item in _asList(value))
         if (_asInt(item) > 0) _asInt(item),
     };
+  }
+
+  static WarmUpSessionState? _warmUpState(Object? value) {
+    final map = _asMap(value);
+    return map == null ? null : WarmUpSessionState.fromJson(map);
   }
 
   static Map<int, DateTime> _dateTimeMap(Object? value) {

@@ -95,4 +95,40 @@ class NotificationService {
     }
     await _plugin.cancel(notificationId);
   }
+
+  static Future<void> scheduleWarmUpPhaseDone(
+    int seconds, {
+    required String nextPhase,
+    required int notificationId,
+    DateTime? scheduledAt,
+  }) async {
+    if (!_isInitialized) {
+      return;
+    }
+    final scheduledDate = tz.TZDateTime.from(
+      scheduledAt ?? DateTime.now(),
+      tz.local,
+    ).add(Duration(seconds: seconds));
+    const androidDetails = AndroidNotificationDetails(
+      _restChannelId,
+      _restChannelName,
+      channelDescription: _restChannelDescription,
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+      visibility: NotificationVisibility.public,
+      category: AndroidNotificationCategory.alarm,
+    );
+    const iosDetails = DarwinNotificationDetails(presentSound: false);
+    await _plugin.cancel(notificationId);
+    await _plugin.zonedSchedule(
+      notificationId,
+      'Warm-up: $nextPhase',
+      'Return to Fit Log for your next interval.',
+      scheduledDate,
+      const NotificationDetails(android: androidDetails, iOS: iosDetails),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    );
+  }
 }

@@ -10,6 +10,7 @@ import 'package:fit_log/src/features/routines/domain/entities/weight_display_uni
 import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_plan.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_session.dart';
+import 'package:fit_log/src/features/routines/domain/entities/warm_up_step.dart';
 import 'package:fit_log/src/features/routines/domain/repositories/workout_plan_repository.dart';
 import 'package:fit_log/src/features/routines/presentation/pages/select_exercise_screen.dart';
 import 'package:fit_log/src/features/routines/presentation/pages/start_routine_screen.dart';
@@ -192,6 +193,35 @@ void main() {
     expect(find.textContaining('LOG HISTORY'), findsNothing);
     expect(find.text('ACTIVE WORKOUT'), findsNothing);
     expect(find.text('Current Session'), findsNothing);
+  });
+
+  testWidgets('warm-up runs before the strength session', (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    repo._warmUpSteps[1] = const [
+      WarmUpStep(
+        name: 'Leg swim',
+        notes: '30 seconds on each leg',
+        sets: 3,
+        workSeconds: 30,
+        restSeconds: 0,
+        perSide: true,
+      ),
+    ];
+
+    await _pumpStartRoutine(tester, repo: repo);
+
+    expect(find.text('Leg swim'), findsOneWidget);
+    expect(find.text('LEFT SIDE'), findsOneWidget);
+    expect(find.byKey(const Key('active-session-register-set')), findsNothing);
+
+    await tester.tap(find.text('FINISH WARM-UP'));
+    await tester.pump();
+
+    expect(find.text('Barbell Bench Press'), findsOneWidget);
+    expect(
+      find.byKey(const Key('active-session-register-set')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('exercise navigation moves the expanded card and disables edges',
@@ -1665,6 +1695,7 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
     ],
     3: const [],
   };
+  final Map<int, List<WarmUpStep>> _warmUpSteps = {};
 
   @override
   Future<void> addExerciseToPlan(int planId, PlanExerciseDetail detail,
@@ -1722,6 +1753,15 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   @override
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) async =>
       _details[planId] ?? const [];
+
+  @override
+  Future<List<WarmUpStep>> getWarmUpSteps(int planId) async =>
+      List<WarmUpStep>.from(_warmUpSteps[planId] ?? const []);
+
+  @override
+  Future<void> replaceWarmUpSteps(int planId, List<WarmUpStep> steps) async {
+    _warmUpSteps[planId] = List<WarmUpStep>.from(steps);
+  }
 
   @override
   Future<List<Exercise>> getSimilarExercises(int exerciseId) async => const [];

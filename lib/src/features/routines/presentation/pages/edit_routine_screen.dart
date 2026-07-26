@@ -5,6 +5,7 @@ import '../../../../theme/kinetic_noir.dart';
 import '../../domain/entities/exercise.dart';
 import '../../domain/entities/plan_exercise_detail.dart';
 import '../../domain/entities/workout_plan.dart';
+import '../../domain/entities/warm_up_step.dart';
 import '../../domain/usecases/add_exercise_to_plan_usecase.dart';
 import '../../domain/usecases/create_exercise_usecase.dart';
 import '../../domain/usecases/delete_exercise_from_plan_usecase.dart';
@@ -15,10 +16,12 @@ import '../models/edit_routine_result.dart';
 import '../models/routine_editor_draft.dart';
 import '../providers/exercises_provider.dart';
 import '../providers/plan_exercise_details_provider.dart';
+import '../providers/warm_up_steps_provider.dart';
 import '../providers/workout_plan_provider.dart';
 import '../providers/workout_plan_repository_provider.dart';
 import '../widgets/exercise_definition_dialog.dart';
 import '../widgets/routine_editor_exercise_card.dart';
+import '../widgets/warm_up_editor_section.dart';
 import 'select_exercise_screen.dart';
 
 class EditRoutineScreen extends ConsumerStatefulWidget {
@@ -37,9 +40,11 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
   late WorkoutPlan _currentPlan;
 
   List<RoutineEditorDraft>? _drafts;
+  List<WarmUpStep>? _warmUpSteps;
   List<Exercise> _libraryExercises = const [];
   bool _didChangeMembership = false;
   bool _didCreateExercise = false;
+  bool _didChangeWarmUp = false;
   _EditorSaveState? _saveState;
   EditRoutineResult? _lastSavedResult;
 
@@ -66,11 +71,13 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     final results = await Future.wait([
       ref.read(planExerciseDetailsProvider(widget.plan.id).future),
       ref.read(allExercisesProvider.future),
+      ref.read(warmUpStepsProvider(widget.plan.id).future),
     ]);
 
     return _EditorLoadResult(
       details: results[0] as List<PlanExerciseDetail>,
       exercises: results[1] as List<Exercise>,
+      warmUpSteps: results[2] as List<WarmUpStep>,
     );
   }
 
@@ -88,8 +95,10 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
         drafts.where((draft) => draft.hasExerciseChanges).toList();
     final detailChanges =
         drafts.where((draft) => draft.hasDetailChanges).toList();
-    final totalOperations =
-        (didChangePlan ? 1 : 0) + exerciseChanges.length + detailChanges.length;
+    final totalOperations = (didChangePlan ? 1 : 0) +
+        exerciseChanges.length +
+        detailChanges.length +
+        (_didChangeWarmUp ? 1 : 0);
 
     if (totalOperations == 0) {
       _showMessage('No changes to save');
@@ -126,6 +135,19 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
           total: totalOperations,
           label: 'Routine metadata saved',
         );
+      }
+
+      if (_didChangeWarmUp) {
+        _updateSaveState(
+          completed: completed,
+          total: totalOperations,
+          label: 'Saving warm-up',
+        );
+        await repo.replaceWarmUpSteps(
+          _currentPlan.id,
+          _warmUpSteps ?? const <WarmUpStep>[],
+        );
+        completed++;
       }
 
       for (final draft in exerciseChanges) {
@@ -184,6 +206,9 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
       if (detailChanges.isNotEmpty || _didChangeMembership) {
         ref.invalidate(planExerciseDetailsProvider(_currentPlan.id));
       }
+      if (_didChangeWarmUp) {
+        ref.invalidate(warmUpStepsProvider(_currentPlan.id));
+      }
       if (_didChangeMembership) {
         ref.invalidate(exercisesForPlanProvider(_currentPlan.id));
       }
@@ -196,6 +221,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
 
       _didChangeMembership = false;
       _didCreateExercise = false;
+      _didChangeWarmUp = false;
 
       if (!mounted) {
         return;
@@ -587,6 +613,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
 
           final data = snapshot.data!;
           _drafts ??= _buildDrafts(data);
+          _warmUpSteps ??= List<WarmUpStep>.from(data.warmUpSteps);
           if (_libraryExercises.isEmpty) {
             _libraryExercises = List<Exercise>.from(data.exercises);
           }
@@ -608,6 +635,18 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                         child: _MetadataSection(
                           nameController: _nameController,
                           frequencyController: _frequencyController,
+                        ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: WarmUpEditorSection(
+                          steps: _warmUpSteps!,
+                          onChanged: (steps) => setState(() {
+                            _warmUpSteps = steps;
+                            _didChangeWarmUp = true;
+                          }),
                         ),
                       ),
                     ),
@@ -1001,10 +1040,12 @@ class _EditorLoadResult {
   const _EditorLoadResult({
     required this.details,
     required this.exercises,
+    required this.warmUpSteps,
   });
 
   final List<PlanExerciseDetail> details;
   final List<Exercise> exercises;
+  final List<WarmUpStep> warmUpSteps;
 }
 
 class _EditorSaveState {

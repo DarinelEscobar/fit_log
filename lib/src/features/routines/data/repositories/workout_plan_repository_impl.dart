@@ -5,6 +5,7 @@ import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_deta
 import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_plan.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_session.dart';
+import 'package:fit_log/src/features/routines/domain/entities/warm_up_step.dart';
 
 import '../../../../data/services/workout_storage_service.dart';
 import '../../domain/repositories/workout_plan_repository.dart';
@@ -85,6 +86,16 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   @override
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId) {
     return _storageService.fetchPlanExerciseDetails(planId);
+  }
+
+  @override
+  Future<List<WarmUpStep>> getWarmUpSteps(int planId) {
+    return _storageService.fetchWarmUpSteps(planId);
+  }
+
+  @override
+  Future<void> replaceWarmUpSteps(int planId, List<WarmUpStep> steps) {
+    return _storageService.replaceWarmUpSteps(planId, steps);
   }
 
   @override

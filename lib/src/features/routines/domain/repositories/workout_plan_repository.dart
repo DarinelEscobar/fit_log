@@ -5,6 +5,7 @@ import '../entities/exercise.dart';
 import '../entities/plan_exercise_detail.dart';
 import '../entities/workout_log_entry.dart';
 import '../entities/workout_session.dart';
+import '../entities/warm_up_step.dart';
 
 abstract class WorkoutPlanRepository {
   Future<List<WorkoutPlan>> getAllPlans();
@@ -28,6 +29,8 @@ abstract class WorkoutPlanRepository {
   Future<void> updateWorkoutPlan(int planId, String name, String frequency);
   Future<void> setWorkoutPlanActive(int planId, bool isActive);
   Future<List<PlanExerciseDetail>> getPlanExerciseDetails(int planId);
+  Future<List<WarmUpStep>> getWarmUpSteps(int planId);
+  Future<void> replaceWarmUpSteps(int planId, List<WarmUpStep> steps);
 
   Future<void> addExerciseToPlan(
     int planId,
