@@ -12,7 +12,7 @@ import '../../domain/entities/workout_log_entry.dart';
 
 const double _kgToLbFactor = 2.2046226218;
 
-class ActiveExerciseProgressPanel extends ConsumerWidget {
+class ActiveExerciseProgressPanel extends ConsumerStatefulWidget {
   const ActiveExerciseProgressPanel({
     required this.exerciseId,
     required this.sessionDate,
@@ -27,37 +27,67 @@ class ActiveExerciseProgressPanel extends ConsumerWidget {
   final WeightDisplayUnit weightUnit;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ActiveExerciseProgressPanel> createState() =>
+      _ActiveExerciseProgressPanelState();
+}
+
+class _ActiveExerciseProgressPanelState
+    extends ConsumerState<ActiveExerciseProgressPanel> {
+  bool _expanded = false;
+
+  void _toggleExpanded() {
+    setState(() => _expanded = !_expanded);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final request = ActiveExerciseProgressRequest(
-      exerciseId: exerciseId,
-      sessionDate: sessionDate,
+      exerciseId: widget.exerciseId,
+      sessionDate: widget.sessionDate,
     );
     final asyncInsight = ref.watch(activeExerciseProgressProvider(request));
-    final currentSession =
-        ActiveExerciseProgressCalculator.buildCurrentSession(currentLogs);
+    final currentSession = ActiveExerciseProgressCalculator.buildCurrentSession(
+      widget.currentLogs,
+    );
 
     return asyncInsight.when(
       loading: () => _ProgressShell(
-        key: Key('active-progress-panel-$exerciseId'),
+        key: Key('active-progress-panel-${widget.exerciseId}'),
+        exerciseId: widget.exerciseId,
+        expanded: _expanded,
+        onToggle: _toggleExpanded,
         titleChip: const _StatusChip(
           label: 'LOADING',
           color: KineticNoirPalette.outlineVariant,
         ),
+        lastSummary: 'Loading history...',
+        todaySummary: _formatCompactToday(
+          currentSession,
+          widget.weightUnit,
+        ),
         child: _ProgressLoadingState(currentSession: currentSession),
       ),
       error: (error, _) => _ProgressShell(
-        key: Key('active-progress-panel-$exerciseId'),
+        key: Key('active-progress-panel-${widget.exerciseId}'),
+        exerciseId: widget.exerciseId,
+        expanded: _expanded,
+        onToggle: _toggleExpanded,
         titleChip: const _StatusChip(
           key: Key('active-progress-error-chip'),
           label: 'UNAVAILABLE',
           color: KineticNoirPalette.error,
         ),
+        lastSummary: 'Progress unavailable',
+        todaySummary: _formatCompactToday(
+          currentSession,
+          widget.weightUnit,
+        ),
+        summaryKey: Key('active-progress-error-${widget.exerciseId}'),
         child: _ProgressFallbackState(
-          key: Key('active-progress-error-$exerciseId'),
           title: 'Progress unavailable',
           detail: 'Logging is still enabled for this exercise.',
           currentSession: currentSession,
-          weightUnit: weightUnit,
+          weightUnit: widget.weightUnit,
         ),
       ),
       data: (insight) {
@@ -68,20 +98,45 @@ class ActiveExerciseProgressPanel extends ConsumerWidget {
 
         if (!insight.hasHistory) {
           return _ProgressShell(
-            key: Key('active-progress-panel-$exerciseId'),
-            titleChip: _DeltaChip(delta: delta, weightUnit: weightUnit),
+            key: Key('active-progress-panel-${widget.exerciseId}'),
+            exerciseId: widget.exerciseId,
+            expanded: _expanded,
+            onToggle: _toggleExpanded,
+            titleChip: _DeltaChip(
+              delta: delta,
+              weightUnit: widget.weightUnit,
+            ),
+            lastSummary: 'No previous session',
+            todaySummary: _formatCompactToday(
+              currentSession,
+              widget.weightUnit,
+            ),
             child: _ProgressFallbackState(
               title: 'No previous sessions yet',
               detail: 'Complete sets now to start a baseline.',
               currentSession: currentSession,
-              weightUnit: weightUnit,
+              weightUnit: widget.weightUnit,
             ),
           );
         }
 
         return _ProgressShell(
-          key: Key('active-progress-panel-$exerciseId'),
-          titleChip: _DeltaChip(delta: delta, weightUnit: weightUnit),
+          key: Key('active-progress-panel-${widget.exerciseId}'),
+          exerciseId: widget.exerciseId,
+          expanded: _expanded,
+          onToggle: _toggleExpanded,
+          titleChip: _DeltaChip(
+            delta: delta,
+            weightUnit: widget.weightUnit,
+          ),
+          lastSummary: _formatCompactLast(
+            insight.lastSession,
+            widget.weightUnit,
+          ),
+          todaySummary: _formatCompactToday(
+            currentSession,
+            widget.weightUnit,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -92,11 +147,11 @@ class ActiveExerciseProgressPanel extends ConsumerWidget {
                       label: 'LAST',
                       value: _formatSessionStrength(
                         insight.lastSession,
-                        weightUnit,
+                        widget.weightUnit,
                       ),
                       detail: _formatSessionDetail(
                         insight.lastSession,
-                        weightUnit,
+                        widget.weightUnit,
                       ),
                     ),
                   ),
@@ -106,7 +161,7 @@ class ActiveExerciseProgressPanel extends ConsumerWidget {
                       label: 'TREND',
                       value: _formatBaseline(
                         insight.recentBaseline,
-                        weightUnit,
+                        widget.weightUnit,
                       ),
                       detail: insight.recentBaseline == null
                           ? 'Need history'
@@ -119,11 +174,11 @@ class ActiveExerciseProgressPanel extends ConsumerWidget {
                       label: 'TODAY',
                       value: _formatSessionStrength(
                         currentSession,
-                        weightUnit,
+                        widget.weightUnit,
                       ),
                       detail: _formatTodayDetail(
                         currentSession,
-                        weightUnit,
+                        widget.weightUnit,
                       ),
                     ),
                   ),
@@ -133,19 +188,19 @@ class ActiveExerciseProgressPanel extends ConsumerWidget {
               _SetComparisonChart(
                 lastSession: insight.lastSession,
                 currentSession: currentSession,
-                weightUnit: weightUnit,
+                weightUnit: widget.weightUnit,
               ),
               const SizedBox(height: 10),
               _SetSummaryLine(
                 label: 'LAST',
                 summary: insight.lastSession,
-                weightUnit: weightUnit,
+                weightUnit: widget.weightUnit,
               ),
               const SizedBox(height: 6),
               _SetSummaryLine(
                 label: 'TODAY',
                 summary: currentSession,
-                weightUnit: weightUnit,
+                weightUnit: widget.weightUnit,
               ),
               const SizedBox(height: 8),
               Text(
@@ -167,20 +222,33 @@ class ActiveExerciseProgressPanel extends ConsumerWidget {
 
 class _ProgressShell extends StatelessWidget {
   const _ProgressShell({
+    required this.exerciseId,
+    required this.expanded,
+    required this.onToggle,
     required this.titleChip,
+    required this.lastSummary,
+    required this.todaySummary,
     required this.child,
+    this.summaryKey,
     super.key,
   });
 
+  final int exerciseId;
+  final bool expanded;
+  final VoidCallback onToggle;
   final Widget titleChip;
+  final String lastSummary;
+  final String todaySummary;
   final Widget child;
+  final Key? summaryKey;
 
   @override
   Widget build(BuildContext context) {
+    final disableAnimations = MediaQuery.of(context).disableAnimations;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Container(
-        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: KineticNoirPalette.surfaceLow,
           borderRadius: BorderRadius.circular(20),
@@ -191,26 +259,105 @@ class _ProgressShell extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'LIVE PROGRESS',
-                    style: KineticNoirTypography.body(
-                      size: 10,
-                      weight: FontWeight.w900,
-                      color: KineticNoirPalette.onSurfaceVariant,
-                      letterSpacing: 1.5,
+            Semantics(
+              button: true,
+              expanded: expanded,
+              label:
+                  expanded ? 'Collapse live progress' : 'Expand live progress',
+              child: InkWell(
+                key: Key('active-progress-toggle-$exerciseId'),
+                onTap: onToggle,
+                borderRadius: BorderRadius.circular(20),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 10, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'LIVE PROGRESS',
+                            style: KineticNoirTypography.body(
+                              size: 10,
+                              weight: FontWeight.w900,
+                              color: KineticNoirPalette.onSurfaceVariant,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ),
+                        titleChip,
+                        const SizedBox(width: 6),
+                        Icon(
+                          expanded
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded,
+                          color: KineticNoirPalette.onSurfaceVariant,
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                titleChip,
-              ],
+              ),
             ),
-            const SizedBox(height: 12),
-            child,
+            Padding(
+              key: summaryKey,
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  _CompactProgressValue(label: 'LAST', value: lastSummary),
+                  _CompactProgressValue(label: 'TODAY', value: todaySummary),
+                ],
+              ),
+            ),
+            AnimatedSize(
+              duration: disableAnimations
+                  ? Duration.zero
+                  : const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: expanded
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      child: child,
+                    )
+                  : const SizedBox.shrink(),
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CompactProgressValue extends StatelessWidget {
+  const _CompactProgressValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        style: KineticNoirTypography.body(
+          size: 11,
+          weight: FontWeight.w700,
+          color: KineticNoirPalette.onSurfaceVariant,
+        ),
+        children: [
+          TextSpan(
+            text: '$label ',
+            style: KineticNoirTypography.body(
+              size: 10,
+              weight: FontWeight.w900,
+              color: KineticNoirPalette.primary,
+              letterSpacing: 0.8,
+            ),
+          ),
+          TextSpan(text: value),
+        ],
       ),
     );
   }
@@ -257,7 +404,6 @@ class _ProgressFallbackState extends StatelessWidget {
     required this.detail,
     required this.currentSession,
     required this.weightUnit,
-    super.key,
   });
 
   final String title;
@@ -710,6 +856,31 @@ String _formatWorkingSetSummary(
   return workingSets.take(3).map((set) {
     return '${_formatDisplayLoad(set.weightKg, unit)} x ${set.reps}';
   }).join(' / ');
+}
+
+String _formatCompactLast(
+  ActiveExerciseSessionSummary? summary,
+  WeightDisplayUnit unit,
+) {
+  if (summary == null) {
+    return 'No previous session';
+  }
+  return '${_formatDisplayLoad(summary.topWeightKg, unit)} x ${summary.topReps}';
+}
+
+String _formatCompactToday(
+  ActiveExerciseSessionSummary? summary,
+  WeightDisplayUnit unit,
+) {
+  if (summary == null || summary.sets.isEmpty) {
+    return 'No sets logged';
+  }
+
+  final latestSet = summary.sets.reduce(
+    (current, candidate) =>
+        candidate.setNumber > current.setNumber ? candidate : current,
+  );
+  return '${_formatDisplayLoad(latestSet.weightKg, unit)} x ${latestSet.reps}';
 }
 
 List<FlSpot> _setComparisonSpots(

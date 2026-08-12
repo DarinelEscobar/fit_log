@@ -1115,7 +1115,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                                       switch (result) {
                                         case LogCurrentSetResult.registered:
                                           _showSnackBar(
-                                            'Set registered. Rest timer started.',
+                                            'Set logged. Rest timer started.',
                                           );
                                           break;
                                         case LogCurrentSetResult.invalidReps:
@@ -1146,7 +1146,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                               ),
                               icon: const Icon(Icons.check_rounded),
                               label: Text(
-                                'REGISTER SET',
+                                'LOG SET',
                                 style: KineticNoirTypography.body(
                                   size: 13,
                                   weight: FontWeight.w800,

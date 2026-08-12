@@ -184,6 +184,25 @@ void main() {
     expect(
         find.byKey(const Key('active-session-add-exercise')), findsOneWidget);
     expect(find.byKey(const Key('active-session-notes')), findsNothing);
+    expect(
+      find.byKey(const Key('active-exercise-summary-1')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('active-set-row-1-1')), findsOneWidget);
+    expect(find.byKey(const Key('active-progress-toggle-1')), findsOneWidget);
+    expect(
+      find.byKey(const Key('active-progress-comparison-chart')),
+      findsNothing,
+    );
+    expect(find.text('TEMPO'), findsNothing);
+
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(const Key('active-plan-details-toggle-1')),
+    );
+    await tester.tap(find.byKey(const Key('active-plan-details-toggle-1')));
+    await tester.pumpAndSettle();
+
     expect(find.text('TEMPO'), findsOneWidget);
     expect(find.text('3-1-1-0'), findsOneWidget);
     expect(find.byType(KineticBottomNavBar), findsNothing);
@@ -193,6 +212,58 @@ void main() {
     expect(find.textContaining('LOG HISTORY'), findsNothing);
     expect(find.text('ACTIVE WORKOUT'), findsNothing);
     expect(find.text('Current Session'), findsNothing);
+  });
+
+  testWidgets('exercise name and current set stay visible on a small phone', (
+    tester,
+  ) async {
+    const surfaceSize = Size(390, 844);
+    const exerciseName =
+        'Machine Incline Chest Press — Axis-Y Independent Arms, Greater ROM';
+    final repo = _FakeWorkoutPlanRepository();
+    repo._details[1]![0] = PlanExerciseDetail(
+      exerciseId: 1,
+      name: exerciseName,
+      description: 'Controlled press through the full available range.',
+      sets: 4,
+      reps: 8,
+      weight: 185,
+      restSeconds: 90,
+      rir: 2,
+      tempo: '3-1-1-0',
+    );
+    repo._exercises[0] = Exercise(
+      id: 1,
+      name: exerciseName,
+      description: 'Controlled press through the full available range.',
+      category: 'Strength',
+      mainMuscleGroup: 'Chest',
+    );
+
+    await _pumpStartRoutine(
+      tester,
+      repo: repo,
+      surfaceSize: surfaceSize,
+      textScaler: const TextScaler.linear(1.2),
+    );
+
+    expect(find.text('Machine Incline Chest Press'), findsOneWidget);
+    expect(
+      find.text('Axis-Y Independent Arms, Greater ROM'),
+      findsOneWidget,
+    );
+    expect(find.text('NEXT'), findsOneWidget);
+    expect(find.text('LOG SET'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    final titleRect = tester.getRect(
+      find.byKey(const Key('active-exercise-title-1')),
+    );
+    final currentSetRect = tester.getRect(
+      find.byKey(const Key('active-set-row-1-1')),
+    );
+    expect(titleRect.top, greaterThanOrEqualTo(0));
+    expect(currentSetRect.bottom, lessThanOrEqualTo(surfaceSize.height));
   });
 
   testWidgets('warm-up runs before the strength session', (tester) async {
@@ -280,11 +351,24 @@ void main() {
       await tester.tap(find.text('Romanian Deadlift'));
       await tester.pumpAndSettle();
 
+      await _scrollUntilVisible(
+        tester,
+        find.byKey(const Key('active-plan-details-toggle-3')),
+      );
+      await tester.tap(
+        find.byKey(const Key('active-plan-details-toggle-3')),
+      );
+      await tester.pumpAndSettle();
+
       expect(
         find.byKey(const Key('active-session-edit-setup-3')),
         findsOneWidget,
       );
 
+      await _scrollUntilVisible(
+        tester,
+        find.byKey(const Key('active-session-edit-setup-3')),
+      );
       await tester.tap(find.byKey(const Key('active-session-edit-setup-3')));
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('session-setup-sets')), '5');
@@ -339,9 +423,23 @@ void main() {
     final panel = find.byKey(const Key('active-progress-panel-1'));
     expect(panel, findsOneWidget);
     expect(find.text('LIVE PROGRESS'), findsOneWidget);
-    expect(find.text('LAST'), findsWidgets);
+    expect(find.textContaining('90 KG x 8'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: panel,
+        matching: find.byKey(const Key('active-progress-comparison-chart')),
+      ),
+      findsNothing,
+    );
+
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(const Key('active-progress-toggle-1')),
+    );
+    await tester.tap(find.byKey(const Key('active-progress-toggle-1')));
+    await tester.pumpAndSettle();
+
     expect(find.text('TREND'), findsOneWidget);
-    expect(find.text('TODAY'), findsWidgets);
     expect(
       find.descendant(
         of: panel,
@@ -400,6 +498,13 @@ void main() {
 
     final panel = find.byKey(const Key('active-progress-panel-1'));
     expect(find.text('LOG FIRST SET'), findsOneWidget);
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(const Key('active-progress-toggle-1')),
+    );
+    await tester.tap(find.byKey(const Key('active-progress-toggle-1')));
+    await tester.pumpAndSettle();
+
     expect(
       find.descendant(
         of: panel,
@@ -1215,6 +1320,7 @@ Future<void> _pumpStartRoutine(
   DateTime Function()? now,
   EdgeInsets viewInsets = EdgeInsets.zero,
   Size surfaceSize = const Size(430, 1000),
+  TextScaler textScaler = TextScaler.noScaling,
 }) async {
   await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -1232,7 +1338,7 @@ Future<void> _pumpStartRoutine(
       child: MaterialApp(
         home: MediaQuery(
           data: MediaQueryData(size: surfaceSize)
-              .copyWith(viewInsets: viewInsets),
+              .copyWith(viewInsets: viewInsets, textScaler: textScaler),
           child: StartRoutineScreen(
             plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
             now: now ?? DateTime.now,
