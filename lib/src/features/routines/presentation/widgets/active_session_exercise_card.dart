@@ -212,7 +212,8 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     }
 
     final pendingSetNumber = _nextPendingSetNumber ?? 1;
-    final pendingIndex = (pendingSetNumber - 1).clamp(0, _setRowKeys.length - 1);
+    final pendingIndex =
+        (pendingSetNumber - 1).clamp(0, _setRowKeys.length - 1);
     final targetContext = _setRowKeys[pendingIndex].currentContext;
     if (targetContext == null) {
       return Future.value();
@@ -471,7 +472,8 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     return rounded == 0 ? 1 : rounded.toString().length;
   }
 
-  TextEditingController _controllerForField(int index, _AutoAdvanceField field) {
+  TextEditingController _controllerForField(
+      int index, _AutoAdvanceField field) {
     return switch (field) {
       _AutoAdvanceField.kg => _weightControllers[index],
       _AutoAdvanceField.reps => _repControllers[index],
@@ -621,8 +623,11 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
       setState(() {});
     }
 
-    if (vibrateOnCompletion && await Vibration.hasVibrator()) {
-      await Vibration.vibrate(preset: VibrationPreset.countdownTimerAlert);
+    if (vibrateOnCompletion) {
+      unawaited(SystemSound.play(SystemSoundType.alert));
+      if (await Vibration.hasVibrator()) {
+        await Vibration.vibrate(preset: VibrationPreset.countdownTimerAlert);
+      }
     }
   }
 
@@ -633,6 +638,8 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
         widget.detail.restSeconds,
         notificationId: notificationId,
         scheduledAt: now,
+        exerciseName: widget.detail.name,
+        nextSetNumber: _nextPendingSetNumber,
       ),
     );
     setState(() {
@@ -677,7 +684,6 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
       if ((widget.exercise?.category ?? '').trim().isNotEmpty)
         widget.exercise!.category,
     ];
-
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       margin: const EdgeInsets.only(bottom: 12),

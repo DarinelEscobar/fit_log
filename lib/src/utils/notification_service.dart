@@ -52,6 +52,8 @@ class NotificationService {
     int seconds, {
     int notificationId = 0,
     DateTime? scheduledAt,
+    String? exerciseName,
+    int? nextSetNumber,
   }) async {
     if (!_isInitialized) {
       return;
@@ -73,16 +75,16 @@ class NotificationService {
       audioAttributesUsage: AudioAttributesUsage.alarm,
       vibrationPattern: Int64List.fromList([0, 1200, 250, 1200, 250, 1800]),
     );
-    const iosDetails = DarwinNotificationDetails(
-      presentSound: false,
-    );
+    const iosDetails = DarwinNotificationDetails(presentSound: true);
     final details =
         NotificationDetails(android: androidDetails, iOS: iosDetails);
     await _plugin.cancel(notificationId);
     await _plugin.zonedSchedule(
       notificationId,
-      'Descanso finalizado',
-      'Vuelve al ejercicio',
+      exerciseName == null ? 'Descanso finalizado' : 'Listo: $exerciseName',
+      nextSetNumber == null
+          ? 'Vuelve al ejercicio'
+          : 'Comienza el set $nextSetNumber.',
       scheduledDate,
       details,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -98,7 +100,8 @@ class NotificationService {
 
   static Future<void> scheduleWarmUpPhaseDone(
     int seconds, {
-    required String nextPhase,
+    required String title,
+    required String body,
     required int notificationId,
     DateTime? scheduledAt,
   }) async {
@@ -120,12 +123,12 @@ class NotificationService {
       visibility: NotificationVisibility.public,
       category: AndroidNotificationCategory.alarm,
     );
-    const iosDetails = DarwinNotificationDetails(presentSound: false);
+    const iosDetails = DarwinNotificationDetails(presentSound: true);
     await _plugin.cancel(notificationId);
     await _plugin.zonedSchedule(
       notificationId,
-      'Warm-up: $nextPhase',
-      'Return to Fit Log for your next interval.',
+      title,
+      body,
       scheduledDate,
       const NotificationDetails(android: androidDetails, iOS: iosDetails),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,

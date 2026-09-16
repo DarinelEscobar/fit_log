@@ -281,9 +281,28 @@ void main() {
 
     await _pumpStartRoutine(tester, repo: repo);
 
+    expect(find.byKey(const Key('warmup-preview')), findsOneWidget);
     expect(find.text('Leg swim'), findsOneWidget);
-    expect(find.text('LEFT SIDE'), findsOneWidget);
+    expect(find.text('3 sets - 30s work per side'), findsOneWidget);
     expect(find.byKey(const Key('active-session-register-set')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('warmup-get-ready-5')));
+    await tester.tap(find.byKey(const Key('warmup-start')));
+    await tester.pump();
+
+    expect(find.text('GET READY'), findsOneWidget);
+    expect(find.byKey(const Key('warmup-current-exercise')), findsOneWidget);
+    expect(
+      find.text('STARTING SET 1 OF 3'),
+      findsOneWidget,
+    );
+    final warmUpNotification = _notificationCalls.singleWhere(
+      (call) => call.method == 'zonedSchedule',
+    );
+    final notificationArguments =
+        warmUpNotification.arguments as Map<dynamic, dynamic>;
+    expect(notificationArguments['title'], 'Warm-up: Leg swim');
+    expect(notificationArguments['body'], 'Start set 1 now.');
 
     await tester.tap(find.text('FINISH WARM-UP'));
     await tester.pump();

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibration/vibration.dart';
 import 'package:vibration/vibration_presets.dart';
@@ -80,6 +81,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   bool _showNotesComposer = false;
   List<WarmUpStep>? _warmUpSteps;
   WarmUpSessionState? _warmUpState;
+  int _warmUpGetReadySeconds = 10;
   final ValueNotifier<bool> _warmUpVisible = ValueNotifier(false);
 
   @override
@@ -195,6 +197,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         state.status != WarmUpSessionStatus.completed;
   }
 
+  bool get _showWarmUpPreview =>
+      _warmUpSteps?.isNotEmpty == true && _warmUpState == null;
+
   void _initializeWarmUp(List<WarmUpStep> steps) {
     _warmUpSteps ??= List<WarmUpStep>.from(steps);
     if (_warmUpSteps!.isEmpty) {
@@ -205,21 +210,49 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
           _warmUpState!.status != WarmUpSessionStatus.completed;
       return;
     }
-    final first = _warmUpSteps!.first;
-    _warmUpState = WarmUpSessionState(
-      status: WarmUpSessionStatus.running,
-      stepIndex: 0,
-      setNumber: 1,
-      phase: WarmUpPhase.work,
-      side: first.perSide ? WarmUpSide.left : WarmUpSide.none,
-      phaseEndsAt: _now.add(Duration(seconds: first.workSeconds)),
-    );
-    _scheduleWarmUpNotification(_warmUpState!);
     _warmUpVisible.value = true;
-    _scheduleDraftPersist();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() {});
     });
+  }
+
+  void _startWarmUp() {
+    final steps = _warmUpSteps;
+    if (steps == null || steps.isEmpty || _warmUpState != null) {
+      return;
+    }
+    final first = steps.first;
+    final state = WarmUpSessionState(
+      status: WarmUpSessionStatus.running,
+      stepIndex: 0,
+      setNumber: 1,
+      phase: WarmUpPhase.getReady,
+      side: first.perSide ? WarmUpSide.left : WarmUpSide.none,
+      phaseEndsAt: _now.add(Duration(seconds: _warmUpGetReadySeconds)),
+    );
+    setState(() => _warmUpState = state);
+    _warmUpVisible.value = true;
+    _scheduleWarmUpNotification(state);
+    _scheduleDraftPersist();
+  }
+
+  void _setWarmUpGetReadySeconds(int seconds) {
+    setState(() => _warmUpGetReadySeconds = seconds);
+  }
+
+  void _skipWarmUpPreview() {
+    final first = _warmUpSteps!.first;
+    setState(() {
+      _warmUpState = WarmUpSessionState(
+        status: WarmUpSessionStatus.completed,
+        stepIndex: 0,
+        setNumber: 1,
+        phase: WarmUpPhase.work,
+        side: first.perSide ? WarmUpSide.left : WarmUpSide.none,
+      );
+    });
+    _warmUpVisible.value = false;
+    _scheduleDraftPersist();
   }
 
   Future<void> _scheduleWarmUpNotification(WarmUpSessionState state) async {
@@ -233,19 +266,58 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     final step = steps == null || state.stepIndex >= steps.length
         ? null
         : steps[state.stepIndex];
-    final nextPhase = state.phase == WarmUpPhase.work &&
-            step?.perSide == true &&
-            state.side == WarmUpSide.left
-        ? 'right side'
-        : state.phase == WarmUpPhase.work
-            ? 'rest'
-            : 'work';
+    if (step == null) {
+      return;
+    }
+    final cue = _warmUpUpcomingCue(state, step);
     await NotificationService.scheduleWarmUpPhaseDone(
       remainingSeconds,
-      nextPhase: nextPhase,
+      title: cue.title,
+      body: cue.body,
       notificationId: 700000 + widget.plan.id,
       scheduledAt: _now,
     );
+  }
+
+  ({String title, String body}) _warmUpUpcomingCue(
+    WarmUpSessionState state,
+    WarmUpStep step,
+  ) {
+    if (state.phase == WarmUpPhase.getReady) {
+      return (
+        title: 'Warm-up: ${step.name}',
+        body: 'Start set 1 now.',
+      );
+    }
+    if (state.phase == WarmUpPhase.work &&
+        step.perSide &&
+        state.side == WarmUpSide.left) {
+      return (
+        title: 'Warm-up: right side',
+        body: '${step.name}, set ${state.setNumber}.',
+      );
+    }
+    if (state.phase == WarmUpPhase.work &&
+        step.restSeconds > 0 &&
+        state.setNumber < step.sets) {
+      return (
+        title: 'Warm-up: rest',
+        body: '${step.restSeconds} seconds before set ${state.setNumber + 1}.',
+      );
+    }
+    if (state.phase == WarmUpPhase.rest || state.setNumber < step.sets) {
+      return (
+        title: 'Warm-up: ${step.name}',
+        body: 'Start set ${state.setNumber + 1} now.',
+      );
+    }
+    final nextIndex = state.stepIndex + 1;
+    final nextStep = nextIndex < (_warmUpSteps?.length ?? 0)
+        ? _warmUpSteps![nextIndex]
+        : null;
+    return nextStep == null
+        ? (title: 'Warm-up complete', body: 'Start your strength session.')
+        : (title: 'Warm-up: ${nextStep.name}', body: 'Start set 1 now.');
   }
 
   void _syncWarmUpTimer(
@@ -269,7 +341,12 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     }
     final step = steps[state.stepIndex];
     WarmUpSessionState next;
-    if (state.phase == WarmUpPhase.work &&
+    if (state.phase == WarmUpPhase.getReady) {
+      next = state.copyWith(
+        phase: WarmUpPhase.work,
+        phaseEndsAt: now.add(Duration(seconds: step.workSeconds)),
+      );
+    } else if (state.phase == WarmUpPhase.work &&
         step.perSide &&
         state.side == WarmUpSide.left) {
       next = state.copyWith(
@@ -298,8 +375,30 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _scheduleWarmUpNotification(next);
     _scheduleDraftPersist();
     if (vibrateOnCompletion) {
+      unawaited(SystemSound.play(SystemSoundType.alert));
       unawaited(Vibration.vibrate(preset: VibrationPreset.countdownTimerAlert));
+      final cue = next.status == WarmUpSessionStatus.completed
+          ? 'Warm-up complete. Start strength work.'
+          : _warmUpCurrentCue(next);
+      _showSnackBar(cue);
     }
+  }
+
+  String _warmUpCurrentCue(WarmUpSessionState state) {
+    final steps = _warmUpSteps;
+    if (steps == null || state.stepIndex >= steps.length) {
+      return 'Warm-up complete.';
+    }
+    final step = steps[state.stepIndex];
+    if (state.phase == WarmUpPhase.rest) {
+      return 'Rest. ${step.name} set ${state.setNumber + 1} is next.';
+    }
+    final side = switch (state.side) {
+      WarmUpSide.left => ' left side',
+      WarmUpSide.right => ' right side',
+      WarmUpSide.none => '',
+    };
+    return 'Work: ${step.name}$side, set ${state.setNumber}.';
   }
 
   WarmUpSessionState _nextWarmUpSet(
@@ -381,7 +480,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
 
   void _finishWarmUp() {
     final state = _warmUpState;
-    if (state == null) return;
+    if (state == null) {
+      _skipWarmUpPreview();
+      return;
+    }
     setState(() => _warmUpState = state.copyWith(
           status: WarmUpSessionStatus.completed,
           clearPhaseEndsAt: true,
@@ -1231,6 +1333,16 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                 data: (warmUpSteps) {
                   _initializeSessionData(details, exercises);
                   _initializeWarmUp(warmUpSteps);
+
+                  if (_showWarmUpPreview) {
+                    return WarmUpPreview(
+                      steps: _warmUpSteps!,
+                      getReadySeconds: _warmUpGetReadySeconds,
+                      onGetReadySecondsChanged: _setWarmUpGetReadySeconds,
+                      onStart: _startWarmUp,
+                      onSkip: _skipWarmUpPreview,
+                    );
+                  }
 
                   if (_isWarmUpActive) {
                     return WarmUpFlow(

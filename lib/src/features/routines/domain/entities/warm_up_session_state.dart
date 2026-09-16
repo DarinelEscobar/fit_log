@@ -1,6 +1,6 @@
 enum WarmUpSessionStatus { running, paused, completed }
 
-enum WarmUpPhase { work, rest }
+enum WarmUpPhase { getReady, work, rest }
 
 enum WarmUpSide { none, left, right }
 
