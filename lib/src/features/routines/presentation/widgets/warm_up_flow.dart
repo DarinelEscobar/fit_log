@@ -90,6 +90,7 @@ class WarmUpPreview extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         TextButton(
+          key: const Key('warmup-skip-preview'),
           onPressed: onSkip,
           child: const Text('SKIP WARM-UP'),
         ),
@@ -218,7 +219,19 @@ class WarmUpFlow extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 22),
+            if (!isGetReady) ...[
+              const SizedBox(height: 16),
+              Text(
+                'SET ${state.setNumber} OF ${step.sets}',
+                style: KineticNoirTypography.body(
+                  size: 13,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.onSurfaceVariant,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
             Text(
               _nextInstruction(step),
               textAlign: TextAlign.center,
@@ -249,6 +262,7 @@ class WarmUpFlow extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton(
+                    key: const Key('warmup-skip-step'),
                     onPressed: onSkipStep,
                     child: const Text('SKIP STEP'),
                   ),
@@ -256,6 +270,7 @@ class WarmUpFlow extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: TextButton(
+                    key: const Key('warmup-finish'),
                     onPressed: onFinish,
                     child: const Text('FINISH WARM-UP'),
                   ),
@@ -285,8 +300,11 @@ class WarmUpFlow extends StatelessWidget {
     if (state.phase == WarmUpPhase.rest || state.setNumber < step.sets) {
       return 'NEXT: SET ${state.setNumber + 1} OF ${step.sets}';
     }
-    final nextStep =
-        state.stepIndex + 1 < steps.length ? steps[state.stepIndex + 1] : null;
+    var nextIndex = state.stepIndex + 1;
+    while (state.skippedStepIndexes.contains(nextIndex)) {
+      nextIndex++;
+    }
+    final nextStep = nextIndex < steps.length ? steps[nextIndex] : null;
     return nextStep == null
         ? 'NEXT: STRENGTH SESSION'
         : 'NEXT: ${nextStep.name}';
@@ -317,7 +335,14 @@ class _WarmUpPreviewStep extends StatelessWidget {
               radius: 14,
               backgroundColor:
                   KineticNoirPalette.primary.withValues(alpha: 0.14),
-              child: Text('$number'),
+              child: Text(
+                '$number',
+                style: KineticNoirTypography.body(
+                  size: 12,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.primary,
+                ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -338,6 +363,17 @@ class _WarmUpPreviewStep extends StatelessWidget {
                       color: KineticNoirPalette.onSurfaceVariant,
                     ),
                   ),
+                  if (step.notes.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      step.notes,
+                      style: KineticNoirTypography.body(
+                        size: 12,
+                        weight: FontWeight.w500,
+                        color: KineticNoirPalette.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -355,5 +391,7 @@ int _stepDurationSeconds(WarmUpStep step) {
 String _formatDuration(int seconds) {
   final minutes = seconds ~/ 60;
   final remainder = seconds % 60;
-  return minutes == 0 ? '${remainder}s' : '${minutes}m ${remainder}s';
+  return minutes == 0
+      ? '${remainder}s'
+      : (remainder == 0 ? '${minutes}m' : '${minutes}m ${remainder}s');
 }

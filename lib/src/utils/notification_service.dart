@@ -98,6 +98,17 @@ class NotificationService {
     await _plugin.cancel(notificationId);
   }
 
+  static Future<void> cancelWarmUp({required int notificationId}) async {
+    await cancelRest(notificationId: notificationId);
+  }
+
+  static Future<void> cancelAll() async {
+    if (!_isInitialized) {
+      return;
+    }
+    await _plugin.cancelAll();
+  }
+
   static Future<void> scheduleWarmUpPhaseDone(
     int seconds, {
     required String title,
@@ -112,7 +123,7 @@ class NotificationService {
       scheduledAt ?? DateTime.now(),
       tz.local,
     ).add(Duration(seconds: seconds));
-    const androidDetails = AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       _restChannelId,
       _restChannelName,
       channelDescription: _restChannelDescription,
@@ -122,6 +133,8 @@ class NotificationService {
       enableVibration: true,
       visibility: NotificationVisibility.public,
       category: AndroidNotificationCategory.alarm,
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+      vibrationPattern: Int64List.fromList([0, 1200, 250, 1200, 250, 1800]),
     );
     const iosDetails = DarwinNotificationDetails(presentSound: true);
     await _plugin.cancel(notificationId);
@@ -130,7 +143,7 @@ class NotificationService {
       title,
       body,
       scheduledDate,
-      const NotificationDetails(android: androidDetails, iOS: iosDetails),
+      NotificationDetails(android: androidDetails, iOS: iosDetails),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
   }

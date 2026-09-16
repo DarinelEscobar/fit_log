@@ -83,6 +83,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   WarmUpSessionState? _warmUpState;
   int _warmUpGetReadySeconds = 10;
   final ValueNotifier<bool> _warmUpVisible = ValueNotifier(false);
+  bool _warmUpInitialized = false;
 
   @override
   void initState() {
@@ -110,6 +111,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _notesCtl.dispose();
     _notesFocusNode.dispose();
     _warmUpVisible.dispose();
+    unawaited(
+      NotificationService.cancelRest(notificationId: 700000 + widget.plan.id),
+    );
     super.dispose();
   }
 
@@ -144,6 +148,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _weightUnitsByExercise.addAll(draft.weightUnitsByExercise);
     _setupEditableExerciseIds.addAll(draft.setupEditableExerciseIds);
     _warmUpState = draft.warmUpState;
+    if (draft.warmUpState != null) {
+      _warmUpGetReadySeconds = draft.warmUpState!.getReadySeconds;
+    }
     for (final detail in _sessionDetails!) {
       _setCountsByExercise.putIfAbsent(detail.exerciseId, () => detail.sets);
       _weightUnitsByExercise.putIfAbsent(
@@ -201,13 +208,25 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       _warmUpSteps?.isNotEmpty == true && _warmUpState == null;
 
   void _initializeWarmUp(List<WarmUpStep> steps) {
-    _warmUpSteps ??= List<WarmUpStep>.from(steps);
+    if (_warmUpInitialized) {
+      return;
+    }
+    _warmUpInitialized = true;
+    _warmUpSteps = List<WarmUpStep>.from(steps);
     if (_warmUpSteps!.isEmpty) {
       return;
     }
     if (_warmUpState != null) {
       _warmUpVisible.value =
           _warmUpState!.status != WarmUpSessionStatus.completed;
+      if (_warmUpState!.status == WarmUpSessionStatus.running) {
+        if (_warmUpState!.phaseEndsAt != null &&
+            _warmUpState!.phaseEndsAt!.isAfter(_now)) {
+          _scheduleWarmUpNotification(_warmUpState!);
+        } else {
+          _syncWarmUpTimer(_now, vibrateOnCompletion: false);
+        }
+      }
       return;
     }
     _warmUpVisible.value = true;
@@ -229,6 +248,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       phase: WarmUpPhase.getReady,
       side: first.perSide ? WarmUpSide.left : WarmUpSide.none,
       phaseEndsAt: _now.add(Duration(seconds: _warmUpGetReadySeconds)),
+      getReadySeconds: _warmUpGetReadySeconds,
     );
     setState(() => _warmUpState = state);
     _warmUpVisible.value = true;
@@ -241,7 +261,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   }
 
   void _skipWarmUpPreview() {
-    final first = _warmUpSteps!.first;
+    final steps = _warmUpSteps;
+    if (steps == null || steps.isEmpty) {
+      return;
+    }
+    final first = steps.first;
     setState(() {
       _warmUpState = WarmUpSessionState(
         status: WarmUpSessionStatus.completed,
@@ -249,9 +273,13 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         setNumber: 1,
         phase: WarmUpPhase.work,
         side: first.perSide ? WarmUpSide.left : WarmUpSide.none,
+        getReadySeconds: _warmUpGetReadySeconds,
       );
     });
     _warmUpVisible.value = false;
+    unawaited(
+      NotificationService.cancelRest(notificationId: 700000 + widget.plan.id),
+    );
     _scheduleDraftPersist();
   }
 
@@ -311,7 +339,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         body: 'Start set ${state.setNumber + 1} now.',
       );
     }
-    final nextIndex = state.stepIndex + 1;
+    var nextIndex = state.stepIndex + 1;
+    while (state.skippedStepIndexes.contains(nextIndex)) {
+      nextIndex++;
+    }
     final nextStep = nextIndex < (_warmUpSteps?.length ?? 0)
         ? _warmUpSteps![nextIndex]
         : null;
@@ -344,7 +375,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     if (state.phase == WarmUpPhase.getReady) {
       next = state.copyWith(
         phase: WarmUpPhase.work,
+        side: step.perSide ? WarmUpSide.left : WarmUpSide.none,
         phaseEndsAt: now.add(Duration(seconds: step.workSeconds)),
+        pausedRemainingSeconds: 0,
       );
     } else if (state.phase == WarmUpPhase.work &&
         step.perSide &&
@@ -352,6 +385,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       next = state.copyWith(
         side: WarmUpSide.right,
         phaseEndsAt: now.add(Duration(seconds: step.workSeconds)),
+        pausedRemainingSeconds: 0,
       );
     } else if (state.phase == WarmUpPhase.work &&
         step.restSeconds > 0 &&
@@ -360,6 +394,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         phase: WarmUpPhase.rest,
         side: WarmUpSide.none,
         phaseEndsAt: now.add(Duration(seconds: step.restSeconds)),
+        pausedRemainingSeconds: 0,
       );
     } else if (state.phase == WarmUpPhase.rest) {
       next = _nextWarmUpSet(state, step, now);
@@ -372,11 +407,19 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _warmUpVisible.value = next.status != WarmUpSessionStatus.completed;
     unawaited(NotificationService.cancelRest(
         notificationId: 700000 + widget.plan.id));
-    _scheduleWarmUpNotification(next);
+    if (next.status == WarmUpSessionStatus.running) {
+      _scheduleWarmUpNotification(next);
+    }
     _scheduleDraftPersist();
     if (vibrateOnCompletion) {
       unawaited(SystemSound.play(SystemSoundType.alert));
-      unawaited(Vibration.vibrate(preset: VibrationPreset.countdownTimerAlert));
+      unawaited(() async {
+        if (await Vibration.hasVibrator()) {
+          await Vibration.vibrate(
+            preset: VibrationPreset.countdownTimerAlert,
+          );
+        }
+      }());
       final cue = next.status == WarmUpSessionStatus.completed
           ? 'Warm-up complete. Start strength work.'
           : _warmUpCurrentCue(next);
@@ -412,6 +455,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         phase: WarmUpPhase.work,
         side: step.perSide ? WarmUpSide.left : WarmUpSide.none,
         phaseEndsAt: now.add(Duration(seconds: step.workSeconds)),
+        pausedRemainingSeconds: 0,
       );
 
   WarmUpSessionState _nextWarmUpStep(WarmUpSessionState state, DateTime now) {
@@ -424,6 +468,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       return state.copyWith(
         status: WarmUpSessionStatus.completed,
         clearPhaseEndsAt: true,
+        pausedRemainingSeconds: 0,
       );
     }
     final nextStep = steps[nextIndex];
@@ -434,6 +479,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       phase: WarmUpPhase.work,
       side: nextStep.perSide ? WarmUpSide.left : WarmUpSide.none,
       phaseEndsAt: now.add(Duration(seconds: nextStep.workSeconds)),
+      pausedRemainingSeconds: 0,
     );
   }
 
@@ -474,7 +520,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _warmUpVisible.value = next.status != WarmUpSessionStatus.completed;
     unawaited(NotificationService.cancelRest(
         notificationId: 700000 + widget.plan.id));
-    _scheduleWarmUpNotification(next);
+    if (next.status == WarmUpSessionStatus.running) {
+      _scheduleWarmUpNotification(next);
+    }
     _scheduleDraftPersist();
   }
 
@@ -487,11 +535,13 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     setState(() => _warmUpState = state.copyWith(
           status: WarmUpSessionStatus.completed,
           clearPhaseEndsAt: true,
+          pausedRemainingSeconds: 0,
         ));
     _warmUpVisible.value = false;
     unawaited(NotificationService.cancelRest(
         notificationId: 700000 + widget.plan.id));
     _scheduleDraftPersist();
+    _showSnackBar('Warm-up complete. Start strength work.');
   }
 
   void _syncRestTimers(
@@ -587,13 +637,16 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      ),
-    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        ),
+      );
   }
 
   void _scheduleDraftPersist() {
@@ -979,11 +1032,24 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _scheduleDraftPersist();
   }
 
+  Future<void> _cancelAllSessionNotifications() async {
+    await NotificationService.cancelRest(
+      notificationId: 700000 + widget.plan.id,
+    );
+    final count = _sessionDetails?.length ?? 0;
+    for (var i = 1; i <= count; i++) {
+      await NotificationService.cancelRest(
+        notificationId: widget.plan.id * 1000 + i,
+      );
+    }
+  }
+
   Future<void> _handleExitAttempt() async {
     final exit = await showConfirmExitSheet(context);
     if (!mounted || !exit) {
       return;
     }
+    await _cancelAllSessionNotifications();
     await _clearPersistedDraft();
     if (!mounted) {
       return;
@@ -1020,6 +1086,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
 
     switch (result.action) {
       case FinishSessionSummaryAction.discard:
+        await _cancelAllSessionNotifications();
         await _clearPersistedDraft();
         if (!mounted) {
           return;
@@ -1037,6 +1104,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       case FinishSessionSummaryAction.save:
         final repo = ref.read(workoutPlanRepositoryProvider);
         _draftSaveTimer?.cancel();
+        await _cancelAllSessionNotifications();
         await SaveWorkoutLogsUseCase(repo)(_completedLogs);
         await SaveWorkoutSessionUseCase(repo)(
           WorkoutSession(

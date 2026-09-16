@@ -10,6 +10,7 @@ import 'package:fit_log/src/features/routines/domain/entities/weight_display_uni
 import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_plan.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_session.dart';
+import 'package:fit_log/src/features/routines/domain/entities/warm_up_session_state.dart';
 import 'package:fit_log/src/features/routines/domain/entities/warm_up_step.dart';
 import 'package:fit_log/src/features/routines/domain/repositories/workout_plan_repository.dart';
 import 'package:fit_log/src/features/routines/presentation/pages/select_exercise_screen.dart';
@@ -304,6 +305,17 @@ void main() {
     expect(notificationArguments['title'], 'Warm-up: Leg swim');
     expect(notificationArguments['body'], 'Start set 1 now.');
 
+    final platformSpecifics =
+        notificationArguments['platformSpecifics'] as Map<dynamic, dynamic>;
+    expect(
+      platformSpecifics['audioAttributesUsage'],
+      AudioAttributesUsage.alarm.value,
+    );
+    expect(
+      platformSpecifics['vibrationPattern'],
+      [0, 1200, 250, 1200, 250, 1800],
+    );
+
     await tester.tap(find.text('FINISH WARM-UP'));
     await tester.pump();
 
@@ -312,6 +324,351 @@ void main() {
       find.byKey(const Key('active-session-register-set')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('warm-up preview can be skipped directly to strength session',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    repo._warmUpSteps[1] = const [
+      WarmUpStep(
+        name: 'Arm circles',
+        notes: 'Small and big circles',
+        sets: 2,
+        workSeconds: 20,
+        restSeconds: 10,
+        perSide: false,
+      ),
+    ];
+
+    await _pumpStartRoutine(tester, repo: repo);
+
+    expect(find.byKey(const Key('warmup-preview')), findsOneWidget);
+    expect(find.text('Arm circles'), findsOneWidget);
+    expect(find.text('Small and big circles'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('warmup-skip-preview')));
+    await tester.pump();
+
+    expect(find.byKey(const Key('warmup-preview')), findsNothing);
+    expect(find.text('Barbell Bench Press'), findsOneWidget);
+    expect(
+      find.byKey(const Key('active-session-register-set')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'warm-up advances through get-ready, work per side, rest, vibration, and cues',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    repo._warmUpSteps[1] = const [
+      WarmUpStep(
+        name: 'Hip Opener',
+        notes: 'Dynamic stretch',
+        sets: 2,
+        workSeconds: 20,
+        restSeconds: 10,
+        perSide: true,
+      ),
+    ];
+
+    var currentNow = DateTime.now().add(const Duration(minutes: 5));
+    await _pumpStartRoutine(
+      tester,
+      repo: repo,
+      now: () => currentNow,
+    );
+
+    await tester.tap(find.byKey(const Key('warmup-get-ready-5')));
+    await tester.tap(find.byKey(const Key('warmup-start')));
+    await tester.pump();
+
+    expect(find.text('GET READY'), findsOneWidget);
+    expect(find.text('0:05'), findsOneWidget);
+    expect(find.text('STARTING SET 1 OF 2'), findsOneWidget);
+
+    // 1. Advance getReady (5s) -> transitions to Set 1 WORK (LEFT SIDE)
+    currentNow = currentNow.add(const Duration(seconds: 5));
+    await tester.pump(const Duration(seconds: 5));
+
+    expect(find.text('WORK'), findsOneWidget);
+    expect(find.text('LEFT SIDE'), findsOneWidget);
+    expect(find.text('SET 1 OF 2'), findsOneWidget);
+    expect(find.text('NEXT: RIGHT SIDE'), findsOneWidget);
+    expect(_fakeVibrationPlatform.vibrateCalls, hasLength(1));
+    expect(
+      _fakeVibrationPlatform.vibrateCalls.single.pattern,
+      presets[VibrationPreset.countdownTimerAlert]!.pattern,
+    );
+
+    final rightSideNotification = _notificationCalls.lastWhere(
+      (call) => call.method == 'zonedSchedule',
+    );
+    final rightSideArgs =
+        rightSideNotification.arguments as Map<dynamic, dynamic>;
+    expect(rightSideArgs['title'], 'Warm-up: right side');
+    expect(rightSideArgs['body'], 'Hip Opener, set 1.');
+
+    // 2. Advance Left Side (20s) -> transitions to Set 1 WORK (RIGHT SIDE)
+    currentNow = currentNow.add(const Duration(seconds: 20));
+    await tester.pump(const Duration(seconds: 20));
+
+    expect(find.text('WORK'), findsOneWidget);
+    expect(find.text('RIGHT SIDE'), findsOneWidget);
+    expect(find.text('SET 1 OF 2'), findsOneWidget);
+    expect(find.text('NEXT: REST'), findsOneWidget);
+    expect(_fakeVibrationPlatform.vibrateCalls, hasLength(2));
+
+    final restNotification = _notificationCalls.lastWhere(
+      (call) => call.method == 'zonedSchedule',
+    );
+    final restArgs = restNotification.arguments as Map<dynamic, dynamic>;
+    expect(restArgs['title'], 'Warm-up: rest');
+    expect(restArgs['body'], '10 seconds before set 2.');
+
+    // 3. Advance Right Side (20s) -> transitions to REST
+    currentNow = currentNow.add(const Duration(seconds: 20));
+    await tester.pump(const Duration(seconds: 20));
+
+    expect(find.text('REST'), findsOneWidget);
+    expect(find.text('SET 1 OF 2'), findsOneWidget);
+    expect(find.text('NEXT: SET 2 OF 2'), findsOneWidget);
+    expect(_fakeVibrationPlatform.vibrateCalls, hasLength(3));
+
+    // 4. Advance Rest (10s) -> transitions to Set 2 WORK (LEFT SIDE)
+    currentNow = currentNow.add(const Duration(seconds: 10));
+    await tester.pump(const Duration(seconds: 10));
+
+    expect(find.text('WORK'), findsOneWidget);
+    expect(find.text('LEFT SIDE'), findsOneWidget);
+    expect(find.text('SET 2 OF 2'), findsOneWidget);
+    expect(find.text('NEXT: RIGHT SIDE'), findsOneWidget);
+    expect(_fakeVibrationPlatform.vibrateCalls, hasLength(4));
+  });
+
+  testWidgets('warm-up pause and resume toggles timer and notification',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    repo._warmUpSteps[1] = const [
+      WarmUpStep(
+        name: 'Jumping jacks',
+        notes: '',
+        sets: 1,
+        workSeconds: 30,
+        restSeconds: 0,
+        perSide: false,
+      ),
+    ];
+
+    var currentNow = DateTime.now().add(const Duration(minutes: 5));
+    await _pumpStartRoutine(
+      tester,
+      repo: repo,
+      now: () => currentNow,
+    );
+
+    await tester.tap(find.byKey(const Key('warmup-get-ready-5')));
+    await tester.tap(find.byKey(const Key('warmup-start')));
+    await tester.pump();
+
+    // Advance 5s to start work (30s remaining)
+    currentNow = currentNow.add(const Duration(seconds: 5));
+    await tester.pump(const Duration(seconds: 5));
+
+    expect(find.text('WORK'), findsOneWidget);
+    expect(find.text('0:30'), findsOneWidget);
+    expect(find.text('PAUSE TIMER'), findsOneWidget);
+
+    // Advance 10s: 20s remaining
+    currentNow = currentNow.add(const Duration(seconds: 10));
+    await tester.pump(const Duration(seconds: 10));
+    expect(find.text('0:20'), findsOneWidget);
+
+    // Tap pause
+    await tester.tap(find.byKey(const Key('warmup-pause-resume')));
+    await tester.pump();
+
+    expect(find.text('RESUME TIMER'), findsOneWidget);
+    final cancelCallsBefore =
+        _notificationCalls.where((call) => call.method == 'cancel').length;
+    expect(cancelCallsBefore, greaterThan(0));
+
+    // Advance time while paused: should NOT count down
+    currentNow = currentNow.add(const Duration(seconds: 15));
+    await tester.pump(const Duration(seconds: 15));
+    expect(find.text('0:20'), findsOneWidget);
+
+    // Tap resume
+    await tester.tap(find.byKey(const Key('warmup-pause-resume')));
+    await tester.pump();
+
+    expect(find.text('PAUSE TIMER'), findsOneWidget);
+    final resumedNotification = _notificationCalls.lastWhere(
+      (call) => call.method == 'zonedSchedule',
+    );
+    final resumedArgs =
+        resumedNotification.arguments as Map<dynamic, dynamic>;
+    expect(resumedArgs['title'], 'Warm-up complete');
+    expect(resumedArgs['body'], 'Start your strength session.');
+
+    // Count down remaining 20s to complete
+    currentNow = currentNow.add(const Duration(seconds: 20));
+    await tester.pump(const Duration(seconds: 20));
+
+    expect(find.text('Barbell Bench Press'), findsOneWidget);
+    expect(
+      find.byKey(const Key('active-session-register-set')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('warm-up skip step advances to next step or finishes on last step',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    repo._warmUpSteps[1] = const [
+      WarmUpStep(
+        name: 'Step One',
+        notes: '',
+        sets: 1,
+        workSeconds: 30,
+        restSeconds: 0,
+        perSide: false,
+      ),
+      WarmUpStep(
+        name: 'Step Two',
+        notes: '',
+        sets: 1,
+        workSeconds: 20,
+        restSeconds: 0,
+        perSide: false,
+      ),
+    ];
+
+    await _pumpStartRoutine(tester, repo: repo);
+
+    await tester.tap(find.byKey(const Key('warmup-start')));
+    await tester.pump();
+
+    expect(find.text('Step One'), findsOneWidget);
+
+    // Skip step 1 -> advances to step 2
+    await tester.tap(find.byKey(const Key('warmup-skip-step')));
+    await tester.pump();
+
+    expect(find.text('Step Two'), findsOneWidget);
+    expect(find.text('CURRENT WARM-UP EXERCISE'), findsOneWidget);
+
+    // Skip step 2 (last step) -> completes warm-up
+    await tester.tap(find.byKey(const Key('warmup-skip-step')));
+    await tester.pump();
+
+    expect(find.text('Barbell Bench Press'), findsOneWidget);
+    expect(
+      find.byKey(const Key('active-session-register-set')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'recovered draft restores active warm-up state and resumes countdown',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    repo._warmUpSteps[1] = const [
+      WarmUpStep(
+        name: 'Leg swings',
+        notes: '',
+        sets: 2,
+        workSeconds: 30,
+        restSeconds: 0,
+        perSide: true,
+      ),
+    ];
+
+    final startedAt = DateTime.now().add(const Duration(minutes: 4));
+    final currentNow = DateTime.now().add(const Duration(minutes: 5));
+    final warmUpEndsAt = currentNow.add(const Duration(seconds: 15));
+    final draft = _activeSessionDraft(
+      startedAt: startedAt,
+      updatedAt: currentNow,
+      restEndsAt: currentNow.add(const Duration(seconds: 30)),
+      warmUpState: WarmUpSessionState(
+        status: WarmUpSessionStatus.running,
+        stepIndex: 0,
+        setNumber: 1,
+        phase: WarmUpPhase.work,
+        side: WarmUpSide.left,
+        phaseEndsAt: warmUpEndsAt,
+        getReadySeconds: 5,
+      ),
+    );
+
+    await tester.binding.setSurfaceSize(const Size(430, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    _setUpRoutineChannels();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          workoutPlanRepositoryProvider.overrideWithValue(repo),
+          workoutStorageServiceProvider.overrideWithValue(
+            _FakeWorkoutStorageService(),
+          ),
+        ],
+        child: MaterialApp(
+          home: StartRoutineScreen(
+            plan: draft.plan,
+            recoveredDraft: draft,
+            now: () => currentNow,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('CURRENT WARM-UP EXERCISE'), findsOneWidget);
+    expect(find.text('Leg swings'), findsOneWidget);
+    expect(find.text('LEFT SIDE'), findsOneWidget);
+    expect(find.text('0:15'), findsOneWidget);
+    expect(find.text('SET 1 OF 2'), findsOneWidget);
+  });
+
+  testWidgets('exiting session during warm-up cancels all notifications',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    repo._warmUpSteps[1] = const [
+      WarmUpStep(
+        name: 'Jumping jacks',
+        notes: '',
+        sets: 1,
+        workSeconds: 30,
+        restSeconds: 0,
+        perSide: false,
+      ),
+    ];
+
+    await _pumpStartRoutineInHost(tester, repo: repo);
+
+    await tester.tap(find.byKey(const Key('warmup-start')));
+    await tester.pump();
+
+    expect(find.text('GET READY'), findsOneWidget);
+
+    // Tap close button in AppBar
+    await tester.tap(find.byKey(const Key('active-session-close')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('confirm-exit-title')), findsOneWidget);
+
+    // Confirm exit
+    await tester.tap(find.byKey(const Key('confirm-exit-exit')));
+    await tester.pumpAndSettle();
+
+    final cancelCalls = _notificationCalls
+        .where((call) => call.method == 'cancel')
+        .map((call) => (call.arguments as Map<dynamic, dynamic>)['id'] as int)
+        .toList(growable: false);
+
+    expect(cancelCalls, contains(700001));
   });
 
   testWidgets('exercise navigation moves the expanded card and disables edges',
@@ -1537,6 +1894,7 @@ ActiveWorkoutSessionDraft _activeSessionDraft({
   required DateTime updatedAt,
   required DateTime restEndsAt,
   Map<int, WeightDisplayUnit> weightUnitsByExercise = const {},
+  WarmUpSessionState? warmUpState,
 }) {
   return ActiveWorkoutSessionDraft(
     plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
@@ -1568,6 +1926,7 @@ ActiveWorkoutSessionDraft _activeSessionDraft({
     ],
     setCountsByExercise: const {1: 4},
     weightUnitsByExercise: weightUnitsByExercise,
+    warmUpState: warmUpState,
     logs: [
       WorkoutLogEntry(
         date: startedAt,

@@ -14,15 +14,18 @@ class WarmUpSessionState {
     this.phaseEndsAt,
     this.pausedRemainingSeconds = 0,
     this.skippedStepIndexes = const <int>{},
+    this.getReadySeconds = 10,
   });
 
-  factory WarmUpSessionState.start(DateTime now) => WarmUpSessionState(
+  factory WarmUpSessionState.start(DateTime now, {int getReadySeconds = 10}) =>
+      WarmUpSessionState(
         status: WarmUpSessionStatus.running,
         stepIndex: 0,
         setNumber: 1,
         phase: WarmUpPhase.work,
         side: WarmUpSide.none,
         phaseEndsAt: now,
+        getReadySeconds: getReadySeconds,
       );
 
   final WarmUpSessionStatus status;
@@ -33,6 +36,7 @@ class WarmUpSessionState {
   final DateTime? phaseEndsAt;
   final int pausedRemainingSeconds;
   final Set<int> skippedStepIndexes;
+  final int getReadySeconds;
 
   WarmUpSessionState copyWith({
     WarmUpSessionStatus? status,
@@ -44,6 +48,7 @@ class WarmUpSessionState {
     bool clearPhaseEndsAt = false,
     int? pausedRemainingSeconds,
     Set<int>? skippedStepIndexes,
+    int? getReadySeconds,
   }) =>
       WarmUpSessionState(
         status: status ?? this.status,
@@ -55,6 +60,7 @@ class WarmUpSessionState {
         pausedRemainingSeconds:
             pausedRemainingSeconds ?? this.pausedRemainingSeconds,
         skippedStepIndexes: skippedStepIndexes ?? this.skippedStepIndexes,
+        getReadySeconds: getReadySeconds ?? this.getReadySeconds,
       );
 
   Map<String, Object?> toJson() => {
@@ -66,6 +72,7 @@ class WarmUpSessionState {
         'phaseEndsAt': phaseEndsAt?.toIso8601String(),
         'pausedRemainingSeconds': pausedRemainingSeconds,
         'skippedStepIndexes': skippedStepIndexes.toList(growable: false),
+        'getReadySeconds': getReadySeconds,
       };
 
   static WarmUpSessionState? fromJson(Map<String, Object?> json) {
@@ -95,6 +102,7 @@ class WarmUpSessionState {
           for (final value in skipped)
             if (_asInt(value) >= 0) _asInt(value),
       },
+      getReadySeconds: _asInt(json['getReadySeconds'], fallback: 10),
     );
   }
 
@@ -102,4 +110,33 @@ class WarmUpSessionState {
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is WarmUpSessionState &&
+          runtimeType == other.runtimeType &&
+          status == other.status &&
+          stepIndex == other.stepIndex &&
+          setNumber == other.setNumber &&
+          phase == other.phase &&
+          side == other.side &&
+          phaseEndsAt == other.phaseEndsAt &&
+          pausedRemainingSeconds == other.pausedRemainingSeconds &&
+          getReadySeconds == other.getReadySeconds &&
+          skippedStepIndexes.length == other.skippedStepIndexes.length &&
+          skippedStepIndexes.containsAll(other.skippedStepIndexes);
+
+  @override
+  int get hashCode => Object.hash(
+        status,
+        stepIndex,
+        setNumber,
+        phase,
+        side,
+        phaseEndsAt,
+        pausedRemainingSeconds,
+        getReadySeconds,
+        Object.hashAll(skippedStepIndexes),
+      );
 }
