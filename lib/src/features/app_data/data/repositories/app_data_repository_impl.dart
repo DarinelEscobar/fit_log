@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
@@ -14,12 +15,15 @@ import '../../../../data/schema/schemas.dart';
 import '../../../../features/routines/domain/entities/workout_log_entry.dart';
 import '../../../../features/routines/domain/entities/workout_session.dart';
 import '../../domain/repositories/app_data_repository.dart';
+import '../../domain/entities/export_models.dart';
 
 class AppDataRepositoryImpl implements AppDataRepository {
   AppDataRepositoryImpl({WorkoutStorageService? storageService})
       : _storageService = storageService ?? WorkoutStorageService();
 
   static const String _databaseFilename = 'fit_log.db';
+  static const String _manifestFilename = 'export_manifest.json';
+  static const String _exportHistoryKey = 'successful_export_date_ranges_v1';
   static const Set<String> _routineSpreadsheetFilenames = {
     'workout_plan.xlsx',
     'exercise.xlsx',
@@ -30,28 +34,105 @@ class AppDataRepositoryImpl implements AppDataRepository {
   final WorkoutStorageService _storageService;
 
   @override
-  Future<File> exportData() async {
+  Future<ExportAvailability> getExportAvailability() async {
+    final logs = await _storageService.fetchAllLogs();
+    final sessions = await _storageService.fetchAllSessions();
+    final dates = [
+      ...logs.map((log) => _dateOnly(log.date)),
+      ...sessions.map((session) => _dateOnly(session.date)),
+    ]..sort();
+    final ranges = await _readExportRanges();
+    final firstDate = dates.isEmpty ? null : dates.first;
+    final lastDate = dates.isEmpty ? null : dates.last;
+    return ExportAvailability(
+      firstDate: firstDate,
+      lastDate: lastDate,
+      nextMissingRange: _findNextMissingRange(dates, ranges),
+      lastExportedDate: ranges.isEmpty
+          ? null
+          : ranges.map((range) => range.endDate).reduce(
+                (current, value) => value.isAfter(current) ? value : current,
+              ),
+      hasExportHistory: ranges.isNotEmpty,
+    );
+  }
+
+  @override
+  Future<File> exportData({
+    ExportRequest request = const ExportRequest.automatic(),
+  }) async {
     final dir = await getApplicationDocumentsDirectory();
     final databaseDir = await getDatabasesPath();
     await XlsxInitializer.ensureXlsxFilesExist(includeSampleRows: false);
     await _storageService.repairDataIntegrity();
     await _storageService.exportRoutineRuntimeToXlsxFiles(dir);
-    await _syncWorkoutExports(dir);
+
+    final availability = await getExportAvailability();
+    final history = await _readExportRanges();
+    final selectedRange = request.mode == ExportRangeMode.automatic
+        ? availability.nextMissingRange ??
+            (!availability.hasWorkoutData && !availability.hasExportHistory
+                ? ExportDateRange(DateTime.now(), DateTime.now())
+                : null)
+        : request.range;
+    if (selectedRange == null) {
+      throw StateError(
+        'No new workout data to export. Choose a custom date range to export again.',
+      );
+    }
+
+    final logs = await _storageService.fetchWorkoutLogs(
+      startDate: selectedRange.startDate,
+      endDate: selectedRange.endDate,
+    );
+    final sessions = await _storageService.fetchWorkoutSessions(
+      startDate: selectedRange.startDate,
+      endDate: selectedRange.endDate,
+    );
+    if (logs.isEmpty && sessions.isEmpty && availability.hasWorkoutData) {
+      throw StateError('No workout data exists in the selected date range.');
+    }
+
+    await _syncWorkoutExports(dir, logs: logs, sessions: sessions);
     final archive = Archive();
     for (final filename in kTableSchemas.keys) {
       final file = File(p.join(dir.path, filename));
       await _addFileToArchive(archive, file, filename);
     }
-    final databaseFile = File(p.join(databaseDir, _databaseFilename));
-    await _addFileToArchive(
+    final isFirstAutomaticExport =
+        request.mode == ExportRangeMode.automatic && history.isEmpty;
+    if (isFirstAutomaticExport) {
+      final databaseFile = File(p.join(databaseDir, _databaseFilename));
+      await _addFileToArchive(
+        archive,
+        databaseFile,
+        p.basename(databaseFile.path),
+      );
+    }
+    final manifest = jsonEncode({
+      'format': 'fitlog-range-export-v1',
+      'historyMode': isFirstAutomaticExport ? 'complete' : 'incremental',
+      'startDate': selectedRange.startIso,
+      'endDate': selectedRange.endIso,
+      'createdAt': DateTime.now().toIso8601String(),
+      'workoutLogCount': logs.length,
+      'workoutSessionCount': sessions.length,
+    });
+    _addBytesToArchive(
       archive,
-      databaseFile,
-      p.basename(databaseFile.path),
+      _manifestFilename,
+      utf8.encode(manifest),
     );
     final encoder = ZipEncoder();
     final data = encoder.encode(archive);
-    final outFile = File(p.join(dir.path, 'fitlog_backup.zip'));
-    if (data != null) await outFile.writeAsBytes(data, flush: true);
+    if (data == null) {
+      throw StateError('The backup archive could not be created.');
+    }
+    final outputName =
+        'fitlog_backup_${selectedRange.startIso}_to_${selectedRange.endIso}.zip';
+    final outFile = await _nextAvailableFile(dir, outputName);
+    await outFile.writeAsBytes(data, flush: true);
+    await _recordExportRange(selectedRange);
 
     // Try to also copy the backup to external storage so the user can access it
     try {
@@ -61,7 +142,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
         );
         if (downloads != null && downloads.isNotEmpty) {
           final extFile = File(
-            p.join(downloads.first.path, 'fitlog_backup.zip'),
+            p.join(downloads.first.path, p.basename(outFile.path)),
           );
           await outFile.copy(extFile.path);
           return extFile;
@@ -102,6 +183,8 @@ class AppDataRepositoryImpl implements AppDataRepository {
 
       File? stagedDatabase;
       final stagedSpreadsheets = <String, File>{};
+      var incrementalHistory = false;
+      ExportDateRange? importedRange;
 
       final bytes = await file.readAsBytes();
       final archive = ZipDecoder().decodeBytes(bytes);
@@ -112,6 +195,17 @@ class AppDataRepositoryImpl implements AppDataRepository {
         }
 
         final name = p.basename(archived.name);
+        if (name == _manifestFilename) {
+          final manifest = jsonDecode(
+            utf8.decode(archived.content as List<int>),
+          );
+          if (manifest is Map &&
+              manifest['format'] == 'fitlog-range-export-v1') {
+            incrementalHistory = manifest['historyMode'] == 'incremental';
+            importedRange = ExportDateRange.tryParse(manifest);
+          }
+          continue;
+        }
         if (name == _databaseFilename) {
           stagedDatabase = File(p.join(stagingDirectory.path, name));
           await stagedDatabase.writeAsBytes(
@@ -140,6 +234,11 @@ class AppDataRepositoryImpl implements AppDataRepository {
           'Backup does not contain Fit Log data files.',
         );
       }
+      if (incrementalHistory && stagedDatabase != null) {
+        throw const FormatException(
+          'Incremental backups must not contain a full database file.',
+        );
+      }
 
       if (stagedDatabase != null) {
         await _storageService.validateDatabaseFile(stagedDatabase);
@@ -153,7 +252,11 @@ class AppDataRepositoryImpl implements AppDataRepository {
         databaseDirectoryPath: databaseDir,
         stagedDatabase: stagedDatabase,
         stagedSpreadsheets: stagedSpreadsheets,
+        incrementalHistory: incrementalHistory,
       );
+      if (importedRange != null) {
+        await _recordExportRange(importedRange);
+      }
     } finally {
       if (await stagingDirectory.exists()) {
         await stagingDirectory.delete(recursive: true);
@@ -171,9 +274,15 @@ class AppDataRepositoryImpl implements AppDataRepository {
     archive.addFile(ArchiveFile(archiveName, bytes.length, bytes));
   }
 
-  Future<void> _syncWorkoutExports(Directory directory) async {
-    final logs = await _storageService.fetchAllLogs();
-    final sessions = await _storageService.fetchAllSessions();
+  void _addBytesToArchive(Archive archive, String filename, List<int> bytes) {
+    archive.addFile(ArchiveFile(filename, bytes.length, bytes));
+  }
+
+  Future<void> _syncWorkoutExports(
+    Directory directory, {
+    required List<WorkoutLogEntry> logs,
+    required List<WorkoutSession> sessions,
+  }) async {
     await _writeWorkoutLogExport(directory, logs);
     await _writeWorkoutSessionExport(directory, sessions);
   }
@@ -213,6 +322,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
     required String databaseDirectoryPath,
     File? stagedDatabase,
     required Map<String, File> stagedSpreadsheets,
+    bool incrementalHistory = false,
   }) async {
     final rollbackDirectory = await Directory.systemTemp.createTemp(
       'fitlog_import_rollback_',
@@ -273,6 +383,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
         await _applyImportedSpreadsheets(
           stagedSpreadsheets.keys.toSet(),
           restoredDatabase: stagedDatabase != null,
+          incrementalHistory: incrementalHistory,
         );
         await _storageService.repairDataIntegrity();
         await _regenerateSqliteExports(documentsDirectory);
@@ -298,6 +409,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
   Future<void> _applyImportedSpreadsheets(
     Set<String> filenames, {
     required bool restoredDatabase,
+    required bool incrementalHistory,
   }) async {
     final restoredRoutineSheet = filenames.any(
       _routineSpreadsheetFilenames.contains,
@@ -309,22 +421,119 @@ class AppDataRepositoryImpl implements AppDataRepository {
       await _storageService.warmUpRoutineRuntimeCache(force: true);
     }
 
-    if (restoredLogSheet &&
-        (!restoredDatabase || !await _storageService.hasUsableWorkoutLogs())) {
-      await _storageService.replaceWorkoutLogsFromCurrentXlsxFiles();
-    }
+    if (incrementalHistory) {
+      await _storageService.mergeWorkoutHistoryFromCurrentXlsxFiles(
+        includeLogs: restoredLogSheet,
+        includeSessions: restoredSessionSheet,
+      );
+    } else {
+      if (restoredLogSheet &&
+          (!restoredDatabase ||
+              !await _storageService.hasUsableWorkoutLogs())) {
+        await _storageService.replaceWorkoutLogsFromCurrentXlsxFiles();
+      }
 
-    if (restoredSessionSheet &&
-        (!restoredDatabase ||
-            !await _storageService.hasUsableWorkoutSessions())) {
-      await _storageService.replaceWorkoutSessionsFromCurrentXlsxFiles();
+      if (restoredSessionSheet &&
+          (!restoredDatabase ||
+              !await _storageService.hasUsableWorkoutSessions())) {
+        await _storageService.replaceWorkoutSessionsFromCurrentXlsxFiles();
+      }
     }
   }
 
   Future<void> _regenerateSqliteExports(Directory directory) async {
     await _storageService.exportRoutineRuntimeToXlsxFiles(directory);
-    await _syncWorkoutExports(directory);
+    await _syncWorkoutExports(
+      directory,
+      logs: await _storageService.fetchAllLogs(),
+      sessions: await _storageService.fetchAllSessions(),
+    );
   }
+
+  Future<List<ExportDateRange>> _readExportRanges() async {
+    final raw = await _storageService.readMetadata(_exportHistoryKey);
+    if (raw == null || raw.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return decoded
+          .map(ExportDateRange.tryParse)
+          .whereType<ExportDateRange>()
+          .toList(growable: false);
+    } on FormatException {
+      return const [];
+    } on TypeError {
+      return const [];
+    }
+  }
+
+  Future<void> _recordExportRange(ExportDateRange range) async {
+    final ranges = [...await _readExportRanges(), range]
+      ..sort((a, b) => a.startDate.compareTo(b.startDate));
+    final merged = <ExportDateRange>[];
+    for (final current in ranges) {
+      if (merged.isEmpty) {
+        merged.add(current);
+        continue;
+      }
+      final previous = merged.last;
+      final joinsPrevious = !current.startDate.isAfter(
+        _nextDay(previous.endDate),
+      );
+      if (joinsPrevious) {
+        merged[merged.length - 1] = ExportDateRange(
+          previous.startDate,
+          current.endDate.isAfter(previous.endDate)
+              ? current.endDate
+              : previous.endDate,
+        );
+      } else {
+        merged.add(current);
+      }
+    }
+    await _storageService.writeMetadata(
+      _exportHistoryKey,
+      jsonEncode(merged.map((value) => value.toJson()).toList()),
+    );
+  }
+
+  ExportDateRange? _findNextMissingRange(
+    List<DateTime> availableDates,
+    List<ExportDateRange> ranges,
+  ) {
+    final dates = availableDates.toSet().toList()..sort();
+    for (var index = 0; index < dates.length; index++) {
+      if (ranges.any((range) => range.contains(dates[index]))) {
+        continue;
+      }
+      final start = dates[index];
+      var end = start;
+      while (index + 1 < dates.length &&
+          !ranges.any((range) => range.contains(dates[index + 1]))) {
+        index++;
+        end = dates[index];
+      }
+      return ExportDateRange(start, end);
+    }
+    return null;
+  }
+
+  Future<File> _nextAvailableFile(Directory directory, String filename) async {
+    final extension = p.extension(filename);
+    final stem = filename.substring(0, filename.length - extension.length);
+    var candidate = File(p.join(directory.path, filename));
+    var suffix = 2;
+    while (await candidate.exists()) {
+      candidate = File(p.join(directory.path, '${stem}_$suffix$extension'));
+      suffix++;
+    }
+    return candidate;
+  }
+
+  DateTime _dateOnly(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  DateTime _nextDay(DateTime date) => date.add(const Duration(days: 1));
 
   void _validateSpreadsheetFile(File file, String filename) {
     final schema = kTableSchemas[filename];

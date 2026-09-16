@@ -183,12 +183,13 @@ Important runtime entrypoints:
 
 The app supports:
 
-- exporting a full ZIP backup
-- sharing the generated backup file
-- importing a full ZIP backup
+- exporting the missing workout date range since the last successful export
+- choosing a custom workout date range before exporting or sharing
+- ZIP names that include the exported range, such as `fitlog_backup_2026-09-07_to_2026-09-13.zip`
+- importing complete backups and merging incremental range backups
 - importing individual `.xlsx` tables when supported by the data layer
 
-Backups are meant to preserve local ownership of the training data while keeping the runtime optimized for SQLite.
+The first automatic export is a complete backup and includes the SQLite database. Later automatic or custom exports include the selected workout logs and sessions plus the routine/reference tables, so repeated exports do not copy the entire workout history. Successful ranges are tracked in the local SQLite metadata table. Backups are meant to preserve local ownership of the training data while keeping the runtime optimized for SQLite.
 
 ## Validation
 

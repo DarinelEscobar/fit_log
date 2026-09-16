@@ -602,8 +602,30 @@ class WorkoutStorageService {
   }
 
   Future<List<WorkoutSession>> fetchAllSessions() async {
+    return fetchWorkoutSessions();
+  }
+
+  Future<List<WorkoutSession>> fetchWorkoutSessions({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final db = await _getDatabase();
-    final rows = await db.query('workout_sessions', orderBy: 'id DESC');
+    final clauses = <String>[];
+    final args = <Object?>[];
+    if (startDate != null) {
+      clauses.add('date >= ?');
+      args.add(_formatDate(startDate));
+    }
+    if (endDate != null) {
+      clauses.add('date <= ?');
+      args.add(_formatDate(endDate));
+    }
+    final rows = await db.query(
+      'workout_sessions',
+      where: clauses.isEmpty ? null : clauses.join(' AND '),
+      whereArgs: args.isEmpty ? null : args,
+      orderBy: 'date ASC, plan_id ASC',
+    );
     return rows
         .map(
           (row) => WorkoutSession(
@@ -620,22 +642,7 @@ class WorkoutStorageService {
   }
 
   Future<List<WorkoutLogEntry>> fetchAllLogs() async {
-    final db = await _getDatabase();
-    final rows = await db.query('workout_logs', orderBy: 'id DESC');
-    return rows
-        .map(
-          (row) => WorkoutLogEntry(
-            date:
-                DateTime.tryParse(_stringValue(row['date'])) ?? DateTime.now(),
-            planId: _intValue(row['plan_id']),
-            exerciseId: _intValue(row['exercise_id']),
-            setNumber: _intValue(row['set_number']),
-            reps: _intValue(row['reps']),
-            weight: _doubleValue(row['weight']),
-            rir: _intValue(row['rir']),
-          ),
-        )
-        .toList(growable: false);
+    return fetchWorkoutLogs();
   }
 
   Future<List<WorkoutLogEntry>> fetchWorkoutLogs({
@@ -711,6 +718,48 @@ class WorkoutStorageService {
 
   Future<bool> hasUsableWorkoutSessions() =>
       _hasUsableDateRows('workout_sessions');
+
+  Future<void> mergeWorkoutHistoryFromCurrentXlsxFiles({
+    required bool includeLogs,
+    required bool includeSessions,
+  }) async {
+    final db = await _getDatabase();
+    final directory = await getApplicationDocumentsDirectory();
+    final logs = includeLogs
+        ? await compute(_parseWorkoutLogSeed, directory.path)
+        : const <Map<String, Object?>>[];
+    final sessions = includeSessions
+        ? await compute(_parseWorkoutSessionSeed, directory.path)
+        : const <Map<String, Object?>>[];
+
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (final row in logs) {
+        batch.insert(
+          'workout_logs',
+          row,
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+      for (final row in sessions) {
+        batch.insert(
+          'workout_sessions',
+          row,
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+      await batch.commit(noResult: true);
+      await _repairDataIntegrity(txn, recoverMissingParents: true);
+    });
+  }
+
+  Future<String?> readMetadata(String key) async {
+    return _readMeta(await _getDatabase(), key);
+  }
+
+  Future<void> writeMetadata(String key, String value) async {
+    await _setMeta(await _getDatabase(), key, value);
+  }
 
   Future<void> exportRoutineRuntimeToXlsxFiles(Directory directory) async {
     await warmUpRoutineRuntimeCache();

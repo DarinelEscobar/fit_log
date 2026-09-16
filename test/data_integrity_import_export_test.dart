@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:archive/archive_io.dart';
 import 'package:excel/excel.dart';
 import 'package:fit_log/src/data/create/initialize_xlsx.dart';
 import 'package:fit_log/src/data/services/workout_storage_service.dart';
 import 'package:fit_log/src/features/app_data/data/repositories/app_data_repository_impl.dart';
+import 'package:fit_log/src/features/app_data/domain/entities/export_models.dart';
 import 'package:fit_log/src/features/routines/domain/entities/active_workout_session_draft.dart';
 import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
 import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_detail.dart';
@@ -364,6 +366,117 @@ void main() {
     final sheet = excel.tables['BodyMetrics']!;
     expect(sheet.rows.length, 1);
   });
+
+  test('automatic exports track ranges and only include new workout dates',
+      () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    await service.reopenIfNeeded();
+    await service.close();
+
+    final db = await databaseFactoryFfi.openDatabase(databasePath);
+    await db.insert('workout_plans', {
+      'plan_id': 1,
+      'name': 'Upper',
+      'frequency': 'Weekly',
+      'is_active': 1,
+    });
+    await db.insert('exercises', {
+      'exercise_id': 1,
+      'name': 'Press',
+      'description': '',
+      'category': 'Compound',
+      'main_muscle_group': 'Chest',
+    });
+    await db.insert('workout_logs', {
+      'date': '2026-01-01',
+      'plan_id': 1,
+      'exercise_id': 1,
+      'set_number': 1,
+      'reps': 8,
+      'weight': 50.0,
+      'rir': 2,
+    });
+    await db.insert('workout_sessions', {
+      'date': '2026-01-01',
+      'plan_id': 1,
+      'fatigue_level': '3',
+      'duration_minutes': 60,
+      'mood': '4',
+      'notes': '',
+    });
+    await db.close();
+
+    final repository = AppDataRepositoryImpl(storageService: service);
+    final first = await repository.exportData();
+    final firstArchive = ZipDecoder().decodeBytes(await first.readAsBytes());
+    final firstManifest = _readExportManifest(firstArchive);
+    expect(firstManifest['historyMode'], 'complete');
+    expect(firstManifest['startDate'], '2026-01-01');
+    expect(firstManifest['endDate'], '2026-01-01');
+    expect(firstArchive.files.any((file) => file.name == 'fit_log.db'), isTrue);
+    expect(
+        p.basename(first.path), 'fitlog_backup_2026-01-01_to_2026-01-01.zip');
+
+    final custom = await repository.exportData(
+      request: ExportRequest.custom(
+        ExportDateRange(DateTime(2026, 1, 1), DateTime(2026, 1, 1)),
+      ),
+    );
+    final customArchive = ZipDecoder().decodeBytes(await custom.readAsBytes());
+    final customManifest = _readExportManifest(customArchive);
+    expect(customManifest['historyMode'], 'incremental');
+    expect(p.basename(custom.path),
+        'fitlog_backup_2026-01-01_to_2026-01-01_2.zip');
+
+    await service.close();
+    final nextDb = await databaseFactoryFfi.openDatabase(databasePath);
+    await nextDb.insert('workout_logs', {
+      'date': '2026-01-08',
+      'plan_id': 1,
+      'exercise_id': 1,
+      'set_number': 1,
+      'reps': 9,
+      'weight': 50.0,
+      'rir': 2,
+    });
+    await nextDb.insert('workout_sessions', {
+      'date': '2026-01-08',
+      'plan_id': 1,
+      'fatigue_level': '3',
+      'duration_minutes': 60,
+      'mood': '4',
+      'notes': '',
+    });
+    await nextDb.close();
+
+    final second = await repository.exportData();
+    final secondArchive = ZipDecoder().decodeBytes(await second.readAsBytes());
+    final secondManifest = _readExportManifest(secondArchive);
+    expect(secondManifest['historyMode'], 'incremental');
+    expect(secondManifest['startDate'], '2026-01-08');
+    expect(secondManifest['endDate'], '2026-01-08');
+    expect(
+        secondArchive.files.any((file) => file.name == 'fit_log.db'), isFalse);
+    expect(
+        p.basename(second.path), 'fitlog_backup_2026-01-08_to_2026-01-08.zip');
+
+    final availability = await repository.getExportAvailability();
+    expect(availability.nextMissingRange, isNull);
+
+    await repository.importData(second);
+    final mergedDb = await databaseFactoryFfi.openDatabase(databasePath);
+    addTearDown(mergedDb.close);
+    expect(await _countTable(mergedDb, 'workout_logs'), 2);
+    expect(await _countTable(mergedDb, 'workout_sessions'), 2);
+  });
+}
+
+Map<String, dynamic> _readExportManifest(Archive archive) {
+  final file = archive.files.singleWhere(
+    (entry) => entry.name == 'export_manifest.json',
+  );
+  return jsonDecode(utf8.decode(file.content as List<int>))
+      as Map<String, dynamic>;
 }
 
 Map<String, Object?> _logRow({int planId = 1, required int exerciseId}) {

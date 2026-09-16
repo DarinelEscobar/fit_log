@@ -15,6 +15,8 @@ import '../../../history/presentation/providers/history_providers.dart';
 import '../../../performance/presentation/providers/performance_providers.dart';
 import '../../domain/usecases/export_app_data_usecase.dart';
 import '../../domain/usecases/import_app_data_usecase.dart';
+import '../../domain/entities/export_models.dart';
+import '../../domain/repositories/app_data_repository.dart';
 import '../providers/app_data_providers.dart';
 import '../../../routines/presentation/providers/exercises_provider.dart';
 import '../../../routines/presentation/providers/workout_plan_provider.dart';
@@ -47,8 +49,16 @@ class _DataScreenState extends ConsumerState<DataScreen> {
   Future<void> _refreshBackupStatus() async {
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final backupFile = File(p.join(directory.path, 'fitlog_backup.zip'));
-      if (!await backupFile.exists()) {
+      final backupFiles = (await directory.list().toList())
+          .whereType<File>()
+          .where(
+            (file) =>
+                p.basename(file.path).startsWith('fitlog_backup_') &&
+                p.extension(file.path).toLowerCase() == '.zip',
+          )
+          .toList();
+      final legacyBackup = File(p.join(directory.path, 'fitlog_backup.zip'));
+      if (backupFiles.isEmpty && !await legacyBackup.exists()) {
         if (!mounted) return;
         setState(() {
           _backupStatus = 'BACKUP FILE CREATED ON DEMAND DURING EXPORT';
@@ -56,6 +66,18 @@ class _DataScreenState extends ConsumerState<DataScreen> {
         return;
       }
 
+      File backupFile = legacyBackup;
+      if (backupFiles.isNotEmpty) {
+        backupFile = backupFiles.first;
+        var latestModified = await backupFile.lastModified();
+        for (final candidate in backupFiles.skip(1)) {
+          final modified = await candidate.lastModified();
+          if (modified.isAfter(latestModified)) {
+            backupFile = candidate;
+            latestModified = modified;
+          }
+        }
+      }
       final modified = await backupFile.lastModified();
       final formatted = DateFormat('MMM dd, yyyy • HH:mm').format(modified);
       if (!mounted) return;
@@ -106,7 +128,9 @@ class _DataScreenState extends ConsumerState<DataScreen> {
   Future<void> _exportData() async {
     try {
       final repo = ref.read(appDataRepositoryProvider);
-      final file = await ExportAppDataUseCase(repo)();
+      final request = await _chooseExportRequest(repo);
+      if (request == null) return;
+      final file = await ExportAppDataUseCase(repo)(request: request);
       if (!mounted) return;
       _showMessage(
         title: 'Backup exported',
@@ -126,7 +150,9 @@ class _DataScreenState extends ConsumerState<DataScreen> {
   Future<void> _shareBackup() async {
     try {
       final repo = ref.read(appDataRepositoryProvider);
-      final file = await ExportAppDataUseCase(repo)();
+      final request = await _chooseExportRequest(repo);
+      if (request == null) return;
+      final file = await ExportAppDataUseCase(repo)(request: request);
       await Share.shareXFiles([XFile(file.path)], text: 'Backup Fit Log');
       if (!mounted) return;
       _showMessage(
@@ -142,6 +168,15 @@ class _DataScreenState extends ConsumerState<DataScreen> {
         isError: true,
       );
     }
+  }
+
+  Future<ExportRequest?> _chooseExportRequest(AppDataRepository repo) async {
+    final availability = await repo.getExportAvailability();
+    if (!mounted) return null;
+    return showDialog<ExportRequest>(
+      context: context,
+      builder: (_) => _ExportRangeDialog(availability: availability),
+    );
   }
 
   Future<void> _importData() async {
@@ -243,7 +278,9 @@ class _DataScreenState extends ConsumerState<DataScreen> {
   String _friendlyError(Object error) {
     final message = error is FormatException
         ? error.message
-        : error.toString().replaceFirst('Exception: ', '');
+        : error is StateError
+            ? error.message
+            : error.toString().replaceFirst('Exception: ', '');
     return message.trim().isEmpty ? 'Please try again.' : message;
   }
 
@@ -325,7 +362,7 @@ class _DataScreenState extends ConsumerState<DataScreen> {
           _DataActionCard(
             title: 'Export Data',
             description:
-                'Generate a comprehensive archive of your entire workout history and personal bests. Portable and ready for external analysis.',
+                'Export only the missing workout dates or choose a custom range. Each backup includes its date range in the file name.',
             badge: 'JSON/CSV',
             actionLabel: 'START EXPORT',
             icon: Icons.download_rounded,
@@ -337,7 +374,7 @@ class _DataScreenState extends ConsumerState<DataScreen> {
           _DataActionCard(
             title: 'Share Backup',
             description:
-                'Quickly send an encrypted backup file to another device or cloud storage to ensure your progress is never lost.',
+                'Create a date-range backup and send it to another device or cloud storage. Automatic exports avoid dates already backed up.',
             badge: 'SYNC',
             actionLabel: 'CHOOSE DESTINATION',
             icon: Icons.ios_share_rounded,
@@ -384,6 +421,160 @@ class _DataScreenState extends ConsumerState<DataScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ExportRangeDialog extends StatefulWidget {
+  const _ExportRangeDialog({required this.availability});
+
+  final ExportAvailability availability;
+
+  @override
+  State<_ExportRangeDialog> createState() => _ExportRangeDialogState();
+}
+
+class _ExportRangeDialogState extends State<_ExportRangeDialog> {
+  bool _useCustomRange = false;
+  DateTimeRange? _customRange;
+
+  Future<void> _pickCustomRange() async {
+    final availability = widget.availability;
+    final firstDate = availability.firstDate ?? DateTime(2020);
+    final lastDate = availability.lastDate != null &&
+            availability.lastDate!.isAfter(DateTime.now())
+        ? availability.lastDate!
+        : DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      initialDateRange: _customRange ??
+          (availability.firstDate != null && availability.lastDate != null
+              ? DateTimeRange(
+                  start: availability.firstDate!,
+                  end: availability.lastDate!,
+                )
+              : null),
+      helpText: 'SELECT EXPORT RANGE',
+    );
+    if (!mounted || picked == null) return;
+    setState(() {
+      _useCustomRange = true;
+      _customRange = picked;
+    });
+  }
+
+  String _formatRange(ExportDateRange? range) {
+    if (range == null) return 'No unexported dates found';
+    final format = DateFormat('MMM dd, yyyy');
+    return '${format.format(range.startDate)} – ${format.format(range.endDate)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final availability = widget.availability;
+    return AlertDialog(
+      backgroundColor: KineticNoirPalette.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(
+        'Choose export range',
+        style:
+            KineticNoirTypography.headline(size: 22, weight: FontWeight.w700),
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 390),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (availability.hasWorkoutData)
+                Text(
+                  'Available: ${_formatRange(ExportDateRange(availability.firstDate!, availability.lastDate!))}',
+                  style: KineticNoirTypography.body(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: KineticNoirPalette.onSurfaceVariant,
+                  ),
+                ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                onTap: () => setState(() => _useCustomRange = false),
+                leading: Icon(
+                  _useCustomRange
+                      ? Icons.radio_button_unchecked
+                      : Icons.radio_button_checked,
+                  color: KineticNoirPalette.primary,
+                ),
+                title: const Text('Missing dates automatically'),
+                subtitle: Text(_formatRange(availability.nextMissingRange)),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                onTap: () {
+                  setState(() => _useCustomRange = true);
+                  if (_customRange == null) _pickCustomRange();
+                },
+                leading: Icon(
+                  _useCustomRange
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: KineticNoirPalette.primary,
+                ),
+                title: const Text('Choose a custom range'),
+                subtitle: Text(
+                  _customRange == null
+                      ? 'Select the dates to include'
+                      : '${DateFormat('MMM dd, yyyy').format(_customRange!.start)} – ${DateFormat('MMM dd, yyyy').format(_customRange!.end)}',
+                ),
+              ),
+              if (availability.lastExportedDate != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Last export through ${DateFormat('MMM dd, yyyy').format(availability.lastExportedDate!)}',
+                    style: KineticNoirTypography.body(
+                      size: 12,
+                      weight: FontWeight.w600,
+                      color: KineticNoirPalette.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _useCustomRange && _customRange == null
+              ? _pickCustomRange
+              : () {
+                  if (_useCustomRange) {
+                    final range = _customRange;
+                    if (range == null) return;
+                    Navigator.pop(
+                      context,
+                      ExportRequest.custom(
+                        ExportDateRange(range.start, range.end),
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.pop(context, const ExportRequest.automatic());
+                },
+          style: FilledButton.styleFrom(
+            backgroundColor: KineticNoirPalette.primary.withValues(alpha: 0.18),
+            foregroundColor: KineticNoirPalette.primary,
+          ),
+          child: Text(_useCustomRange ? 'Use custom range' : 'Export missing'),
+        ),
+      ],
     );
   }
 }
