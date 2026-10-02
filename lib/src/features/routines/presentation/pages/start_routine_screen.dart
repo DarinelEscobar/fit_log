@@ -31,6 +31,7 @@ import '../providers/plan_exercise_details_provider.dart';
 import '../providers/workout_plan_repository_provider.dart';
 import '../providers/warm_up_steps_provider.dart';
 import '../widgets/active_session_exercise_card.dart';
+import '../widgets/active_session_exercise_sections.dart';
 import '../widgets/active_session_exercise_setup_sheet.dart';
 import '../widgets/active_session_notes_card.dart';
 import '../widgets/confirm_exit_sheet.dart';
@@ -95,11 +96,6 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _notesCtl.addListener(_scheduleDraftPersist);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       _refreshClock(syncRestTimers: true, vibrateOnCompletion: true);
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _showSnackBar('Session started. Track clean sets and finish strong.');
-      }
     });
   }
 
@@ -541,7 +537,6 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     unawaited(NotificationService.cancelRest(
         notificationId: 700000 + widget.plan.id));
     _scheduleDraftPersist();
-    _showSnackBar('Warm-up complete. Start strength work.');
   }
 
   void _syncRestTimers(
@@ -714,7 +709,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     unawaited(
       Scrollable.ensureVisible(
         exerciseContext,
-        duration: const Duration(milliseconds: 220),
+        duration: KineticMotion.duration(context, 220),
         curve: Curves.easeOutCubic,
         alignment: 0.06,
       ),
@@ -1130,6 +1125,73 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     }
   }
 
+  void _logExpandedSet(int exerciseId) {
+    final result = _cardKeys[exerciseId]?.currentState?.logCurrentSet();
+    switch (result) {
+      case LogCurrentSetResult.registered:
+        unawaited(HapticFeedback.lightImpact());
+        break;
+      case LogCurrentSetResult.invalidReps:
+        _showSnackBar('Enter valid reps (>0) for this set.');
+        break;
+      case LogCurrentSetResult.noPendingSet:
+        _showSnackBar(
+            'All visible sets are complete. Add a new set to keep going.');
+        break;
+      case null:
+        break;
+    }
+  }
+
+  Widget _buildExerciseFocusHeader(PlanExerciseDetail detail) {
+    final totalSets = _setCountsByExercise[detail.exerciseId] ?? detail.sets;
+    int? currentSet;
+    for (var number = 1; number <= totalSets; number++) {
+      if (!(_sessionLogs[_logKey(detail.exerciseId, number)]?.completed ??
+          false)) {
+        currentSet = number;
+        break;
+      }
+    }
+    return Container(
+      key: const Key('active-session-focus-header'),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      decoration: BoxDecoration(
+        color: KineticNoirPalette.background,
+        border: Border(
+            bottom: BorderSide(
+                color:
+                    KineticNoirPalette.outlineVariant.withValues(alpha: 0.2))),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ActiveSessionExerciseTitle(
+            key: Key('active-exercise-title-${detail.exerciseId}'),
+            fullName: detail.name,
+            expanded: true,
+          ),
+          const SizedBox(height: 8),
+          ActiveSessionExecutionSummary(
+            key: Key('active-exercise-summary-${detail.exerciseId}'),
+            currentSet: currentSet,
+            totalSets: totalSets,
+            targetReps: detail.reps,
+            rir: detail.rir,
+            tempo: detail.tempo,
+          ),
+          const SizedBox(height: 6),
+          LinearProgressIndicator(
+            value: _completionRatio,
+            minHeight: 2,
+            color: KineticNoirPalette.primary,
+            backgroundColor: KineticNoirPalette.surfaceBright,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final now = _now;
@@ -1141,9 +1203,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         (_warmUpState == null &&
             (asyncWarmUpSteps.asData?.value.isNotEmpty ?? false));
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final isKeyboardVisible = bottomInset > 0;
     final activeRestTimer = _activeRestTimerSummary(now);
-    final floatingBottomGap = isKeyboardVisible ? 8.0 : 24.0;
     final resolvedSessionDetails =
         (_sessionDetails ?? asyncDetails.asData?.value) ??
             const <PlanExerciseDetail>[];
@@ -1151,7 +1211,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         (_sessionDetails == null && resolvedSessionDetails.isNotEmpty
             ? resolvedSessionDetails.first.exerciseId
             : null);
-    final scrollBottomPadding = activeRestTimer == null ? 196.0 : 252.0;
+    const scrollBottomPadding = 24.0;
     final expandedExerciseIndex = activeExpandedExerciseId == null
         ? null
         : resolvedSessionDetails.indexWhere(
@@ -1177,7 +1237,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         appBar: AppBar(
           backgroundColor: KineticNoirPalette.background,
           surfaceTintColor: Colors.transparent,
-          toolbarHeight: 92,
+          toolbarHeight: 64,
           leading: IconButton(
             key: const Key('active-session-close'),
             icon: const Icon(Icons.close_rounded),
@@ -1197,24 +1257,14 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                 ),
               ),
               const SizedBox(height: 2),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  _HeaderMetaChip(
-                    label: WorkoutSessionHelper.formatDuration(sessionDuration),
-                  ),
-                  _HeaderMetaChip(
-                    label: '$_completedSetCount/$_totalSetCount sets',
-                  ),
-                  _HeaderMetaChip(
-                    label: '${_volumeKg.toStringAsFixed(0)} KG',
-                  ),
-                  _HeaderMetaChip(
-                    label: '${(_completionRatio * 100).round()}%',
-                    isHighlighted: true,
-                  ),
-                ],
+              Text(
+                showWarmUpChrome
+                    ? 'Prepare for your session'
+                    : '${WorkoutSessionHelper.formatDuration(sessionDuration)} · $_completedSetCount/$_totalSetCount sets · ${_volumeKg.toStringAsFixed(0)} kg',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: KineticNoirTypography.body(
+                    size: 11, color: KineticNoirPalette.onSurfaceVariant),
               ),
             ],
           ),
@@ -1236,146 +1286,70 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
             const SizedBox(width: 8),
           ],
         ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-        floatingActionButton: ValueListenableBuilder<bool>(
+        bottomNavigationBar: ValueListenableBuilder<bool>(
           valueListenable: _warmUpVisible,
           builder: (context, warmUpVisible, _) => showWarmUpChrome ||
                   warmUpVisible
               ? const SizedBox.shrink()
               : Padding(
-                  padding: EdgeInsets.only(bottom: floatingBottomGap),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      if (activeRestTimer != null) ...[
-                        _FloatingRestTimerPill(summary: activeRestTimer),
-                        const SizedBox(height: 10),
-                      ],
-                      Row(
+                  padding: EdgeInsets.only(bottom: bottomInset),
+                  child: SafeArea(
+                    top: false,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      decoration: BoxDecoration(
+                        color: KineticNoirPalette.background,
+                        border: Border(
+                            top: BorderSide(
+                                color: KineticNoirPalette.outlineVariant
+                                    .withValues(alpha: 0.3))),
+                      ),
+                      child: Column(
                         mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: kineticPrimaryGradient,
-                              borderRadius: BorderRadius.circular(999),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: KineticNoirPalette.shadow.withValues(
-                                    alpha: 0.18,
-                                  ),
-                                  blurRadius: 24,
-                                  offset: const Offset(0, 12),
-                                ),
-                              ],
+                          if (activeRestTimer != null) ...[
+                            _FloatingRestTimerPill(summary: activeRestTimer),
+                            const SizedBox(height: 8),
+                          ],
+                          Row(children: [
+                            _SessionNavigationButton(
+                              buttonKey: const Key('active-session-nav-up'),
+                              icon: Icons.keyboard_arrow_up_rounded,
+                              onPressed: canNavigateUp
+                                  ? () => _moveExpandedExercise(-1)
+                                  : null,
                             ),
-                            child: FilledButton.icon(
-                              key: const Key('active-session-register-set'),
-                              onPressed: activeExpandedExerciseId == null
-                                  ? null
-                                  : () {
-                                      final cardState =
-                                          _cardKeys[activeExpandedExerciseId]
-                                              ?.currentState;
-                                      if (cardState == null) {
-                                        return;
-                                      }
-                                      final result = cardState.logCurrentSet();
-                                      switch (result) {
-                                        case LogCurrentSetResult.registered:
-                                          _showSnackBar(
-                                            'Set logged. Rest timer started.',
-                                          );
-                                          break;
-                                        case LogCurrentSetResult.invalidReps:
-                                          _showSnackBar(
-                                            'Enter valid reps (>0) for this set.',
-                                          );
-                                          break;
-                                        case LogCurrentSetResult.noPendingSet:
-                                          _showSnackBar(
-                                            'All visible sets are complete. Add a new set to keep going.',
-                                          );
-                                          break;
-                                      }
-                                    },
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                disabledBackgroundColor:
-                                    Colors.transparent.withValues(alpha: 0.4),
-                                shadowColor: Colors.transparent,
-                                foregroundColor: KineticNoirPalette.onPrimary,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 18,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                              ),
-                              icon: const Icon(Icons.check_rounded),
-                              label: Text(
-                                'LOG SET',
-                                style: KineticNoirTypography.body(
-                                  size: 13,
-                                  weight: FontWeight.w800,
-                                  color: KineticNoirPalette.onPrimary,
-                                  letterSpacing: 1.3,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: FilledButton.icon(
+                                key: const Key('active-session-register-set'),
+                                onPressed: activeExpandedExerciseId == null
+                                    ? null
+                                    : () => _logExpandedSet(
+                                        activeExpandedExerciseId),
+                                icon: const Icon(Icons.check_rounded),
+                                label: const Text('LOG SET'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: KineticNoirPalette.primary,
+                                  foregroundColor: KineticNoirPalette.onPrimary,
+                                  minimumSize: const Size(0, 48),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16)),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 10),
-                          Container(
-                            width: 44,
-                            height: 60,
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            decoration: BoxDecoration(
-                              color: KineticNoirPalette.surface,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: KineticNoirPalette.primary.withValues(
-                                  alpha: 0.22,
-                                ),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: KineticNoirPalette.shadow.withValues(
-                                    alpha: 0.14,
-                                  ),
-                                  blurRadius: 18,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
+                            const SizedBox(width: 8),
+                            _SessionNavigationButton(
+                              buttonKey: const Key('active-session-nav-down'),
+                              icon: Icons.keyboard_arrow_down_rounded,
+                              onPressed: canNavigateDown
+                                  ? () => _moveExpandedExercise(1)
+                                  : null,
                             ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                _SessionNavigationButton(
-                                  buttonKey: const Key('active-session-nav-up'),
-                                  icon: Icons.keyboard_arrow_up_rounded,
-                                  compact: true,
-                                  onPressed: canNavigateUp
-                                      ? () => _moveExpandedExercise(-1)
-                                      : null,
-                                ),
-                                const SizedBox(height: 6),
-                                _SessionNavigationButton(
-                                  buttonKey:
-                                      const Key('active-session-nav-down'),
-                                  icon: Icons.keyboard_arrow_down_rounded,
-                                  compact: true,
-                                  onPressed: canNavigateDown
-                                      ? () => _moveExpandedExercise(1)
-                                      : null,
-                                ),
-                              ],
-                            ),
-                          ),
+                          ]),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
         ),
@@ -1431,12 +1405,17 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
 
                   return Column(
                     children: [
+                      if (activeExpandedExerciseId != null)
+                        _buildExerciseFocusHeader(sessionDetails.firstWhere(
+                          (detail) =>
+                              detail.exerciseId == activeExpandedExerciseId,
+                        )),
                       Expanded(
                         child: ListView(
-                          padding: EdgeInsets.fromLTRB(
-                            24,
-                            12,
-                            24,
+                          padding: const EdgeInsets.fromLTRB(
+                            16,
+                            8,
+                            16,
                             scrollBottomPadding,
                           ),
                           children: [
@@ -1458,21 +1437,20 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                                 ),
                               ),
                             ] else
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
-                                  Expanded(
-                                    child: ActiveSessionNotesCard(
-                                      controller: _notesCtl,
-                                      focusNode: _notesFocusNode,
-                                      isVisible: _showNotesComposer,
-                                      onToggleVisibility: () {
-                                        setState(() => _showNotesComposer =
-                                            !_showNotesComposer);
-                                      },
-                                    ),
+                                  ActiveSessionNotesCard(
+                                    controller: _notesCtl,
+                                    focusNode: _notesFocusNode,
+                                    isVisible: _showNotesComposer,
+                                    onToggleVisibility: () {
+                                      setState(() => _showNotesComposer =
+                                          !_showNotesComposer);
+                                    },
                                   ),
-                                  const SizedBox(width: 10),
                                   _AddSessionExerciseButton(
                                     onPressed: addExercise,
                                   ),
@@ -1577,8 +1555,8 @@ class _FloatingRestTimerPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: const Key('active-session-floating-rest-timer'),
-      constraints: const BoxConstraints(maxWidth: 260),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      constraints: const BoxConstraints(maxWidth: 500),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: KineticNoirPalette.surface,
         borderRadius: BorderRadius.circular(999),
@@ -1597,8 +1575,8 @@ class _FloatingRestTimerPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 34,
-            height: 34,
+            width: 24,
+            height: 24,
             decoration: BoxDecoration(
               color: KineticNoirPalette.primary.withValues(alpha: 0.14),
               shape: BoxShape.circle,
@@ -1633,13 +1611,11 @@ class _SessionNavigationButton extends StatelessWidget {
     required this.buttonKey,
     required this.icon,
     required this.onPressed,
-    this.compact = false,
   });
 
   final Key buttonKey;
   final IconData icon;
   final VoidCallback? onPressed;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1655,14 +1631,11 @@ class _SessionNavigationButton extends StatelessWidget {
             : KineticNoirPalette.primary,
         disabledBackgroundColor: KineticNoirPalette.surfaceLow,
         disabledForegroundColor: KineticNoirPalette.outlineVariant,
-        minimumSize: compact ? const Size(32, 20) : const Size(44, 44),
-        maximumSize: compact ? const Size(32, 20) : null,
-        padding: compact ? EdgeInsets.zero : const EdgeInsets.all(10),
-        tapTargetSize: compact
-            ? MaterialTapTargetSize.shrinkWrap
-            : MaterialTapTargetSize.padded,
+        minimumSize: const Size(48, 48),
+        padding: const EdgeInsets.all(10),
+        tapTargetSize: MaterialTapTargetSize.padded,
       ),
-      icon: Icon(icon, size: compact ? 18 : 22),
+      icon: Icon(icon, size: 22),
       tooltip: icon == Icons.keyboard_arrow_up_rounded
           ? 'Open previous exercise'
           : 'Open next exercise',
@@ -1686,6 +1659,7 @@ class _AddSessionExerciseButton extends StatelessWidget {
           color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.35),
           style: BorderStyle.solid,
         ),
+        minimumSize: const Size(0, 48),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -1699,40 +1673,6 @@ class _AddSessionExerciseButton extends StatelessWidget {
           weight: FontWeight.w800,
           color: KineticNoirPalette.onSurfaceVariant,
           letterSpacing: 1.1,
-        ),
-      ),
-    );
-  }
-}
-
-class _HeaderMetaChip extends StatelessWidget {
-  const _HeaderMetaChip({
-    required this.label,
-    this.isHighlighted = false,
-  });
-
-  final String label;
-  final bool isHighlighted;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isHighlighted
-            ? KineticNoirPalette.primary.withValues(alpha: 0.12)
-            : KineticNoirPalette.surfaceLow,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: KineticNoirTypography.body(
-          size: 10,
-          weight: FontWeight.w800,
-          color: isHighlighted
-              ? KineticNoirPalette.primary
-              : KineticNoirPalette.onSurfaceVariant,
-          letterSpacing: 0.8,
         ),
       ),
     );

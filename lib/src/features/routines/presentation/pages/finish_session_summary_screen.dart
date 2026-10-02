@@ -118,6 +118,8 @@ class _FinishSessionSummaryScreenState
   @override
   Widget build(BuildContext context) {
     final canSave = _energy != null && _mood != null;
+    final isLargeText = MediaQuery.textScalerOf(context).scale(12) > 16 ||
+        MediaQuery.sizeOf(context).width < 340;
 
     return PopScope<FinishSessionSummaryResult>(
       canPop: false,
@@ -135,6 +137,7 @@ class _FinishSessionSummaryScreenState
           leading: IconButton(
             icon: const Icon(Icons.close_rounded),
             color: KineticNoirPalette.onSurfaceVariant,
+            tooltip: 'Close',
             onPressed: () => Navigator.of(context)
                 .pop(const FinishSessionSummaryResult.discard()),
           ),
@@ -143,33 +146,155 @@ class _FinishSessionSummaryScreenState
             child: FitLogWordmark(),
           ),
         ),
+        bottomNavigationBar: Padding(
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    clipBehavior: Clip.antiAlias,
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        gradient: canSave ? kineticPrimaryGradient : null,
+                        color: canSave
+                            ? null
+                            : KineticNoirPalette.surfaceBright
+                                .withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: FilledButton(
+                        key: const Key('finish-save-button'),
+                        onPressed: canSave
+                            ? () => Navigator.of(context)
+                                    .pop(FinishSessionSummaryResult.save(
+                                  energy: _energy!,
+                                  mood: _mood!,
+                                  notes: _notesController.text,
+                                ))
+                            : null,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 48),
+                          backgroundColor: Colors.transparent,
+                          disabledBackgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          foregroundColor: KineticNoirPalette.onPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          'SAVE & FINISH',
+                          style: KineticNoirTypography.body(
+                            size: 13,
+                            weight: FontWeight.w800,
+                            color: canSave
+                                ? KineticNoirPalette.onPrimary
+                                : KineticNoirPalette.onSurfaceVariant
+                                    .withValues(alpha: 0.5),
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  if (isLargeText) ...[
+                    TextButton(
+                      key: const Key('finish-resume-button'),
+                      onPressed: () => Navigator.of(context)
+                          .pop(FinishSessionSummaryResult.resume(
+                        energy: _energy,
+                        mood: _mood,
+                        notes: _notesController.text,
+                      )),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
+                        foregroundColor: KineticNoirPalette.primary,
+                      ),
+                      child: const Text('RESUME SESSION'),
+                    ),
+                    TextButton(
+                      key: const Key('finish-discard-button'),
+                      onPressed: () => Navigator.of(context)
+                          .pop(const FinishSessionSummaryResult.discard()),
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
+                        foregroundColor: KineticNoirPalette.error,
+                      ),
+                      child: const Text('DISCARD'),
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            key: const Key('finish-resume-button'),
+                            onPressed: () => Navigator.of(context)
+                                .pop(FinishSessionSummaryResult.resume(
+                              energy: _energy,
+                              mood: _mood,
+                              notes: _notesController.text,
+                            )),
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(0, 48),
+                              foregroundColor: KineticNoirPalette.primary,
+                            ),
+                            child: const Text('RESUME SESSION'),
+                          ),
+                        ),
+                        TextButton(
+                          key: const Key('finish-discard-button'),
+                          onPressed: () => Navigator.of(context)
+                              .pop(const FinishSessionSummaryResult.discard()),
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(0, 48),
+                            foregroundColor: KineticNoirPalette.error,
+                          ),
+                          child: const Text('DISCARD'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
         body: SafeArea(
           top: false,
           child: Stack(
             children: [
-              const _AmbientGlow(),
               SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 56),
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 56),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 520),
                     child: Container(
                       decoration: BoxDecoration(
                         color: KineticNoirPalette.surfaceLow,
-                        borderRadius: BorderRadius.circular(32),
+                        borderRadius: BorderRadius.circular(30),
                         border: Border.all(
                           color: KineticNoirPalette.outlineVariant
-                              .withValues(alpha: 0.18),
+                              .withValues(alpha: 0.22),
                         ),
                       ),
-                      padding: const EdgeInsets.all(28),
+                      padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Container(
-                            width: 80,
-                            height: 80,
-                            margin: const EdgeInsets.only(bottom: 24),
+                            width: 48,
+                            height: 48,
+                            margin: const EdgeInsets.only(bottom: 16),
                             decoration: BoxDecoration(
                               color: KineticNoirPalette.primary
                                   .withValues(alpha: 0.12),
@@ -182,14 +307,14 @@ class _FinishSessionSummaryScreenState
                             child: const Icon(
                               Icons.celebration_rounded,
                               color: KineticNoirPalette.primary,
-                              size: 38,
+                              size: 24,
                             ),
                           ),
                           Text(
-                            'WORKOUT COMPLETE',
+                            'Session review',
                             style: KineticNoirTypography.headline(
-                              size: 34,
-                              height: 0.95,
+                              size: 26,
+                              height: 1.15,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -197,12 +322,12 @@ class _FinishSessionSummaryScreenState
                             '${widget.draft.planName} is ready to save. Review your session and finish cleanly.',
                             style: KineticNoirTypography.body(
                               size: 14,
-                              weight: FontWeight.w600,
+                              weight: FontWeight.w500,
                               color: KineticNoirPalette.onSurfaceVariant,
                               height: 1.5,
                             ),
                           ),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 24),
                           Row(
                             children: [
                               Expanded(
@@ -212,7 +337,7 @@ class _FinishSessionSummaryScreenState
                                   suffix: 'MIN',
                                 ),
                               ),
-                              const SizedBox(width: 14),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: _SummaryMetricCard(
                                   label: 'VOLUME',
@@ -227,7 +352,7 @@ class _FinishSessionSummaryScreenState
                             completedSets: widget.draft.completedSets,
                             totalSets: widget.draft.totalSets,
                           ),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 26),
                           _SectionLabel(
                             label: 'ENERGY LEVEL',
                             trailing: _energy == null ? '--/10' : '$_energy/10',
@@ -255,7 +380,7 @@ class _FinishSessionSummaryScreenState
                                 Expanded(
                                   child: Padding(
                                     padding: EdgeInsets.only(
-                                      right: mood == _moodValues.last ? 0 : 10,
+                                      right: mood == _moodValues.last ? 0 : 8,
                                     ),
                                     child: _MoodButton(
                                       key: Key('finish-mood-${mood.label}'),
@@ -274,143 +399,53 @@ class _FinishSessionSummaryScreenState
                           TextField(
                             key: const Key('finish-session-notes'),
                             controller: _notesController,
-                            minLines: 4,
-                            maxLines: 6,
+                            minLines: 2,
+                            maxLines: 5,
+                            textInputAction: TextInputAction.newline,
                             style: KineticNoirTypography.body(
                               size: 15,
                               weight: FontWeight.w600,
                               height: 1.5,
+                              color: KineticNoirPalette.onSurface,
                             ),
                             decoration: InputDecoration(
                               hintText: 'How did it feel? Any new PRs?',
+                              hintStyle: KineticNoirTypography.body(
+                                size: 14,
+                                weight: FontWeight.w500,
+                                color: KineticNoirPalette.onSurfaceVariant
+                                    .withValues(alpha: 0.55),
+                              ),
                               filled: true,
                               fillColor: KineticNoirPalette.surfaceBright,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(20),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 28),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: kineticPrimaryGradient,
-                              borderRadius: BorderRadius.circular(22),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: KineticNoirPalette.shadow
-                                      .withValues(alpha: 0.22),
-                                  blurRadius: 24,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: FilledButton(
-                              key: const Key('finish-save-button'),
-                              onPressed: canSave
-                                  ? () => Navigator.of(context).pop(
-                                        FinishSessionSummaryResult.save(
-                                          energy: _energy!,
-                                          mood: _mood!,
-                                          notes: _notesController.text,
-                                        ),
-                                      )
-                                  : null,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                disabledBackgroundColor:
-                                    Colors.transparent.withValues(alpha: 0.4),
-                                shadowColor: Colors.transparent,
-                                foregroundColor: KineticNoirPalette.onPrimary,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 20),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(22),
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide(
+                                  color: KineticNoirPalette.outlineVariant
+                                      .withValues(alpha: 0.25),
                                 ),
                               ),
-                              child: Text(
-                                'SAVE & FINISH',
-                                style: KineticNoirTypography.body(
-                                  size: 15,
-                                  weight: FontWeight.w800,
-                                  color: KineticNoirPalette.onPrimary,
-                                  letterSpacing: 1.3,
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide(
+                                  color: KineticNoirPalette.outlineVariant
+                                      .withValues(alpha: 0.25),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: const BorderSide(
+                                  color: KineticNoirPalette.primary,
+                                  width: 1.5,
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  key: const Key('finish-resume-button'),
-                                  onPressed: () => Navigator.of(context).pop(
-                                    FinishSessionSummaryResult.resume(
-                                      energy: _energy,
-                                      mood: _mood,
-                                      notes: _notesController.text,
-                                    ),
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor:
-                                        KineticNoirPalette.onSurfaceVariant,
-                                    side: BorderSide(
-                                      color: KineticNoirPalette.outlineVariant
-                                          .withValues(alpha: 0.35),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'RESUME SESSION',
-                                    style: KineticNoirTypography.body(
-                                      size: 12,
-                                      weight: FontWeight.w800,
-                                      color:
-                                          KineticNoirPalette.onSurfaceVariant,
-                                      letterSpacing: 1.0,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: OutlinedButton(
-                                  key: const Key('finish-discard-button'),
-                                  onPressed: () => Navigator.of(context).pop(
-                                      const FinishSessionSummaryResult
-                                          .discard()),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: KineticNoirPalette.error,
-                                    side: BorderSide(
-                                      color: KineticNoirPalette.error
-                                          .withValues(alpha: 0.35),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'DISCARD',
-                                    style: KineticNoirTypography.body(
-                                      size: 12,
-                                      weight: FontWeight.w800,
-                                      color: KineticNoirPalette.error,
-                                      letterSpacing: 1.0,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          const SizedBox(height: 20),
                         ],
                       ),
                     ),
@@ -431,47 +466,9 @@ class _FinishSessionSummaryScreenState
 
   String _formatVolume(double volumeKg) {
     if (volumeKg >= 1000) {
-      return (volumeKg / 1000).toStringAsFixed(1);
+      return '${(volumeKg / 1000).toStringAsFixed(1)}k';
     }
     return volumeKg.toStringAsFixed(0);
-  }
-}
-
-class _AmbientGlow extends StatelessWidget {
-  const _AmbientGlow();
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Stack(
-        children: [
-          Positioned(
-            top: -220,
-            right: -180,
-            child: Container(
-              width: 420,
-              height: 420,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: KineticNoirPalette.primary.withValues(alpha: 0.08),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -260,
-            left: -220,
-            child: Container(
-              width: 520,
-              height: 520,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFFF95A0).withValues(alpha: 0.05),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -488,52 +485,59 @@ class _SummaryMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 124,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: KineticNoirPalette.surface,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: KineticNoirTypography.body(
-              size: 10,
-              weight: FontWeight.w800,
-              color: KineticNoirPalette.onSurfaceVariant,
-              letterSpacing: 1.5,
-            ),
+    return Material(
+      color: KineticNoirPalette.surface,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 104),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.22),
           ),
-          const Spacer(),
-          Wrap(
-            crossAxisAlignment: WrapCrossAlignment.end,
-            spacing: 6,
-            children: [
-              Text(
-                value,
-                style: KineticNoirTypography.headline(
-                  size: 34,
-                  color: KineticNoirPalette.primary,
-                ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: KineticNoirTypography.body(
+                size: 10,
+                weight: FontWeight.w800,
+                color: KineticNoirPalette.onSurfaceVariant,
+                letterSpacing: 1.5,
               ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  suffix,
-                  style: KineticNoirTypography.body(
-                    size: 12,
-                    weight: FontWeight.w700,
-                    color: KineticNoirPalette.onSurfaceVariant,
-                    letterSpacing: 1.1,
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.end,
+              spacing: 6,
+              children: [
+                Text(
+                  value,
+                  style: KineticNoirTypography.headline(
+                    size: 26,
+                    color: KineticNoirPalette.primary,
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    suffix,
+                    style: KineticNoirTypography.body(
+                      size: 11,
+                      weight: FontWeight.w700,
+                      color: KineticNoirPalette.onSurfaceVariant,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -550,30 +554,37 @@ class _SummaryProgressChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: KineticNoirPalette.surface,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.check_circle_outline_rounded,
-            color: KineticNoirPalette.primary,
+    return Material(
+      color: KineticNoirPalette.surface,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.2),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '$completedSets / $totalSets sets completed',
-              style: KineticNoirTypography.body(
-                size: 13,
-                weight: FontWeight.w700,
-                color: KineticNoirPalette.onSurfaceVariant,
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.check_circle_outline_rounded,
+              color: KineticNoirPalette.primary,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '$completedSets / $totalSets sets completed',
+                style: KineticNoirTypography.body(
+                  size: 13,
+                  weight: FontWeight.w700,
+                  color: KineticNoirPalette.onSurfaceVariant,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -592,21 +603,23 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(
-          label,
-          style: KineticNoirTypography.body(
-            size: 10,
-            weight: FontWeight.w800,
-            color: KineticNoirPalette.onSurfaceVariant,
-            letterSpacing: 1.6,
+        Expanded(
+          child: Text(
+            label,
+            style: KineticNoirTypography.body(
+              size: 10,
+              weight: FontWeight.w800,
+              color: KineticNoirPalette.onSurfaceVariant,
+              letterSpacing: 1.6,
+            ),
           ),
         ),
         if (trailing != null) ...[
-          const Spacer(),
+          const SizedBox(width: 8),
           Text(
             trailing!,
             style: KineticNoirTypography.headline(
-              size: 22,
+              size: 20,
               color: KineticNoirPalette.primary,
             ),
           ),
@@ -630,28 +643,39 @@ class _SelectableNumberChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    final motionDuration = KineticMotion.duration(context, 180);
+
+    return Material(
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(14),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: 36,
-        height: 48,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? KineticNoirPalette.primary
-              : KineticNoirPalette.surface,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Center(
-          child: Text(
-            value,
-            style: KineticNoirTypography.body(
-              size: 14,
-              weight: FontWeight.w800,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: motionDuration,
+          width: 38,
+          height: 48,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? KineticNoirPalette.primary
+                : KineticNoirPalette.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
               color: isSelected
-                  ? KineticNoirPalette.onPrimary
-                  : KineticNoirPalette.onSurfaceVariant,
+                  ? KineticNoirPalette.primary
+                  : KineticNoirPalette.outlineVariant.withValues(alpha: 0.22),
+            ),
+          ),
+          child: Center(
+            child: Text(
+              value,
+              style: KineticNoirTypography.body(
+                size: 14,
+                weight: FontWeight.w800,
+                color: isSelected
+                    ? KineticNoirPalette.onPrimary
+                    : KineticNoirPalette.onSurfaceVariant,
+              ),
             ),
           ),
         ),
@@ -674,29 +698,36 @@ class _MoodButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
+    final motionDuration = KineticMotion.duration(context, 180);
+
+    return Material(
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(18),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        height: 62,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? KineticNoirPalette.primary.withValues(alpha: 0.14)
-              : KineticNoirPalette.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: AnimatedContainer(
+          duration: motionDuration,
+          height: 56,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? KineticNoirPalette.primary.withValues(alpha: 0.16)
+                : KineticNoirPalette.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isSelected
+                  ? KineticNoirPalette.primary
+                  : KineticNoirPalette.outlineVariant.withValues(alpha: 0.2),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Icon(
+            mood.icon,
+            size: 24,
             color: isSelected
                 ? KineticNoirPalette.primary
-                : KineticNoirPalette.outlineVariant.withValues(alpha: 0.2),
-            width: isSelected ? 2 : 1,
+                : KineticNoirPalette.onSurfaceVariant,
           ),
-        ),
-        child: Icon(
-          mood.icon,
-          color: isSelected
-              ? KineticNoirPalette.primary
-              : KineticNoirPalette.onSurfaceVariant,
         ),
       ),
     );

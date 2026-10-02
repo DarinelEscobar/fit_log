@@ -28,12 +28,12 @@ class WarmUpPreview extends StatelessWidget {
     );
     return ListView(
       key: const Key('warmup-preview'),
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
         Text(
-          'YOUR WARM-UP',
+          'Your warm-up',
           style:
-              KineticNoirTypography.headline(size: 30, weight: FontWeight.w800),
+              KineticNoirTypography.headline(size: 26, weight: FontWeight.w800),
         ),
         const SizedBox(height: 8),
         Text(
@@ -44,7 +44,7 @@ class WarmUpPreview extends StatelessWidget {
             color: KineticNoirPalette.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 20),
         Text(
           'GET READY TIME',
           style: KineticNoirTypography.body(
@@ -68,7 +68,7 @@ class WarmUpPreview extends StatelessWidget {
               )
               .toList(growable: false),
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 20),
         Text(
           'WARM-UP LIST',
           style: KineticNoirTypography.body(
@@ -127,8 +127,9 @@ class WarmUpFlow extends StatelessWidget {
             .toInt();
     final isGetReady = state.phase == WarmUpPhase.getReady;
     final isRest = state.phase == WarmUpPhase.rest;
-    final color =
-        isRest ? KineticNoirPalette.error : KineticNoirPalette.primary;
+    final color = isRest
+        ? KineticNoirPalette.onSurfaceVariant
+        : KineticNoirPalette.primary;
     final phaseLabel = isGetReady ? 'GET READY' : (isRest ? 'REST' : 'WORK');
     final sideLabel = switch (state.side) {
       WarmUpSide.left => 'LEFT SIDE',
@@ -159,7 +160,7 @@ class WarmUpFlow extends StatelessWidget {
               key: const Key('warmup-current-exercise'),
               textAlign: TextAlign.center,
               style: KineticNoirTypography.headline(
-                  size: 44, weight: FontWeight.w800),
+                  size: 30, weight: FontWeight.w800),
             ),
             if (step.notes.isNotEmpty) ...[
               const SizedBox(height: 10),
@@ -173,47 +174,87 @@ class WarmUpFlow extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 28),
-            Container(
-              width: 270,
-              height: 270,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color.withValues(alpha: 0.12),
-                border:
-                    Border.all(color: color.withValues(alpha: 0.8), width: 8),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+            const SizedBox(height: 20),
+            SizedBox(
+              width: (240.0 +
+                      (MediaQuery.textScalerOf(context).scale(1.0) > 1.0
+                          ? (MediaQuery.textScalerOf(context).scale(1.0) -
+                                  1.0) *
+                              40.0
+                          : 0.0))
+                  .clamp(200.0, 290.0),
+              height: (240.0 +
+                      (MediaQuery.textScalerOf(context).scale(1.0) > 1.0
+                          ? (MediaQuery.textScalerOf(context).scale(1.0) -
+                                  1.0) *
+                              40.0
+                          : 0.0))
+                  .clamp(200.0, 290.0),
+              child: Stack(
+                fit: StackFit.expand,
+                alignment: Alignment.center,
                 children: [
-                  Text(
-                    phaseLabel,
-                    style: KineticNoirTypography.body(
-                      size: 14,
-                      weight: FontWeight.w900,
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(
+                        end: (seconds /
+                                (isGetReady
+                                        ? state.getReadySeconds
+                                        : isRest
+                                            ? step.restSeconds
+                                            : step.workSeconds)
+                                    .clamp(1, 86400))
+                            .clamp(0.0, 1.0)),
+                    duration: KineticMotion.duration(context, 180),
+                    builder: (context, value, _) => CircularProgressIndicator(
+                      value: value,
+                      strokeWidth: 5,
+                      strokeCap: StrokeCap.round,
                       color: color,
-                      letterSpacing: 2,
+                      backgroundColor: KineticNoirPalette.surfaceBright,
                     ),
                   ),
-                  if (!isGetReady && sideLabel.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      sideLabel,
-                      style: KineticNoirTypography.body(
-                        size: 11,
-                        weight: FontWeight.w800,
-                        color: KineticNoirPalette.onSurfaceVariant,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  Text(
-                    '$minutes:${remainder.toString().padLeft(2, '0')}',
-                    style: KineticNoirTypography.headline(
-                      size: 58,
-                      weight: FontWeight.w700,
-                      color: color,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          phaseLabel,
+                          textAlign: TextAlign.center,
+                          style: KineticNoirTypography.body(
+                            size: 14,
+                            weight: FontWeight.w900,
+                            color: color,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        if (!isGetReady && sideLabel.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            sideLabel,
+                            textAlign: TextAlign.center,
+                            style: KineticNoirTypography.body(
+                              size: 11,
+                              weight: FontWeight.w800,
+                              color: KineticNoirPalette.onSurfaceVariant,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            '$minutes:${remainder.toString().padLeft(2, '0')}',
+                            style: KineticNoirTypography.headline(
+                              size: 52,
+                              weight: FontWeight.w700,
+                              color: color,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

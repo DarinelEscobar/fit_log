@@ -30,8 +30,8 @@ class ActiveSessionExerciseTitle extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: KineticNoirTypography.headline(
-                size: expanded ? 24 : 22,
-                height: 1.02,
+                size: expanded ? 19 : 17,
+                height: 1.2,
               ),
             ),
             if (parts.variant != null) ...[
@@ -76,7 +76,7 @@ class ActiveSessionExecutionSummary extends StatelessWidget {
     required this.totalSets,
     required this.targetReps,
     required this.rir,
-    required this.restSeconds,
+    required this.tempo,
     super.key,
   });
 
@@ -84,7 +84,7 @@ class ActiveSessionExecutionSummary extends StatelessWidget {
   final int totalSets;
   final int targetReps;
   final int rir;
-  final int restSeconds;
+  final String tempo;
 
   @override
   Widget build(BuildContext context) {
@@ -94,8 +94,7 @@ class ActiveSessionExecutionSummary extends StatelessWidget {
 
     return Semantics(
       excludeSemantics: true,
-      label:
-          '$statusLabel. Target $targetReps reps. RIR $rir. Rest $restSeconds seconds.',
+      label: '$statusLabel. Target $targetReps reps. RIR $rir. Tempo $tempo.',
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
@@ -122,7 +121,7 @@ class ActiveSessionExecutionSummary extends StatelessWidget {
             ),
             Expanded(child: _ExecutionMetric(label: 'RIR', value: '$rir')),
             Expanded(
-              child: _ExecutionMetric(label: 'REST', value: '${restSeconds}s'),
+              child: _ExecutionMetric(label: 'TEMPO', value: tempo),
             ),
           ],
         ),

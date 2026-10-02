@@ -17,6 +17,7 @@ import 'package:fit_log/src/features/routines/presentation/pages/select_exercise
 import 'package:fit_log/src/features/routines/presentation/pages/start_routine_screen.dart';
 import 'package:fit_log/src/features/routines/presentation/providers/workout_plan_repository_provider.dart';
 import 'package:fit_log/src/features/routines/presentation/widgets/active_session_exercise_card.dart';
+import 'package:fit_log/src/features/routines/presentation/widgets/routine_editor_exercise_card.dart';
 import 'package:fit_log/src/utils/notification_service.dart';
 import 'package:fit_log/src/navigation/widgets/kinetic_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +25,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:vibration/vibration_presets.dart';
 import 'package:vibration_platform_interface/vibration_platform_interface.dart';
@@ -36,6 +38,7 @@ late VibrationPlatform _originalVibrationPlatform;
 
 void main() {
   setUpAll(() {
+    GoogleFonts.config.allowRuntimeFetching = false;
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
     _originalVibrationPlatform = VibrationPlatform.instance;
@@ -109,6 +112,9 @@ void main() {
 
     expect(find.byKey(const Key('routine-editor-title')), findsOneWidget);
     expect(find.text('EXERCISES'), findsOneWidget);
+    expect(find.byType(RoutineEditorExerciseCard), findsWidgets);
+    await tester.tap(find.byType(RoutineEditorExerciseCard).first);
+    await tester.pumpAndSettle();
     expect(find.text('EXERCISE NAME'), findsWidgets);
     expect(
       find.byKey(const Key('routine-editor-add-existing')),
@@ -195,7 +201,7 @@ void main() {
       find.byKey(const Key('active-progress-comparison-chart')),
       findsNothing,
     );
-    expect(find.text('TEMPO'), findsNothing);
+    expect(find.text('TEMPO'), findsOneWidget);
 
     await _scrollUntilVisible(
       tester,
@@ -204,8 +210,8 @@ void main() {
     await tester.tap(find.byKey(const Key('active-plan-details-toggle-1')));
     await tester.pumpAndSettle();
 
-    expect(find.text('TEMPO'), findsOneWidget);
-    expect(find.text('3-1-1-0'), findsOneWidget);
+    expect(find.text('TEMPO'), findsNWidgets(2));
+    expect(find.text('3-1-1-0'), findsNWidgets(2));
     expect(find.byType(KineticBottomNavBar), findsNothing);
     expect(find.text('DONE'), findsNothing);
     expect(find.textContaining('sets programmed'), findsNothing);
@@ -506,8 +512,7 @@ void main() {
     final resumedNotification = _notificationCalls.lastWhere(
       (call) => call.method == 'zonedSchedule',
     );
-    final resumedArgs =
-        resumedNotification.arguments as Map<dynamic, dynamic>;
+    final resumedArgs = resumedNotification.arguments as Map<dynamic, dynamic>;
     expect(resumedArgs['title'], 'Warm-up complete');
     expect(resumedArgs['body'], 'Start your strength session.');
 
@@ -522,7 +527,8 @@ void main() {
     );
   });
 
-  testWidgets('warm-up skip step advances to next step or finishes on last step',
+  testWidgets(
+      'warm-up skip step advances to next step or finishes on last step',
       (tester) async {
     final repo = _FakeWorkoutPlanRepository();
     repo._warmUpSteps[1] = const [
@@ -1008,7 +1014,8 @@ void main() {
     _expectActiveFieldHasFocus(tester, const Key('active-set-1-1-rir'));
   });
 
-  testWidgets('rir auto-advances to the next set kg', (tester) async {
+  testWidgets('rir keeps focus in the current set until it is logged',
+      (tester) async {
     await _pumpStartRoutine(tester);
 
     await _enterActiveSetValue(
@@ -1017,7 +1024,8 @@ void main() {
       '1',
     );
     await tester.pump(const Duration(milliseconds: 320));
-    _expectActiveFieldHasFocus(tester, const Key('active-set-1-2-kg'));
+    _expectActiveFieldHasFocus(tester, const Key('active-set-1-1-rir'));
+    expect(find.byKey(const Key('active-set-1-2-kg')), findsNothing);
   });
 
   testWidgets('last visible set rir does not auto-advance past the row', (
@@ -1026,9 +1034,9 @@ void main() {
     await _pumpStartRoutine(tester);
 
     await _scrollUntilVisible(
-      tester,
-      find.byKey(const Key('active-set-1-4-rir')),
-    );
+        tester, find.byKey(const Key('active-set-select-1-4')));
+    await tester.tap(find.byKey(const Key('active-set-select-1-4')));
+    await tester.pumpAndSettle();
     await _enterActiveSetValue(
       tester,
       const Key('active-set-1-4-rir'),
@@ -1036,6 +1044,59 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 320));
     _expectActiveFieldHasFocus(tester, const Key('active-set-1-4-rir'));
+  });
+
+  testWidgets(
+      'logging compacts the previous set and editing it preserves the next set',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutine(tester, repo: repo);
+    final initialActiveHeight =
+        tester.getSize(find.byKey(const Key('active-set-row-1-1'))).height;
+    expect(find.byKey(const Key('active-set-1-2-kg')), findsNothing);
+    await tester.enterText(find.byKey(const Key('active-set-1-1-kg')), '42.5');
+    await tester.tap(find.byKey(const Key('active-session-register-set')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('active-set-1-1-kg')), findsNothing);
+    expect(find.byKey(const Key('active-set-1-2-kg')), findsOneWidget);
+    expect(tester.getSize(find.byKey(const Key('active-set-row-1-1'))).height,
+        lessThan(initialActiveHeight));
+    await tester.enterText(find.byKey(const Key('active-set-1-2-kg')), '45');
+    await tester.tap(find.byKey(const Key('active-set-select-1-1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('active-set-1-1-reps')), '7');
+    await tester.tap(find.byKey(const Key('active-session-register-set')));
+    await tester.pumpAndSettle();
+    final nextInput =
+        tester.widget<TextField>(find.byKey(const Key('active-set-1-2-kg')));
+    expect(nextInput.controller!.text, '45');
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(
+        repo.activeSessionDraft!.logs
+            .singleWhere((log) => log.exerciseId == 1 && log.setNumber == 1)
+            .reps,
+        7);
+    expect(_notificationCalls.where((call) => call.method == 'zonedSchedule'),
+        hasLength(1));
+  });
+
+  testWidgets(
+      'exercise RIR and tempo remain visible after scrolling at large text',
+      (tester) async {
+    await _pumpStartRoutine(tester,
+        surfaceSize: const Size(375, 812),
+        textScaler: const TextScaler.linear(1.8));
+    final headerBefore =
+        tester.getRect(find.byKey(const Key('active-session-focus-header')));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -600));
+    await tester.pumpAndSettle();
+    final headerAfter =
+        tester.getRect(find.byKey(const Key('active-session-focus-header')));
+    expect(headerAfter, headerBefore);
+    expect(find.text('Barbell Bench Press'), findsOneWidget);
+    expect(find.text('TEMPO'), findsOneWidget);
+    expect(find.text('3-1-1-0'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('decimal kg entry does not auto-advance', (tester) async {
@@ -1385,8 +1446,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('01:05'), findsOneWidget);
-    expect(find.text('1/4 sets'), findsOneWidget);
+    expect(find.textContaining('01:05'), findsOneWidget);
+    expect(find.textContaining('1/4 sets'), findsOneWidget);
     expect(
       find.byKey(const Key('active-session-floating-rest-timer')),
       findsOneWidget,

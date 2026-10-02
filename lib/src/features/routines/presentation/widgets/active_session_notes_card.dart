@@ -23,43 +23,38 @@ class ActiveSessionNotesCard extends StatelessWidget {
       builder: (context, _) {
         if (!isVisible) {
           final hasNotes = controller.text.trim().isNotEmpty;
-          return Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              key: const Key('active-session-notes-toggle'),
-              onPressed: onToggleVisibility,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: hasNotes
+          return OutlinedButton.icon(
+            key: const Key('active-session-notes-toggle'),
+            onPressed: onToggleVisibility,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: hasNotes
+                  ? KineticNoirPalette.primary
+                  : KineticNoirPalette.onSurfaceVariant,
+              side: BorderSide(
+                color: (hasNotes
+                        ? KineticNoirPalette.primary
+                        : KineticNoirPalette.outlineVariant)
+                    .withValues(alpha: 0.28),
+              ),
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            icon: Icon(
+              hasNotes ? Icons.sticky_note_2_rounded : Icons.edit_note_rounded,
+              size: 18,
+            ),
+            label: Text(
+              hasNotes ? 'SHOW NOTES' : 'NOTES',
+              style: KineticNoirTypography.body(
+                size: 11,
+                weight: FontWeight.w800,
+                color: hasNotes
                     ? KineticNoirPalette.primary
                     : KineticNoirPalette.onSurfaceVariant,
-                side: BorderSide(
-                  color: (hasNotes
-                          ? KineticNoirPalette.primary
-                          : KineticNoirPalette.outlineVariant)
-                      .withValues(alpha: 0.28),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              icon: Icon(
-                hasNotes
-                    ? Icons.sticky_note_2_rounded
-                    : Icons.edit_note_rounded,
-                size: 18,
-              ),
-              label: Text(
-                hasNotes ? 'SHOW NOTES' : 'NOTES',
-                style: KineticNoirTypography.body(
-                  size: 11,
-                  weight: FontWeight.w800,
-                  color: hasNotes
-                      ? KineticNoirPalette.primary
-                      : KineticNoirPalette.onSurfaceVariant,
-                  letterSpacing: 1.1,
-                ),
+                letterSpacing: 1.1,
               ),
             ),
           );
@@ -68,7 +63,7 @@ class ActiveSessionNotesCard extends StatelessWidget {
         final isExpanded =
             focusNode.hasFocus || controller.text.trim().isNotEmpty;
         return AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: KineticMotion.duration(context, 180),
           curve: Curves.easeOut,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -107,8 +102,8 @@ class ActiveSessionNotesCard extends StatelessWidget {
                         horizontal: 10,
                         vertical: 8,
                       ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      minimumSize: const Size(48, 48),
+                      tapTargetSize: MaterialTapTargetSize.padded,
                     ),
                     icon: const Icon(Icons.visibility_off_rounded, size: 16),
                     label: Text(
