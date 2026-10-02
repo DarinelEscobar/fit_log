@@ -23,6 +23,15 @@ final class KineticNoirSpacing {
 
 /// Short, event-driven motion; respects the device accessibility setting.
 final class KineticMotion {
+  static const feedbackMs = 120;
+  static const revealMs = 220;
+  static const replaceMs = 180;
+  static const routeMs = 260;
+  static const exitMs = 170;
+  static const enterCurve = Curves.easeOutCubic;
+  static const exitCurve = Curves.easeInCubic;
+  static const stateCurve = Curves.easeInOutCubic;
+
   static Duration duration(BuildContext context, [int milliseconds = 200]) =>
       MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
