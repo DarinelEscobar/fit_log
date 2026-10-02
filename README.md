@@ -6,9 +6,10 @@
 
 Fit Log is a Flutter workout tracker focused on routine-based training, fast in-session logging, and local-first data ownership. The app is designed for lifters who want structured routines, quick set registration during a workout, and backup-friendly data they can keep on-device.
 
-The current product experience is built around two primary tabs:
+The current product experience is built around three primary tabs:
 
 - `Routines` for routine management, exercise browsing, editing, and active sessions
+- `History` for saved sessions, workout totals, and session details
 - `Performance` for analytics based on current active routines and exercise-level progress
 
 ## Product Overview
@@ -20,20 +21,21 @@ Fit Log helps users do four things well:
 3. Finish a session with a dedicated summary flow for energy, mood, notes, and saved logs
 4. Export or import the app state through ZIP or table-level `.xlsx` files
 
-The app uses a dark Kinetic-Noir visual system across the redesigned flows. The implemented UX emphasizes fast read/write performance, compact session logging, and local-first backups instead of cloud sync.
+The app uses a dark Kinetic-Noir visual system: violet accents, Space Grotesk headings, Manrope body text, rounded Material icons, and restrained surfaces. Native Flutter transitions take 160–220 ms and respect the device's reduced-motion setting. No additional animation dependency is required.
 
 ## Implemented UX
 
 ### Primary Navigation
 
 - `Routines Library`: entry screen for the app, optimized for quick drill-down into a program
+- `History`: compact saved-session cards and training totals
 - `Performance Dashboard`: analytics for current active routines only, filtered by a selected time window
 
 ### Routine Flow
 
 - `Exercise List`: routine detail before a workout starts, with search and direct access to exercise progress
 - `Routine Editor`: full routine editing flow for metadata, exercises, and programmed set details
-- `Active Workout Session`: compact logging screen with global set registration, `kg` only, rest timer, notes, and per-exercise set controls
+- `Active Workout Session`: pinned exercise name, target reps, RIR and tempo; one expanded set at a time; fixed `LOG SET` and exercise navigation controls
 - `Finish Session Summary`: full-screen end-of-workout review before saving the session
 - `Exercise Progress Detail`: exercise-centric progress screen accessed from the exercise list
 
@@ -42,6 +44,8 @@ The app uses a dark Kinetic-Noir visual system across the redesigned flows. The 
 - `Data Management`: export/import backups opened from the Routines `Manage` menu
 
 ## Implemented Screens
+
+The screenshots below document the earlier visual baseline. Run the current app to inspect the compact layouts and interactions described here.
 
 ### Routines Library
 
@@ -69,7 +73,7 @@ The editor is a form-driven workflow for changing routine metadata and programme
 
 ### Active Workout Session
 
-The active session screen is optimized for fast logging. It uses `kg` only, keeps the global `REGISTER SET` action, supports `+ set` and `- set`, and avoids heavy history UI during the workout.
+The active session keeps the current exercise name, RIR and tempo visible while scrolling. Logging a set collapses it into a compact summary and opens the next pending set. Completed and upcoming sets can be selected for editing; correcting a completed set does not restart its rest timer. The rest countdown appears after logging, while planned rest remains in plan details. The fixed `LOG SET` action and previous/next exercise controls remain reachable when the keyboard opens. Set count controls, notes, draft recovery and session persistence retain their existing behavior.
 
 ![Active Workout Session](docs/images/screens/active-workout-session.png)
 
@@ -116,9 +120,10 @@ Operationally, the app now favors SQLite for responsive reads and writes during 
 
 ## Current Navigation Model
 
-The current app shell exposes two primary tabs from the bottom navigation:
+The current app shell exposes three primary tabs from the bottom navigation:
 
 - `Routines`
+- `History`
 - `Performance`
 
 The following screens are secondary routes opened from those tabs:
@@ -159,6 +164,16 @@ flutter pub get
 flutter run
 ```
 
+### Preview with fictional workout data
+
+On a fresh emulator or an empty app database:
+
+```bash
+flutter run -t lib/main_demo.dart
+```
+
+This separate development entrypoint seeds fictional routines, warm-up steps and recent workout history for visual review. It skips seeding when routines, logs or sessions already exist, and a second launch does not duplicate the fixture. The normal `lib/main.dart` entrypoint does not seed demo data. The fixture is for UI review, not a prescribed training plan.
+
 At startup the app:
 
 1. ensures the expected `.xlsx` tables exist
@@ -174,10 +189,10 @@ At startup the app:
 
 Important runtime entrypoints:
 
-- [main.dart](<local path omitted>)
-- [app.dart](<local path omitted>)
-- [main_scaffold.dart](<local path omitted>)
-- [workout_storage_service.dart](<local path omitted>)
+- [main.dart](lib/main.dart)
+- [app.dart](lib/src/app.dart)
+- [main_scaffold.dart](lib/src/navigation/main_scaffold.dart)
+- [workout_storage_service.dart](lib/src/data/services/workout_storage_service.dart)
 
 ## Backup and Import
 
