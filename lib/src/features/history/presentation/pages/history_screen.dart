@@ -215,7 +215,7 @@ class _PlanFilter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 42,
+      height: 52,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
@@ -329,38 +329,38 @@ class _OverviewGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.25,
-      children: [
-        _StatCard(
-          label: 'WORKOUTS',
-          value: '${data.sessions.length}',
-          detail: '${data.trainingDays} training days',
-        ),
-        _StatCard(
-          label: 'VOLUME',
-          value: _formatCompactKg(data.totalVolumeKg),
-          detail: 'kg across reviewed sets',
-        ),
-        _StatCard(
-          label: 'SETS',
-          value: '${data.totalSets}',
-          detail: 'completed work sets',
-        ),
-        _StatCard(
-          label: 'AVG TIME',
-          value: data.averageDurationMinutes <= 0
-              ? '--'
-              : '${data.averageDurationMinutes}',
-          detail: 'minutes per session',
-        ),
-      ],
-    );
+    return LayoutBuilder(builder: (context, constraints) {
+      final columns = MediaQuery.textScalerOf(context).scale(14) > 21 ? 1 : 2;
+      final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
+      return Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          _StatCard(
+            label: 'WORKOUTS',
+            value: '${data.sessions.length}',
+            detail: '${data.trainingDays} training days',
+          ),
+          _StatCard(
+            label: 'VOLUME',
+            value: _formatCompactKg(data.totalVolumeKg),
+            detail: 'kg across reviewed sets',
+          ),
+          _StatCard(
+            label: 'SETS',
+            value: '${data.totalSets}',
+            detail: 'completed work sets',
+          ),
+          _StatCard(
+            label: 'AVG TIME',
+            value: data.averageDurationMinutes <= 0
+                ? '--'
+                : '${data.averageDurationMinutes}',
+            detail: 'minutes per session',
+          ),
+        ].map((child) => SizedBox(width: width, child: child)).toList(),
+      );
+    });
   }
 }
 
@@ -398,11 +398,11 @@ class _StatCard extends StatelessWidget {
               letterSpacing: 1.4,
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 8),
           Text(
             value,
             style: KineticNoirTypography.headline(
-              size: 30,
+              size: 24,
               weight: FontWeight.w700,
               color: KineticNoirPalette.primary,
             ),
@@ -452,7 +452,7 @@ class _HistorySessionCard extends StatelessWidget {
               ),
             ),
           ),
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -479,7 +479,7 @@ class _HistorySessionCard extends StatelessWidget {
               Text(
                 session.planName,
                 style: KineticNoirTypography.headline(
-                  size: 25,
+                  size: 20,
                   weight: FontWeight.w700,
                 ),
               ),
@@ -631,7 +631,7 @@ String _rangeLabel(HistoryDateRange range) {
 
 String _formatCompactKg(double value) {
   if (value >= 1000) {
-    return (value / 1000).toStringAsFixed(1);
+    return '${(value / 1000).toStringAsFixed(1)}k';
   }
   return value.toStringAsFixed(0);
 }

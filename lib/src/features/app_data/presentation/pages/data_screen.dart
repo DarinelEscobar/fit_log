@@ -10,7 +10,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../theme/kinetic_noir.dart';
-import '../../../../theme/toru_brand.dart';
 import '../../../history/presentation/providers/history_providers.dart';
 import '../../../performance/presentation/providers/performance_providers.dart';
 import '../../domain/usecases/export_app_data_usecase.dart';
@@ -226,12 +225,12 @@ class _DataScreenState extends ConsumerState<DataScreen> {
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
-            'Replace current data?',
+            'Import a backup?',
             style: KineticNoirTypography.headline(
                 size: 24, weight: FontWeight.w700),
           ),
           content: Text(
-            'Importing a backup will overwrite the current logs stored on this device.',
+            'Incremental backups merge workout history. Full backups and spreadsheet imports can replace current data. Choose a trusted backup to continue.',
             style: KineticNoirTypography.body(
               size: 15,
               weight: FontWeight.w500,
@@ -362,38 +361,37 @@ class _DataScreenState extends ConsumerState<DataScreen> {
           _DataActionCard(
             title: 'Export Data',
             description:
-                'Export only the missing workout dates or choose a custom range. Each backup includes its date range in the file name.',
-            badge: 'JSON/CSV',
+                'Back up missing workout dates or choose a date range.',
+            badge: 'ZIP / XLSX',
             actionLabel: 'START EXPORT',
             icon: Icons.download_rounded,
             accentColor: KineticNoirPalette.primary,
             isBusy: _activeAction == _DataAction.export,
-            onTap: () => _runAction(_DataAction.export),
+            onTap: _isBusy ? null : () => _runAction(_DataAction.export),
           ),
           const SizedBox(height: 14),
           _DataActionCard(
             title: 'Share Backup',
-            description:
-                'Create a date-range backup and send it to another device or cloud storage. Automatic exports avoid dates already backed up.',
-            badge: 'SYNC',
+            description: 'Create a backup and choose where to keep it.',
+            badge: 'ZIP',
             actionLabel: 'CHOOSE DESTINATION',
             icon: Icons.ios_share_rounded,
             accentColor: KineticNoirPalette.primary,
             isBusy: _activeAction == _DataAction.share,
-            onTap: () => _runAction(_DataAction.share),
+            onTap: _isBusy ? null : () => _runAction(_DataAction.share),
           ),
           const SizedBox(height: 14),
           _DataActionCard(
             title: 'Import Data',
             description:
-                'Replace your current logs with an external backup file. This action will permanently overwrite all existing data on this device.',
-            badge: 'DESTRUCTIVE',
+                'Merge incremental workout history or restore a full backup. Full restores can replace current data.',
+            badge: 'RESTORE',
             actionLabel: 'VERIFY & IMPORT',
             icon: Icons.upload_file_rounded,
             accentColor: KineticNoirPalette.error,
             isDestructive: true,
             isBusy: _activeAction == _DataAction.import,
-            onTap: () => _runAction(_DataAction.import),
+            onTap: _isBusy ? null : () => _runAction(_DataAction.import),
           ),
           const SizedBox(height: 26),
           Center(
@@ -411,8 +409,7 @@ class _DataScreenState extends ConsumerState<DataScreen> {
                   style: KineticNoirTypography.body(
                     size: 10,
                     weight: FontWeight.w800,
-                    color: KineticNoirPalette.onSurfaceVariant
-                        .withValues(alpha: 0.58),
+                    color: KineticNoirPalette.onSurfaceVariant,
                     letterSpacing: 2.1,
                   ),
                 ),
@@ -581,84 +578,20 @@ class _ExportRangeDialogState extends State<_ExportRangeDialog> {
 
 class _HeroCard extends StatelessWidget {
   const _HeroCard();
-
   @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: KineticNoirPalette.surfaceLow,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Secure Your Journey',
-                  style: KineticNoirTypography.headline(
-                      size: 24, weight: FontWeight.w700),
-                ),
-                const SizedBox(height: 12),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 310),
-                  child: Text(
-                    'Manage your workout logs, PR history, and custom routines. All data is stored locally. Use the tools below to backup or transfer your records.',
-                    style: KineticNoirTypography.body(
-                      size: 15,
-                      weight: FontWeight.w500,
-                      color: KineticNoirPalette.onSurfaceVariant,
-                      height: 1.6,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            right: -46,
-            top: -58,
-            child: IgnorePointer(
-              child: SizedBox(
-                width: 180,
-                height: 180,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 180,
-                      height: 180,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color:
-                            KineticNoirPalette.primary.withValues(alpha: 0.12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: KineticNoirPalette.primary.withValues(
-                              alpha: 0.12,
-                            ),
-                            blurRadius: 60,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const ToruMark(
-                      size: 108,
-                      variant: ToruMarkVariant.white,
-                      opacity: 0.18,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Your data, within reach',
+              style: KineticNoirTypography.headline(size: 24)),
+          const SizedBox(height: 8),
+          Text('Keep a local backup of your routines and training history.',
+              style: KineticNoirTypography.body(
+                  size: 13,
+                  color: KineticNoirPalette.onSurfaceVariant,
+                  height: 1.5)),
+        ]),
+      );
 }
 
 class _DataActionCard extends StatelessWidget {
@@ -682,121 +615,55 @@ class _DataActionCard extends StatelessWidget {
   final Color accentColor;
   final bool isBusy;
   final bool isDestructive;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: isBusy ? null : onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: isDestructive
-                ? const Color(0xFF201F21)
-                : KineticNoirPalette.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: isDestructive
-                ? Border.all(color: accentColor.withValues(alpha: 0.16))
-                : null,
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.all(12),
+  Widget build(BuildContext context) => Material(
+        color: KineticNoirPalette.surface,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: isBusy ? null : onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                    color: accentColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12)),
                 child: isBusy
-                    ? SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.3,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(accentColor),
-                        ),
-                      )
-                    : Icon(icon, color: accentColor, size: 24),
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : Icon(icon, color: accentColor, size: 20),
               ),
-              const SizedBox(width: 18),
+              const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: KineticNoirTypography.headline(
-                              size: 25,
-                              weight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: accentColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            badge,
-                            style: KineticNoirTypography.body(
-                              size: 10,
-                              weight: FontWeight.w800,
-                              color: accentColor,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      description,
-                      style: KineticNoirTypography.body(
-                        size: 14,
-                        weight: FontWeight.w500,
-                        color: KineticNoirPalette.onSurfaceVariant,
-                        height: 1.55,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          actionLabel,
-                          style: KineticNoirTypography.body(
-                            size: 12,
-                            weight: FontWeight.w800,
+                    Text(title,
+                        style: KineticNoirTypography.headline(size: 19)),
+                    const SizedBox(height: 6),
+                    Text(description,
+                        style: KineticNoirTypography.body(
+                            size: 13,
+                            color: KineticNoirPalette.onSurfaceVariant,
+                            height: 1.4)),
+                    const SizedBox(height: 8),
+                    Text(badge,
+                        style: KineticNoirTypography.body(
+                            size: 11,
                             color: accentColor,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: accentColor,
-                          size: 18,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                            weight: FontWeight.w700)),
+                  ])),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right_rounded,
+                  size: 20, color: KineticNoirPalette.onSurfaceVariant),
+            ]),
           ),
         ),
-      ),
-    );
-  }
+      );
 }

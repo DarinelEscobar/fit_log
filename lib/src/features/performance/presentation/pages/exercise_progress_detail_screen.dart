@@ -112,11 +112,12 @@ class _ExerciseHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
             _TagChip(
                 label: exercise.category, accent: KineticNoirPalette.primary),
-            const SizedBox(width: 8),
             _TagChip(
               label: exercise.mainMuscleGroup,
               accent: KineticNoirPalette.primaryDim,
@@ -128,21 +129,79 @@ class _ExerciseHeader extends StatelessWidget {
           exercise.name,
           key: const Key('exercise-progress-title'),
           style: KineticNoirTypography.headline(
-            size: 34,
+            size: 28,
             weight: FontWeight.w700,
-            height: 0.95,
+            height: 1.15,
           ),
         ),
-        const SizedBox(height: 12),
-        Text(
-          exercise.description,
-          style: KineticNoirTypography.body(
-            size: 15,
-            weight: FontWeight.w600,
-            color: KineticNoirPalette.onSurfaceVariant,
-            height: 1.55,
+        if (exercise.description.trim().isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _ExpandableDescription(description: exercise.description),
+        ],
+      ],
+    );
+  }
+}
+
+class _ExpandableDescription extends StatefulWidget {
+  const _ExpandableDescription({required this.description});
+
+  final String description;
+
+  @override
+  State<_ExpandableDescription> createState() => _ExpandableDescriptionState();
+}
+
+class _ExpandableDescriptionState extends State<_ExpandableDescription> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = widget.description.trim();
+    if (text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final isLong = text.length > 110;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AnimatedSize(
+          duration: KineticMotion.duration(context, 180),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topLeft,
+          child: Text(
+            text,
+            maxLines: (!isLong || _expanded) ? null : 3,
+            overflow: (!isLong || _expanded)
+                ? TextOverflow.visible
+                : TextOverflow.ellipsis,
+            style: KineticNoirTypography.body(
+              size: 14,
+              weight: FontWeight.w600,
+              color: KineticNoirPalette.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
         ),
+        if (isLong) ...[
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+              child: Text(
+                _expanded ? 'SHOW LESS' : 'READ MORE',
+                style: KineticNoirTypography.body(
+                  size: 11,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.primary,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -185,35 +244,66 @@ class _KeyStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.22,
+    final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+    final isLargeText = textScale >= 1.35;
+
+    final cards = [
+      _StatCard(
+        label: 'EST. 1RM',
+        value: _formatKg(summary.estimatedOneRmKg),
+        suffix: 'kg',
+      ),
+      _StatCard(
+        label: 'LAST SESSION',
+        value: _formatKg(summary.lastWeightKg),
+        suffix: 'kg × ${summary.lastReps}',
+      ),
+      _StatCard(
+        label: 'TOTAL VOLUME',
+        value: _formatKg(summary.totalVolumeKg),
+        suffix: 'kg·reps',
+      ),
+      _StatCard(
+        label: 'LAST DATE',
+        value: summary.lastSessionDate == null
+            ? '--'
+            : _formatRelativeDate(summary.lastSessionDate!),
+        suffix: '',
+      ),
+    ];
+
+    if (isLargeText) {
+      return Column(
+        children: [
+          for (var i = 0; i < cards.length; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            cards[i],
+          ],
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _StatCard(
-          label: 'EST. 1RM',
-          value: _formatKg(summary.estimatedOneRmKg),
-          suffix: 'kg',
+        Expanded(
+          child: Column(
+            children: [
+              cards[0],
+              const SizedBox(height: 12),
+              cards[2],
+            ],
+          ),
         ),
-        _StatCard(
-          label: 'LAST SESSION',
-          value: _formatKg(summary.lastWeightKg),
-          suffix: 'kg × ${summary.lastReps}',
-        ),
-        _StatCard(
-          label: 'TOTAL VOLUME',
-          value: _formatKg(summary.totalVolumeKg),
-          suffix: 'kg·reps',
-        ),
-        _StatCard(
-          label: 'LAST DATE',
-          value: summary.lastSessionDate == null
-              ? '--'
-              : _formatRelativeDate(summary.lastSessionDate!),
-          suffix: '',
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            children: [
+              cards[1],
+              const SizedBox(height: 12),
+              cards[3],
+            ],
+          ),
         ),
       ],
     );
@@ -234,6 +324,7 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
         color: KineticNoirPalette.surfaceLow,
         borderRadius: BorderRadius.circular(20),
@@ -244,7 +335,7 @@ class _StatCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             label,
@@ -255,16 +346,22 @@ class _StatCard extends StatelessWidget {
               letterSpacing: 1.3,
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: KineticNoirTypography.headline(
-              size: 28,
-              weight: FontWeight.w700,
-              color: KineticNoirPalette.onSurface,
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: KineticNoirTypography.headline(
+                size: 26,
+                weight: FontWeight.w700,
+                color: KineticNoirPalette.onSurface,
+              ),
             ),
           ),
-          if (suffix.isNotEmpty)
+          if (suffix.isNotEmpty) ...[
+            const SizedBox(height: 4),
             Text(
               suffix,
               style: KineticNoirTypography.body(
@@ -273,6 +370,7 @@ class _StatCard extends StatelessWidget {
                 color: KineticNoirPalette.onSurfaceVariant,
               ),
             ),
+          ],
         ],
       ),
     );

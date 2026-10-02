@@ -190,12 +190,6 @@ class _PerformanceDashboardScreenState
                       sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
                     ),
                     SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      sliver: SliverToBoxAdapter(
-                        child: _MetricGrid(summary: summary),
-                      ),
-                    ),
-                    SliverPadding(
                       padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                       sliver: SliverToBoxAdapter(
                         child: _TrendSection(summary: summary),
@@ -285,9 +279,10 @@ class _PeriodChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: KineticMotion.duration(context, 180),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             color: selected
                 ? KineticNoirPalette.surfaceBright
@@ -393,7 +388,7 @@ class _PerformanceHero extends StatelessWidget {
                       child: Text(
                         _formatKg(summary.totalVolumeKg),
                         style: KineticNoirTypography.headline(
-                          size: 52,
+                          size: 40,
                           weight: FontWeight.w700,
                           color: KineticNoirPalette.primary,
                           height: 0.9,
@@ -444,94 +439,6 @@ class _PerformanceHero extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MetricGrid extends StatelessWidget {
-  const _MetricGrid({required this.summary});
-
-  final PerformanceDashboardSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.0,
-      children: [
-        _MetricCard(
-          label: 'TOTAL REPS',
-          value: '${summary.totalReps}',
-          detail: 'Completed across active routines',
-        ),
-        _MetricCard(
-          label: 'DAY COVERAGE',
-          value: '${summary.consistencyPercent}%',
-          detail: 'Training days / calendar days',
-        ),
-      ],
-    );
-  }
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.label,
-    required this.value,
-    required this.detail,
-  });
-
-  final String label;
-  final String value;
-  final String detail;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: KineticNoirPalette.surfaceLow,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: KineticNoirTypography.body(
-              size: 10,
-              weight: FontWeight.w800,
-              color: KineticNoirPalette.onSurfaceVariant,
-              letterSpacing: 1.4,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: KineticNoirTypography.headline(
-              size: 28,
-              weight: FontWeight.w700,
-              color: KineticNoirPalette.onSurface,
-              height: 0.95,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            detail,
-            style: KineticNoirTypography.body(
-              size: 11,
-              weight: FontWeight.w600,
-              color: KineticNoirPalette.onSurfaceVariant,
-              height: 1.4,
-            ),
           ),
         ],
       ),
