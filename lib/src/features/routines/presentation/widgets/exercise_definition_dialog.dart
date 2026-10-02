@@ -58,123 +58,206 @@ class _ExerciseDefinitionDialogState extends State<ExerciseDefinitionDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: KineticNoirPalette.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(
+          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.35),
+        ),
+      ),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      constraints: const BoxConstraints(maxWidth: 520),
+      child: Material(
+        color: KineticNoirPalette.surface,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'CREATE EXERCISE',
-              style: KineticNoirTypography.headline(
-                size: 24,
-                weight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Add a new library exercise using the existing repository flow.',
-              style: KineticNoirTypography.body(
-                size: 14,
-                color: KineticNoirPalette.onSurfaceVariant,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 20),
-            ExerciseDefinitionField(
-              fieldKey: const Key('exercise-definition-name'),
-              controller: _nameController,
-              label: 'Exercise Name',
-              hintText: 'Incline Dumbbell Press',
-            ),
-            const SizedBox(height: 12),
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _nameController,
-              builder: (context, value, _) {
-                final exerciseName = value.text.trim();
-                final hasName = exerciseName.isNotEmpty;
-                return ExerciseDefinitionJsonActions(
-                  canCopyPrompt: hasName,
-                  canPasteJson: hasName && _didCopyPrompt,
-                  onCopyPrompt:
-                      hasName ? () => _copyExercisePrompt(exerciseName) : null,
-                  onPasteJson:
-                      hasName && _didCopyPrompt ? _pasteExerciseJson : null,
-                );
-              },
-            ),
-            const SizedBox(height: 14),
-            ExerciseDefinitionField(
-              fieldKey: const Key('exercise-definition-category'),
-              controller: _categoryController,
-              label: 'Category',
-              hintText: 'Strength',
-            ),
-            const SizedBox(height: 14),
-            ExerciseDefinitionField(
-              fieldKey: const Key('exercise-definition-muscle'),
-              controller: _muscleController,
-              label: 'Primary Muscle',
-              hintText: 'Upper Chest',
-            ),
-            const SizedBox(height: 14),
-            ExerciseDefinitionField(
-              fieldKey: const Key('exercise-definition-description'),
-              controller: _descriptionController,
-              label: 'Description',
-              hintText: 'Brief movement cues or intent.',
-              minLines: 3,
-              maxLines: 4,
-            ),
-            const SizedBox(height: 22),
-            Row(
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    'Cancel',
-                    style: KineticNoirTypography.body(
-                      size: 14,
-                      weight: FontWeight.w700,
-                      color: KineticNoirPalette.onSurfaceVariant,
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 22, 24, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Create exercise',
+                                style: KineticNoirTypography.headline(
+                                  size: 22,
+                                  weight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Save a movement to your exercise library.',
+                                style: KineticNoirTypography.body(
+                                  size: 13,
+                                  color: KineticNoirPalette.onSurfaceVariant,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: 'Close',
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close_rounded, size: 20),
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(48, 48),
+                            foregroundColor: KineticNoirPalette.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 18),
+                    ExerciseDefinitionField(
+                      fieldKey: const Key('exercise-definition-name'),
+                      controller: _nameController,
+                      label: 'Exercise Name',
+                      hintText: 'Incline Dumbbell Press',
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 12),
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _nameController,
+                      builder: (context, value, _) {
+                        final exerciseName = value.text.trim();
+                        final hasName = exerciseName.isNotEmpty;
+                        return ExerciseDefinitionJsonActions(
+                          canCopyPrompt: hasName,
+                          canPasteJson: hasName && _didCopyPrompt,
+                          onCopyPrompt: hasName
+                              ? () => _copyExercisePrompt(exerciseName)
+                              : null,
+                          onPasteJson: hasName && _didCopyPrompt
+                              ? _pasteExerciseJson
+                              : null,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    ExerciseDefinitionField(
+                      fieldKey: const Key('exercise-definition-category'),
+                      controller: _categoryController,
+                      label: 'Category',
+                      hintText: 'Strength',
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 14),
+                    ExerciseDefinitionField(
+                      fieldKey: const Key('exercise-definition-muscle'),
+                      controller: _muscleController,
+                      label: 'Primary Muscle',
+                      hintText: 'Upper Chest',
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 14),
+                    ExerciseDefinitionField(
+                      fieldKey: const Key('exercise-definition-description'),
+                      controller: _descriptionController,
+                      label: 'Description',
+                      hintText: 'Brief movement cues or intent.',
+                      minLines: 2,
+                      maxLines: 4,
+                      textInputAction: TextInputAction.newline,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+              decoration: BoxDecoration(
+                color: KineticNoirPalette.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: KineticNoirPalette.outlineVariant
+                        .withValues(alpha: 0.16),
                   ),
                 ),
-                const Spacer(),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: kineticPrimaryGradient,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.pop(
-                        context,
-                        ExerciseDefinitionInput(
-                          name: _nameController.text.trim(),
-                          category: _categoryController.text.trim(),
-                          mainMuscleGroup: _muscleController.text.trim(),
-                          description: _descriptionController.text.trim(),
-                        ),
-                      );
-                    },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      foregroundColor: KineticNoirPalette.onPrimary,
+              ),
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(48, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     child: Text(
-                      'Create',
+                      'Cancel',
                       style: KineticNoirTypography.body(
                         size: 14,
-                        weight: FontWeight.w800,
-                        color: KineticNoirPalette.onPrimary,
+                        weight: FontWeight.w700,
+                        color: KineticNoirPalette.onSurfaceVariant,
                       ),
                     ),
                   ),
-                ),
-              ],
+                  Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    clipBehavior: Clip.antiAlias,
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        gradient: kineticPrimaryGradient,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.pop(
+                            context,
+                            ExerciseDefinitionInput(
+                              name: _nameController.text.trim(),
+                              category: _categoryController.text.trim(),
+                              mainMuscleGroup: _muscleController.text.trim(),
+                              description: _descriptionController.text.trim(),
+                            ),
+                          );
+                        },
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(100, 48),
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          foregroundColor: KineticNoirPalette.onPrimary,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 22,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          'Create',
+                          style: KineticNoirTypography.body(
+                            size: 14,
+                            weight: FontWeight.w800,
+                            color: KineticNoirPalette.onPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

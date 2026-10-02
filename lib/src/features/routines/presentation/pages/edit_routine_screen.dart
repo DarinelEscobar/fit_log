@@ -389,80 +389,161 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
     final controller = TextEditingController(text: '$suggestedPosition');
     final result = await showModalBottomSheet<int>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: KineticNoirPalette.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'INSERT POSITION',
-                style: KineticNoirTypography.headline(
-                  size: 24,
-                  weight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Choose where the exercise should appear inside the routine.',
-                style: KineticNoirTypography.body(
-                  size: 14,
-                  color: KineticNoirPalette.onSurfaceVariant,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 18),
-              TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                style: KineticNoirTypography.headline(
-                  size: 28,
-                  weight: FontWeight.w700,
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Position',
-                  filled: true,
-                  fillColor: KineticNoirPalette.surfaceLow,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide.none,
+      builder: (bottomSheetContext) {
+        final bottomInset = MediaQuery.of(bottomSheetContext).viewInsets.bottom;
+        return Material(
+          color: KineticNoirPalette.surface,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(24, 20, 24, 24 + bottomInset),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'INSERT POSITION',
+                              style: KineticNoirTypography.headline(
+                                size: 22,
+                                weight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Choose where the exercise should appear inside the routine.',
+                              style: KineticNoirTypography.body(
+                                size: 13,
+                                color: KineticNoirPalette.onSurfaceVariant,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.pop(bottomSheetContext),
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(48, 48),
+                          foregroundColor: KineticNoirPalette.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      context,
-                      int.tryParse(controller.text.trim()) ?? suggestedPosition,
-                    );
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: KineticNoirPalette.primary,
-                    foregroundColor: KineticNoirPalette.onPrimary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  child: Text(
-                    'Insert',
+                  const SizedBox(height: 18),
+                  Text(
+                    'POSITION NUMBER',
                     style: KineticNoirTypography.body(
-                      size: 14,
+                      size: 10,
                       weight: FontWeight.w800,
-                      color: KineticNoirPalette.onPrimary,
+                      color: KineticNoirPalette.onSurfaceVariant,
+                      letterSpacing: 1.6,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (value) {
+                      Navigator.pop(
+                        bottomSheetContext,
+                        int.tryParse(value.trim()) ?? suggestedPosition,
+                      );
+                    },
+                    style: KineticNoirTypography.headline(
+                      size: 24,
+                      weight: FontWeight.w700,
+                      color: KineticNoirPalette.primary,
+                    ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: KineticNoirPalette.surfaceLow,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 16,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(
+                          color: KineticNoirPalette.outlineVariant
+                              .withValues(alpha: 0.25),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(
+                          color: KineticNoirPalette.outlineVariant
+                              .withValues(alpha: 0.25),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(
+                          color: KineticNoirPalette.primary,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    clipBehavior: Clip.antiAlias,
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        gradient: kineticPrimaryGradient,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.pop(
+                              bottomSheetContext,
+                              int.tryParse(controller.text.trim()) ??
+                                  suggestedPosition,
+                            );
+                          },
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 48),
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            foregroundColor: KineticNoirPalette.onPrimary,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Text(
+                            'Insert',
+                            style: KineticNoirTypography.body(
+                              size: 14,
+                              weight: FontWeight.w800,
+                              color: KineticNoirPalette.onPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
@@ -546,18 +627,24 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
           icon: const Icon(Icons.arrow_back_rounded),
           color: KineticNoirPalette.primary,
         ),
-        title: Text(
-          'ROUTINE EDITOR',
-          key: const Key('routine-editor-title'),
-          style: KineticNoirTypography.headline(
-            size: 22,
-            weight: FontWeight.w700,
-            color: KineticNoirPalette.primary,
+        titleSpacing: 4,
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'ROUTINE EDITOR',
+            key: const Key('routine-editor-title'),
+            style: KineticNoirTypography.headline(
+              size: 18,
+              weight: FontWeight.w700,
+              color: KineticNoirPalette.primary,
+              letterSpacing: 0.2,
+            ),
           ),
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.only(right: 12),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: kineticPrimaryGradient,
@@ -569,6 +656,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
                   foregroundColor: KineticNoirPalette.onPrimary,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                 ),
                 child: Text(
                   _isSaving
@@ -578,7 +666,7 @@ class _EditRoutineScreenState extends ConsumerState<EditRoutineScreen> {
                     size: 12,
                     weight: FontWeight.w800,
                     color: KineticNoirPalette.onPrimary,
-                    letterSpacing: 0.8,
+                    letterSpacing: 0.6,
                   ),
                 ),
               ),
@@ -806,25 +894,48 @@ class _MetadataSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: KineticNoirPalette.surfaceLow,
         borderRadius: BorderRadius.circular(24),
-        border: const Border(
-          left: BorderSide(color: KineticNoirPalette.primary, width: 3),
+        border: Border.all(
+          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.22),
         ),
       ),
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.tune_rounded,
+                size: 18,
+                color: KineticNoirPalette.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'ROUTINE DETAILS',
+                style: KineticNoirTypography.body(
+                  size: 10,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.primary,
+                  letterSpacing: 1.6,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           _EditorField(
             label: 'Routine Name',
             controller: nameController,
+            textInputAction: TextInputAction.next,
             style: KineticNoirTypography.headline(
-              size: 28,
+              size: 24,
               weight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           _EditorField(
             label: 'Frequency',
             controller: frequencyController,
+            textInputAction: TextInputAction.done,
             suffix: const Icon(
               Icons.event_repeat_rounded,
               color: KineticNoirPalette.onSurfaceVariant,
@@ -842,12 +953,14 @@ class _EditorField extends StatelessWidget {
     required this.controller,
     this.style,
     this.suffix,
+    this.textInputAction,
   });
 
   final String label;
   final TextEditingController controller;
   final TextStyle? style;
   final Widget? suffix;
+  final TextInputAction? textInputAction;
 
   @override
   Widget build(BuildContext context) {
@@ -863,16 +976,18 @@ class _EditorField extends StatelessWidget {
             letterSpacing: 1.8,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
               child: TextField(
                 controller: controller,
+                textInputAction: textInputAction,
                 style: style ??
                     KineticNoirTypography.body(
-                      size: 18,
+                      size: 16,
                       weight: FontWeight.w600,
+                      color: KineticNoirPalette.onSurface,
                     ),
                 decoration: InputDecoration(
                   isDense: true,
@@ -882,7 +997,7 @@ class _EditorField extends StatelessWidget {
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(
                       color: KineticNoirPalette.outlineVariant
-                          .withValues(alpha: 0.45),
+                          .withValues(alpha: 0.4),
                     ),
                   ),
                   focusedBorder: const UnderlineInputBorder(
@@ -918,76 +1033,168 @@ class _EditorBottomActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLargeText = MediaQuery.textScalerOf(context).scale(11) > 15 ||
+        MediaQuery.sizeOf(context).width < 340;
+
     return SafeArea(
       top: false,
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         padding: const EdgeInsets.all(10),
         decoration: kineticFloatingNavDecoration,
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                key: const Key('routine-editor-add-existing'),
-                onPressed: isEnabled ? onAddExisting : null,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: KineticNoirPalette.primary,
-                  side: BorderSide(
-                    color: KineticNoirPalette.primary.withValues(alpha: 0.35),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                ),
-                icon: const Icon(Icons.library_add_rounded, size: 18),
-                label: Text(
-                  'ADD EXISTING',
-                  style: KineticNoirTypography.body(
-                    size: 11,
-                    weight: FontWeight.w800,
-                    color: KineticNoirPalette.primary,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: kineticPrimaryGradient,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: FilledButton.icon(
-                  key: const Key('routine-editor-create-new'),
-                  onPressed: isEnabled ? onCreateNew : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    disabledBackgroundColor:
-                        Colors.transparent.withValues(alpha: 0.24),
-                    shadowColor: Colors.transparent,
-                    foregroundColor: KineticNoirPalette.onPrimary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+        child: isLargeText
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  OutlinedButton.icon(
+                    key: const Key('routine-editor-add-existing'),
+                    onPressed: isEnabled ? onAddExisting : null,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 48),
+                      foregroundColor: KineticNoirPalette.primary,
+                      side: BorderSide(
+                        color:
+                            KineticNoirPalette.primary.withValues(alpha: 0.35),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    icon: const Icon(Icons.library_add_rounded, size: 18),
+                    label: Text(
+                      'ADD EXISTING',
+                      style: KineticNoirTypography.body(
+                        size: 11,
+                        weight: FontWeight.w800,
+                        color: KineticNoirPalette.primary,
+                        letterSpacing: 1,
+                      ),
                     ),
                   ),
-                  icon: const Icon(Icons.add_circle_rounded, size: 18),
-                  label: Text(
-                    'CREATE NEW',
-                    style: KineticNoirTypography.body(
-                      size: 11,
-                      weight: FontWeight.w800,
-                      color: KineticNoirPalette.onPrimary,
-                      letterSpacing: 1,
+                  const SizedBox(height: 8),
+                  Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                    clipBehavior: Clip.antiAlias,
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        gradient: isEnabled ? kineticPrimaryGradient : null,
+                        color: isEnabled
+                            ? null
+                            : KineticNoirPalette.surfaceBright
+                                .withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: FilledButton.icon(
+                        key: const Key('routine-editor-create-new'),
+                        onPressed: isEnabled ? onCreateNew : null,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 48),
+                          backgroundColor: Colors.transparent,
+                          disabledBackgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          foregroundColor: KineticNoirPalette.onPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        icon: const Icon(Icons.add_circle_rounded, size: 18),
+                        label: Text(
+                          'CREATE NEW',
+                          style: KineticNoirTypography.body(
+                            size: 11,
+                            weight: FontWeight.w800,
+                            color: KineticNoirPalette.onPrimary,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      key: const Key('routine-editor-add-existing'),
+                      onPressed: isEnabled ? onAddExisting : null,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 48),
+                        foregroundColor: KineticNoirPalette.primary,
+                        side: BorderSide(
+                          color: KineticNoirPalette.primary
+                              .withValues(alpha: 0.35),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      icon: const Icon(Icons.library_add_rounded, size: 18),
+                      label: Text(
+                        'ADD EXISTING',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: KineticNoirTypography.body(
+                          size: 11,
+                          weight: FontWeight.w800,
+                          color: KineticNoirPalette.primary,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      clipBehavior: Clip.antiAlias,
+                      child: Ink(
+                        decoration: BoxDecoration(
+                          gradient: isEnabled ? kineticPrimaryGradient : null,
+                          color: isEnabled
+                              ? null
+                              : KineticNoirPalette.surfaceBright
+                                  .withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: FilledButton.icon(
+                          key: const Key('routine-editor-create-new'),
+                          onPressed: isEnabled ? onCreateNew : null,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 48),
+                            backgroundColor: Colors.transparent,
+                            disabledBackgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            foregroundColor: KineticNoirPalette.onPrimary,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          icon: const Icon(Icons.add_circle_rounded, size: 18),
+                          label: Text(
+                            'CREATE NEW',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: KineticNoirTypography.body(
+                              size: 11,
+                              weight: FontWeight.w800,
+                              color: KineticNoirPalette.onPrimary,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
