@@ -31,7 +31,7 @@ class KineticBottomNavBar extends StatelessWidget {
         padding: KineticNoirSpacing.floatingNav,
         child: Container(
           decoration: kineticFloatingNavDecoration,
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(6),
           child: Row(
             children: [
               for (var index = 0; index < items.length; index++)
@@ -67,42 +67,46 @@ class _NavButton extends StatelessWidget {
         ? KineticNoirPalette.primary
         : KineticNoirPalette.onSurfaceVariant;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? KineticNoirPalette.primary.withValues(alpha: 0.12)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(item.icon, color: foregroundColor, size: 22),
-                const SizedBox(height: 6),
-                Text(
-                  item.label.toUpperCase(),
-                  style: KineticNoirTypography.body(
-                    size: 10,
-                    weight: FontWeight.w800,
-                    color: foregroundColor,
-                    letterSpacing: 1.4,
-                  ),
+    return Semantics(
+        selected: isSelected,
+        button: true,
+        label: item.label,
+        child: AnimatedContainer(
+          duration: KineticMotion.duration(context, 180),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? KineticNoirPalette.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(item.icon, color: foregroundColor, size: 22),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.label.toUpperCase(),
+                      style: KineticNoirTypography.body(
+                        size: 10,
+                        weight: FontWeight.w800,
+                        color: foregroundColor,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    );
+        ));
   }
 }

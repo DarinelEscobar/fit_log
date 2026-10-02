@@ -27,179 +27,72 @@ class RoutineLibraryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          key: Key('routine-card-${plan.id}'),
-          borderRadius: BorderRadius.circular(20),
-          onTap: isBusy ? null : onOpen,
-          child: Ink(
-            decoration: BoxDecoration(
-              color: KineticNoirPalette.surfaceLow,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+    return Material(
+      color: KineticNoirPalette.surfaceLow,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: Key('routine-card-${plan.id}'),
+        onTap: isBusy ? null : onOpen,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  plan.name,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: KineticNoirTypography.headline(
-                                    size: 24,
-                                    weight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              if (muscleGroups.isNotEmpty) ...[
-                                const SizedBox(width: 6),
-                                const Icon(
-                                  Icons.verified_rounded,
-                                  size: 16,
-                                  color: KineticNoirPalette.primary,
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _buildSubtitle(),
-                            style: KineticNoirTypography.body(
-                              size: 14,
-                              weight: FontWeight.w600,
-                              color: KineticNoirPalette.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _CardActionButton(
-                          icon: Icons.edit_rounded,
-                          color: KineticNoirPalette.onSurfaceVariant,
-                          tooltip: 'Edit routine',
-                          onPressed: isBusy ? null : onEdit,
-                        ),
-                        const SizedBox(width: 8),
-                        _CardActionButton(
-                          icon: isBusy
-                              ? Icons.sync_rounded
-                              : plan.isActive
-                                  ? Icons.pause_circle_filled_rounded
-                                  : Icons.play_circle_fill_rounded,
-                          color: isBusy
-                              ? KineticNoirPalette.primary
-                              : plan.isActive
-                                  ? KineticNoirPalette.onSurfaceVariant
-                                  : KineticNoirPalette.primary,
-                          tooltip: plan.isActive
-                              ? 'Deactivate routine'
-                              : 'Activate routine',
-                          onPressed: isBusy ? null : onToggleActive,
-                        ),
-                      ],
+                    Text(plan.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: KineticNoirTypography.headline(
+                            size: 20, height: 1.2)),
+                    const SizedBox(height: 6),
+                    Text(_buildSubtitle(),
+                        style: KineticNoirTypography.body(
+                            size: 12,
+                            color: KineticNoirPalette.onSurfaceVariant)),
+                    const SizedBox(height: 6),
+                    Text(
+                      !isMetadataReady
+                          ? 'Loading exercise details…'
+                          : muscleGroups.isEmpty
+                              ? 'No exercises programmed'
+                              : muscleGroups.join(' · '),
+                      style: KineticNoirTypography.body(
+                          size: 11, color: KineticNoirPalette.onSurfaceVariant),
                     ),
                   ],
                 ),
-                const SizedBox(height: 18),
-                if (!isMetadataReady)
-                  Text(
-                    'Routine metadata syncing in background',
-                    style: KineticNoirTypography.body(
-                      size: 12,
-                      weight: FontWeight.w700,
-                      color: KineticNoirPalette.onSurfaceVariant
-                          .withValues(alpha: 0.72),
-                      letterSpacing: 1.0,
-                    ),
-                  )
-                else if (muscleGroups.isEmpty)
-                  Text(
-                    'No programmed muscle groups yet',
-                    style: KineticNoirTypography.body(
-                      size: 12,
-                      weight: FontWeight.w700,
-                      color: KineticNoirPalette.onSurfaceVariant,
-                      letterSpacing: 1.0,
-                    ),
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final group in muscleGroups)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: KineticNoirPalette.outlineVariant
-                                .withValues(alpha: 0.28),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            group.toUpperCase(),
-                            style: KineticNoirTypography.body(
-                              size: 10,
-                              weight: FontWeight.w800,
-                              color: KineticNoirPalette.onSurfaceVariant,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Text(
-                      'VIEW ROUTINE',
-                      style: KineticNoirTypography.body(
-                        size: 11,
-                        weight: FontWeight.w800,
-                        color: KineticNoirPalette.primary,
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(
-                      Icons.arrow_forward_rounded,
-                      size: 16,
-                      color: KineticNoirPalette.primary,
-                    ),
-                    const Spacer(),
-                    Text(
-                      plan.isActive ? 'ACTIVE' : 'INACTIVE',
-                      style: KineticNoirTypography.body(
-                        size: 10,
-                        weight: FontWeight.w800,
-                        color: plan.isActive
-                            ? KineticNoirPalette.primary
-                            : KineticNoirPalette.onSurfaceVariant,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Routine actions',
+                enabled: !isBusy,
+                icon: isBusy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.more_horiz_rounded),
+                onSelected: (value) =>
+                    value == 'edit' ? onEdit() : onToggleActive(),
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                      value: 'edit', child: Text('Edit routine')),
+                  PopupMenuItem(
+                      value: 'active',
+                      child: Text(plan.isActive
+                          ? 'Deactivate routine'
+                          : 'Activate routine')),
+                ],
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 14, right: 6),
+                child: Icon(Icons.chevron_right_rounded,
+                    size: 20, color: KineticNoirPalette.primary),
+              ),
+            ],
           ),
         ),
       ),
@@ -212,39 +105,5 @@ class RoutineLibraryCard extends StatelessWidget {
     }
     final noun = exerciseCount == 1 ? 'exercise' : 'exercises';
     return '${plan.frequency} • $exerciseCount $noun';
-  }
-}
-
-class _CardActionButton extends StatelessWidget {
-  const _CardActionButton({
-    required this.icon,
-    required this.color,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final Color color;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onPressed,
-        child: Ink(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: KineticNoirPalette.surfaceBright.withValues(alpha: 0.28),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(icon, size: 18, color: color),
-        ),
-      ),
-    );
   }
 }

@@ -109,6 +109,7 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
                         ),
                         child: RepaintBoundary(
                           child: _ExerciseCard(
+                            key: ValueKey(filteredItems[index].exerciseId),
                             item: filteredItems[index],
                             onOpenProgress: () =>
                                 _openProgress(filteredItems[index]),
@@ -144,7 +145,7 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
       bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: kineticPrimaryGradient,
@@ -169,7 +170,7 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
                 backgroundColor: Colors.transparent,
                 shadowColor: Colors.transparent,
                 foregroundColor: KineticNoirPalette.onPrimary,
-                padding: const EdgeInsets.symmetric(vertical: 20),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -178,7 +179,7 @@ class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
               label: Text(
                 'START WORKOUT',
                 style: KineticNoirTypography.body(
-                  size: 16,
+                  size: 14,
                   weight: FontWeight.w800,
                   color: KineticNoirPalette.onPrimary,
                   letterSpacing: 1.2,
@@ -261,9 +262,9 @@ class _ExerciseListHero extends StatelessWidget {
           plan.name,
           key: const Key('exercise-list-title'),
           style: KineticNoirTypography.headline(
-            size: 38,
+            size: 28,
             weight: FontWeight.w700,
-            height: 0.95,
+            height: 1.15,
           ),
         ),
         const SizedBox(height: 10),
@@ -277,16 +278,7 @@ class _ExerciseListHero extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Text(
-          'Review your programmed exercises and launch the session when you are ready.',
-          style: KineticNoirTypography.body(
-            size: 15,
-            weight: FontWeight.w600,
-            color: KineticNoirPalette.onSurfaceVariant,
-            height: 1.55,
-          ),
-        ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
         TextField(
           controller: searchController,
           style: KineticNoirTypography.body(
@@ -325,161 +317,103 @@ class _ExerciseListHero extends StatelessWidget {
   }
 }
 
-class _ExerciseCard extends StatelessWidget {
-  const _ExerciseCard({
-    required this.item,
-    required this.onOpenProgress,
-  });
-
+class _ExerciseCard extends StatefulWidget {
+  const _ExerciseCard(
+      {required this.item, required this.onOpenProgress, super.key});
   final ExerciseListItemView item;
   final VoidCallback onOpenProgress;
-
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: KineticNoirPalette.surfaceLow,
-        borderRadius: BorderRadius.circular(20),
-        border: Border(
-          left: BorderSide(
-            color: item.mainMuscleGroup.isNotEmpty
-                ? KineticNoirPalette.primary.withValues(alpha: 0.5)
-                : Colors.transparent,
-            width: 3,
-          ),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    if (item.category.isNotEmpty)
-                      _TagChip(
-                        label: item.category,
-                        backgroundColor:
-                            KineticNoirPalette.outlineVariant.withValues(
-                          alpha: 0.35,
-                        ),
-                        foregroundColor: KineticNoirPalette.onSurface,
-                      ),
-                    if (item.mainMuscleGroup.isNotEmpty)
-                      _TagChip(
-                        label: item.mainMuscleGroup,
-                        backgroundColor:
-                            KineticNoirPalette.primary.withValues(alpha: 0.12),
-                        foregroundColor: KineticNoirPalette.primary,
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            item.name,
-            style: KineticNoirTypography.headline(
-              size: 28,
-              weight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              _MetricSummary(label: 'SETS', value: '${item.sets}'),
-              _MetricSummary(label: 'REPS', value: '${item.reps}'),
-              _MetricSummary(label: 'REST', value: '${item.restSeconds}s'),
-              if (item.weight > 0)
-                _MetricSummary(label: 'LOAD', value: '${item.weight}'),
-            ],
-          ),
-          if (item.description.trim().isNotEmpty) ...[
-            const SizedBox(height: 18),
-            Text(
-              item.description,
-              style: KineticNoirTypography.body(
-                size: 14,
-                weight: FontWeight.w600,
-                color: KineticNoirPalette.onSurfaceVariant,
-                height: 1.55,
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              key: Key('exercise-progress-${item.exerciseId}'),
-              onPressed: onOpenProgress,
-              style: TextButton.styleFrom(
-                foregroundColor: KineticNoirPalette.primary,
-                backgroundColor:
-                    KineticNoirPalette.primary.withValues(alpha: 0.08),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              icon: const Icon(Icons.trending_up_rounded, size: 18),
-              label: Text(
-                'PROGRESS',
-                style: KineticNoirTypography.body(
-                  size: 11,
-                  weight: FontWeight.w800,
-                  color: KineticNoirPalette.primary,
-                  letterSpacing: 1.1,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  State<_ExerciseCard> createState() => _ExerciseCardState();
 }
 
-class _MetricSummary extends StatelessWidget {
-  const _MetricSummary({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
+class _ExerciseCardState extends State<_ExerciseCard> {
+  bool _expanded = false;
   @override
   Widget build(BuildContext context) {
-    return Expanded(
+    final item = widget.item;
+    return Material(
+      color: KineticNoirPalette.surfaceLow,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: KineticNoirTypography.body(
-              size: 10,
-              weight: FontWeight.w800,
-              color: KineticNoirPalette.onSurfaceVariant,
-              letterSpacing: 1.4,
+          InkWell(
+            key: Key('exercise-details-${item.exerciseId}'),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+              child: Row(children: [
+                Expanded(
+                    child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.name,
+                        style: KineticNoirTypography.headline(
+                            size: 18, height: 1.2)),
+                    const SizedBox(height: 6),
+                    Text(
+                        '${item.sets} sets × ${item.reps} reps · ${item.mainMuscleGroup}',
+                        style: KineticNoirTypography.body(
+                            size: 12,
+                            color: KineticNoirPalette.onSurfaceVariant)),
+                  ],
+                )),
+                IconButton(
+                  key: Key('exercise-progress-${item.exerciseId}'),
+                  tooltip: 'Exercise progress',
+                  onPressed: widget.onOpenProgress,
+                  icon: const Icon(Icons.trending_up_rounded,
+                      size: 20, color: KineticNoirPalette.primary),
+                ),
+                Icon(
+                    _expanded
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    size: 20),
+              ]),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: KineticNoirTypography.headline(
-              size: 18,
-              weight: FontWeight.w700,
-              color: KineticNoirPalette.primary,
-            ),
+          AnimatedSize(
+            duration: KineticMotion.duration(context),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          _TagChip(
+                              label: '${item.restSeconds}s rest',
+                              backgroundColor: KineticNoirPalette.surfaceBright,
+                              foregroundColor:
+                                  KineticNoirPalette.onSurfaceVariant),
+                          _TagChip(
+                              label: '${item.weight} kg',
+                              backgroundColor: KineticNoirPalette.surfaceBright,
+                              foregroundColor:
+                                  KineticNoirPalette.onSurfaceVariant),
+                          if (item.category.isNotEmpty)
+                            _TagChip(
+                                label: item.category,
+                                backgroundColor:
+                                    KineticNoirPalette.surfaceBright,
+                                foregroundColor:
+                                    KineticNoirPalette.onSurfaceVariant),
+                        ]),
+                        if (item.description.trim().isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(item.description,
+                              style: KineticNoirTypography.body(
+                                  size: 13,
+                                  color: KineticNoirPalette.onSurfaceVariant,
+                                  height: 1.5)),
+                        ],
+                      ],
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
           ),
         ],
       ),

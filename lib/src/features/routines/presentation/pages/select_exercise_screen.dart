@@ -25,6 +25,7 @@ class SelectExerciseScreen extends ConsumerStatefulWidget {
 
 class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
   late final TextEditingController _searchController;
+  late final FocusNode _searchFocusNode;
   late final ValueNotifier<String> _queryNotifier;
   late final ValueNotifier<String> _groupNotifier;
   late Future<List<Exercise>> _loadFuture;
@@ -35,6 +36,7 @@ class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    _searchFocusNode = FocusNode();
     _queryNotifier = ValueNotifier('');
     _groupNotifier = ValueNotifier('All');
     _cachedExercises = widget.initialExercises == null
@@ -47,11 +49,15 @@ class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
     _searchController.addListener(() {
       _queryNotifier.value = _searchController.text.trim().toLowerCase();
     });
+    _searchFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _queryNotifier.dispose();
     _groupNotifier.dispose();
     super.dispose();
@@ -111,59 +117,67 @@ class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
           _cachedExercises ??= List<Exercise>.from(snapshot.data ?? const [])
             ..sort((a, b) => a.name.compareTo(b.name));
 
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                child: _SelectExerciseHeader(
-                  searchController: _searchController,
-                  groupsList: groupsList,
-                  selectedGroupListenable: _groupNotifier,
-                  isCreating: _isCreating,
-                  onCreateExercise: _createExercise,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ValueListenableBuilder<String>(
-                  valueListenable: _queryNotifier,
-                  builder: (context, query, _) {
-                    return ValueListenableBuilder<String>(
-                      valueListenable: _groupNotifier,
-                      builder: (context, group, __) {
-                        final filtered = _filterExercises(
-                          _cachedExercises!,
-                          query: query,
-                          group: group,
-                        );
+          return ValueListenableBuilder<String>(
+            valueListenable: _queryNotifier,
+            builder: (context, query, _) {
+              return ValueListenableBuilder<String>(
+                valueListenable: _groupNotifier,
+                builder: (context, group, _) {
+                  final filtered = _filterExercises(
+                    _cachedExercises!,
+                    query: query,
+                    group: group,
+                  );
 
-                        if (filtered.isEmpty) {
-                          return const _SelectExerciseEmptyState();
-                        }
-
-                        return ListView.builder(
-                          cacheExtent: 500,
+                  return CustomScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                        sliver: SliverToBoxAdapter(
+                          child: _SelectExerciseHeader(
+                            searchController: _searchController,
+                            searchFocusNode: _searchFocusNode,
+                            groupsList: groupsList,
+                            selectedGroupListenable: _groupNotifier,
+                            isCreating: _isCreating,
+                            onCreateExercise: _createExercise,
+                          ),
+                        ),
+                      ),
+                      if (filtered.isEmpty)
+                        const SliverToBoxAdapter(
+                          child: _SelectExerciseEmptyState(),
+                        )
+                      else
+                        SliverPadding(
                           padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                          itemCount: filtered.length,
-                          itemBuilder: (context, index) {
-                            return Padding(
-                              padding: EdgeInsets.only(
-                                bottom: index == filtered.length - 1 ? 0 : 12,
-                              ),
-                              child: RepaintBoundary(
-                                child: _ExerciseLibraryCard(
-                                  exercise: filtered[index],
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom:
+                                        index == filtered.length - 1 ? 0 : 12,
+                                  ),
+                                  child: RepaintBoundary(
+                                    child: _ExerciseLibraryCard(
+                                      key: ValueKey(filtered[index].id),
+                                      exercise: filtered[index],
+                                    ),
+                                  ),
+                                );
+                              },
+                              childCount: filtered.length,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              );
+            },
           );
         },
       ),
@@ -279,6 +293,7 @@ class _SelectExerciseScreenState extends ConsumerState<SelectExerciseScreen> {
 class _SelectExerciseHeader extends StatelessWidget {
   const _SelectExerciseHeader({
     required this.searchController,
+    required this.searchFocusNode,
     required this.groupsList,
     required this.selectedGroupListenable,
     required this.isCreating,
@@ -286,6 +301,7 @@ class _SelectExerciseHeader extends StatelessWidget {
   });
 
   final TextEditingController searchController;
+  final FocusNode searchFocusNode;
   final List<String> groupsList;
   final ValueNotifier<String> selectedGroupListenable;
   final bool isCreating;
@@ -293,19 +309,24 @@ class _SelectExerciseHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isSearchActive = searchFocusNode.hasFocus ||
+        searchController.text.trim().isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Select an existing exercise or create one if it is not in your library yet.',
-          style: KineticNoirTypography.body(
-            size: 14,
-            weight: FontWeight.w600,
-            color: KineticNoirPalette.onSurfaceVariant,
-            height: 1.5,
+        if (!isSearchActive) ...[
+          Text(
+            'Select an existing exercise or create one if it is not in your library yet.',
+            style: KineticNoirTypography.body(
+              size: 14,
+              weight: FontWeight.w600,
+              color: KineticNoirPalette.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
-        ),
-        const SizedBox(height: 18),
+          const SizedBox(height: 16),
+        ],
         SizedBox(
           width: double.infinity,
           child: DecoratedBox(
@@ -322,7 +343,10 @@ class _SelectExerciseHeader extends StatelessWidget {
                     Colors.transparent.withValues(alpha: 0.24),
                 shadowColor: Colors.transparent,
                 foregroundColor: KineticNoirPalette.onPrimary,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: EdgeInsets.symmetric(
+                  vertical: isSearchActive ? 12 : 16,
+                ),
+                minimumSize: const Size(48, 48),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
                 ),
@@ -349,9 +373,10 @@ class _SelectExerciseHeader extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         TextField(
           controller: searchController,
+          focusNode: searchFocusNode,
           decoration: InputDecoration(
             hintText: 'Search exercise...',
             prefixIcon: const Icon(Icons.search_rounded),
@@ -371,7 +396,7 @@ class _SelectExerciseHeader extends StatelessWidget {
             fillColor: KineticNoirPalette.surfaceLow,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 18,
-              vertical: 16,
+              vertical: 14,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
@@ -380,7 +405,7 @@ class _SelectExerciseHeader extends StatelessWidget {
           ),
         ),
         if (groupsList.length > 1) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           SizedBox(
             height: 40,
             child: ValueListenableBuilder<String>(
@@ -428,7 +453,7 @@ class _SelectExerciseHeader extends StatelessWidget {
 }
 
 class _ExerciseLibraryCard extends StatelessWidget {
-  const _ExerciseLibraryCard({required this.exercise});
+  const _ExerciseLibraryCard({required this.exercise, super.key});
 
   final Exercise exercise;
 
@@ -444,14 +469,14 @@ class _ExerciseLibraryCard extends StatelessWidget {
             color: KineticNoirPalette.surfaceLow,
             borderRadius: BorderRadius.circular(18),
           ),
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 exercise.name,
                 style: KineticNoirTypography.headline(
-                  size: 24,
+                  size: 18,
                   weight: FontWeight.w700,
                 ),
               ),
@@ -480,6 +505,8 @@ class _ExerciseLibraryCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   exercise.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: KineticNoirTypography.body(
                     size: 14,
                     weight: FontWeight.w600,
@@ -553,7 +580,7 @@ class _SelectExerciseEmptyState extends StatelessWidget {
             Text(
               'No library exercises match',
               style: KineticNoirTypography.headline(
-                size: 24,
+                size: 18,
                 weight: FontWeight.w700,
               ),
             ),

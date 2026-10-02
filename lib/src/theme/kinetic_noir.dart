@@ -17,8 +17,16 @@ final class KineticNoirPalette {
 }
 
 final class KineticNoirSpacing {
-  static const page = EdgeInsets.symmetric(horizontal: 24);
+  static const page = EdgeInsets.symmetric(horizontal: 20);
   static const floatingNav = EdgeInsets.fromLTRB(16, 0, 16, 12);
+}
+
+/// Short, event-driven motion; respects the device accessibility setting.
+final class KineticMotion {
+  static Duration duration(BuildContext context, [int milliseconds = 200]) =>
+      MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : Duration(milliseconds: milliseconds);
 }
 
 final class KineticNoirTypography {

@@ -79,24 +79,24 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _TopBar(onOpenManage: _openManageSheet),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 16),
                         Text(
                           'My Routines',
                           style: KineticNoirTypography.headline(
-                            size: 40,
+                            size: 30,
                             weight: FontWeight.w700,
                           ),
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          'Manage your weekly performance blueprint.',
+                          'Choose your session. Make it count.',
                           style: KineticNoirTypography.body(
-                            size: 16,
+                            size: 14,
                             weight: FontWeight.w600,
                             color: KineticNoirPalette.onSurfaceVariant,
                           ),
                         ),
-                        const SizedBox(height: 34),
+                        const SizedBox(height: 22),
                         Row(
                           children: [
                             Text(
@@ -154,6 +154,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                               bottom: index == activePlans.length - 1 ? 0 : 16,
                             ),
                             child: RoutineLibraryCard(
+                              key: ValueKey(plan.id),
                               plan: plan,
                               exerciseCount: metadata?.exerciseCount ?? 0,
                               muscleGroups: metadata?.groups ?? const [],
