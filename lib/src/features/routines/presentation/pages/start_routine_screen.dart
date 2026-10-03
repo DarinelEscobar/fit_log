@@ -77,6 +77,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   List<PlanExerciseDetail>? _sessionDetails;
   Map<int, Exercise>? _exerciseMap;
   int? _expandedExerciseId;
+  int? _lastFocusedExerciseId;
   String? _energy;
   String? _mood;
   bool _showNotesComposer = false;
@@ -170,6 +171,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         (_sessionDetails!.isNotEmpty
             ? _sessionDetails!.first.exerciseId
             : null);
+    _lastFocusedExerciseId = _expandedExerciseId;
   }
 
   Duration _sessionDurationAt(DateTime now) =>
@@ -595,7 +597,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
 
   int? get _expandedExerciseIndex {
     final details = _sessionDetails;
-    final expandedExerciseId = _expandedExerciseId;
+    final expandedExerciseId = _expandedExerciseId ?? _lastFocusedExerciseId;
     if (details == null || expandedExerciseId == null) {
       return null;
     }
@@ -694,26 +696,18 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     await SaveActiveSessionDraftUseCase(repo)(draft);
   }
 
-  void _ensureExerciseVisible(int exerciseId) {
-    final cardState = _cardKeys[exerciseId]?.currentState;
-    if (cardState != null) {
-      unawaited(cardState.ensurePrimarySetVisible());
-      return;
-    }
-
+  void _ensureExerciseVisible(int exerciseId, {bool alignTop = false}) {
     final exerciseContext = _cardKeys[exerciseId]?.currentContext;
-    if (exerciseContext == null) {
-      return;
+    if (exerciseContext != null && exerciseContext.mounted) {
+      unawaited(
+        Scrollable.ensureVisible(
+          exerciseContext,
+          duration: KineticMotion.duration(context, 260),
+          curve: Curves.easeOutCubic,
+          alignment: alignTop ? 0.0 : 0.06,
+        ),
+      );
     }
-
-    unawaited(
-      Scrollable.ensureVisible(
-        exerciseContext,
-        duration: KineticMotion.duration(context, 220),
-        curve: Curves.easeOutCubic,
-        alignment: 0.06,
-      ),
-    );
   }
 
   void _openExerciseAtIndex(int index) {
@@ -735,6 +729,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
 
     setState(() {
       _expandedExerciseId = exerciseId;
+      _lastFocusedExerciseId = exerciseId;
       _scheduleDraftPersist();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -803,6 +798,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     }
     if (_sessionDetails!.isNotEmpty) {
       _expandedExerciseId = _sessionDetails!.first.exerciseId;
+      _lastFocusedExerciseId = _expandedExerciseId;
     }
     _scheduleDraftPersist();
   }
@@ -971,6 +967,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       if (_expandedExerciseId == detail.exerciseId) {
         _expandedExerciseId = newDetail.exerciseId;
       }
+      if (_lastFocusedExerciseId == detail.exerciseId) {
+        _lastFocusedExerciseId = newDetail.exerciseId;
+      }
       _setupEditableExerciseIds.remove(detail.exerciseId);
       if (hasSavedSetup) {
         _setupEditableExerciseIds.remove(newDetail.exerciseId);
@@ -1001,6 +1000,17 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     if (exercise == null) {
       return;
     }
+
+    final existingIndex = _sessionDetails?.indexWhere(
+          (item) => item.exerciseId == exercise.id,
+        ) ??
+        -1;
+    if (existingIndex != -1) {
+      _showSnackBar('${exercise.name} is already in this session.');
+      _openExerciseAtIndex(existingIndex);
+      return;
+    }
+
     final preset = await _loadSetupPreset(exercise.id);
     if (!mounted) {
       return;
@@ -1018,6 +1028,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       _cardKeys[newDetail.exerciseId] =
           GlobalKey<ActiveSessionExerciseCardState>();
       _expandedExerciseId = newDetail.exerciseId;
+      _lastFocusedExerciseId = newDetail.exerciseId;
       if (shouldOfferSetup) {
         _setupEditableExerciseIds.add(newDetail.exerciseId);
       } else {
@@ -1025,6 +1036,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       }
     });
     _scheduleDraftPersist();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _ensureExerciseVisible(newDetail.exerciseId, alignTop: true);
+    });
   }
 
   Future<void> _cancelAllSessionNotifications() async {
@@ -1208,7 +1223,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         (_sessionDetails ?? asyncDetails.asData?.value) ??
             const <PlanExerciseDetail>[];
     final activeExpandedExerciseId = _expandedExerciseId ??
-        (_sessionDetails == null && resolvedSessionDetails.isNotEmpty
+        _lastFocusedExerciseId ??
+        (resolvedSessionDetails.isNotEmpty
             ? resolvedSessionDetails.first.exerciseId
             : null);
     const scrollBottomPadding = 24.0;
@@ -1408,10 +1424,13 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                   return Column(
                     children: [
                       if (activeExpandedExerciseId != null)
-                        _buildExerciseFocusHeader(sessionDetails.firstWhere(
-                          (detail) =>
-                              detail.exerciseId == activeExpandedExerciseId,
-                        )),
+                        _buildExerciseFocusHeader(
+                          sessionDetails
+                              .where((detail) =>
+                                  detail.exerciseId == activeExpandedExerciseId)
+                              .firstOrNull ??
+                          sessionDetails.first,
+                        ),
                       Expanded(
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(
@@ -1463,8 +1482,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                                 index < sessionDetails.length;
                                 index++)
                               ActiveSessionExerciseCard(
-                                key:
-                                    _cardKeys[sessionDetails[index].exerciseId],
+                                key: _cardKeys.putIfAbsent(
+                                  sessionDetails[index].exerciseId,
+                                  () => GlobalKey<
+                                      ActiveSessionExerciseCardState>(),
+                                ),
                                 detail: sessionDetails[index],
                                 exercise: _exerciseMap?[
                                     sessionDetails[index].exerciseId],
@@ -1479,15 +1501,27 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                                     WeightDisplayUnit.kg,
                                 initialRestEndsAt: _restEndsAtByExercise[
                                     sessionDetails[index].exerciseId],
-                                onToggle: () => setState(() {
+                                onToggle: () {
                                   final exerciseId =
                                       sessionDetails[index].exerciseId;
-                                  _expandedExerciseId =
-                                      _expandedExerciseId == exerciseId
-                                          ? null
-                                          : exerciseId;
-                                  _scheduleDraftPersist();
-                                }),
+                                  setState(() {
+                                    _expandedExerciseId =
+                                        _expandedExerciseId == exerciseId
+                                            ? null
+                                            : exerciseId;
+                                    if (_expandedExerciseId != null) {
+                                      _lastFocusedExerciseId = exerciseId;
+                                    }
+                                    _scheduleDraftPersist();
+                                  });
+                                  if (_expandedExerciseId != null) {
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                      if (!mounted) return;
+                                      _ensureExerciseVisible(exerciseId);
+                                    });
+                                  }
+                                },
                                 onSetCountChanged: (count) => setState(() {
                                   _setCountsByExercise[
                                       sessionDetails[index].exerciseId] = count;

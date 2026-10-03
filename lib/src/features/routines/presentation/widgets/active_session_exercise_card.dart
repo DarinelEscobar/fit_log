@@ -777,6 +777,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
       child: Column(
         children: [
           InkWell(
+            key: Key('active-exercise-toggle-${widget.detail.exerciseId}'),
             borderRadius: BorderRadius.circular(24),
             onTap: widget.onToggle,
             child: Padding(
@@ -1085,113 +1086,108 @@ class _SetRow extends StatelessWidget {
         ),
       );
     }
-    return AnimatedSize(
-      duration: KineticMotion.duration(context),
-      curve: Curves.easeOutCubic,
-      alignment: Alignment.topCenter,
-      child: Semantics(
-        container: true,
-        label: 'Set $setNumber, $stateLabel',
-        child: AnimatedContainer(
-          duration: KineticMotion.duration(context, 160),
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isCompleted
-                ? KineticNoirPalette.surfaceLow.withValues(alpha: 0.6)
-                : KineticNoirPalette.surfaceBright.withValues(alpha: 0.28),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isActive
-                  ? KineticNoirPalette.primary.withValues(alpha: 0.4)
-                  : Colors.transparent,
-            ),
+    return Semantics(
+      container: true,
+      label: 'Set $setNumber, $stateLabel',
+      child: AnimatedContainer(
+        duration: KineticMotion.duration(context, 160),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isCompleted
+              ? KineticNoirPalette.surfaceLow.withValues(alpha: 0.6)
+              : KineticNoirPalette.surfaceBright.withValues(alpha: 0.28),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isActive
+                ? KineticNoirPalette.primary.withValues(alpha: 0.4)
+                : Colors.transparent,
           ),
-          child: Row(
-            children: [
-              Container(
-                constraints: const BoxConstraints(
-                  minWidth: 46,
-                  minHeight: 48,
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: isActive ? 0.16 : 0.45),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: isCompleted
-                      ? const Icon(
-                          Icons.check_rounded,
-                          color: KineticNoirPalette.primary,
-                        )
-                      : isActive
-                          ? Column(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'NEXT',
-                                  style: KineticNoirTypography.body(
-                                    size: 7,
-                                    weight: FontWeight.w900,
-                                    color: KineticNoirPalette.primary,
-                                    letterSpacing: 0.6,
-                                  ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              constraints: const BoxConstraints(
+                minWidth: 46,
+                minHeight: 48,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: isActive ? 0.16 : 0.45),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: isCompleted
+                    ? const Icon(
+                        Icons.check_rounded,
+                        color: KineticNoirPalette.primary,
+                      )
+                    : isActive
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'NEXT',
+                                style: KineticNoirTypography.body(
+                                  size: 7,
+                                  weight: FontWeight.w900,
+                                  color: KineticNoirPalette.primary,
+                                  letterSpacing: 0.6,
                                 ),
-                                Text(
-                                  '$setNumber',
-                                  style: KineticNoirTypography.headline(
-                                    size: 16,
-                                    color: KineticNoirPalette.primary,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Text(
-                              '$setNumber',
-                              style: KineticNoirTypography.headline(
-                                size: 18,
-                                color: KineticNoirPalette.onSurfaceVariant,
                               ),
+                              Text(
+                                '$setNumber',
+                                style: KineticNoirTypography.headline(
+                                  size: 16,
+                                  color: KineticNoirPalette.primary,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(
+                            '$setNumber',
+                            style: KineticNoirTypography.headline(
+                              size: 18,
+                              color: KineticNoirPalette.onSurfaceVariant,
                             ),
-                ),
+                          ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _WeightInput(
-                  semanticKey: Key('active-set-$exerciseId-$setNumber-kg'),
-                  controller: weightController,
-                  focusNode: weightFocusNode,
-                  unit: weightUnit,
-                  enabled: true,
-                  onChanged: onWeightChanged,
-                  semanticLabel: 'Weight in ${weightUnit.label}',
-                ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _WeightInput(
+                semanticKey: Key('active-set-$exerciseId-$setNumber-kg'),
+                controller: weightController,
+                focusNode: weightFocusNode,
+                unit: weightUnit,
+                enabled: true,
+                onChanged: onWeightChanged,
+                semanticLabel: 'Weight in ${weightUnit.label}',
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _NumberInputSlot(
-                  semanticKey: Key('active-set-$exerciseId-$setNumber-reps'),
-                  controller: repsController,
-                  focusNode: repsFocusNode,
-                  enabled: true,
-                  onChanged: onRepsChanged,
-                  semanticLabel: 'Reps',
-                ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _NumberInputSlot(
+                semanticKey: Key('active-set-$exerciseId-$setNumber-reps'),
+                controller: repsController,
+                focusNode: repsFocusNode,
+                enabled: true,
+                onChanged: onRepsChanged,
+                semanticLabel: 'Reps',
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _NumberInputSlot(
-                  semanticKey: Key('active-set-$exerciseId-$setNumber-rir'),
-                  controller: rirController,
-                  focusNode: rirFocusNode,
-                  enabled: true,
-                  onChanged: onRirChanged,
-                  semanticLabel: 'RIR',
-                ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _NumberInputSlot(
+                semanticKey: Key('active-set-$exerciseId-$setNumber-rir'),
+                controller: rirController,
+                focusNode: rirFocusNode,
+                enabled: true,
+                onChanged: onRirChanged,
+                semanticLabel: 'RIR',
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -1569,6 +1569,10 @@ void main() {
     await tester.tap(find.byKey(const Key('finish-discard-button')));
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const Key('confirm-discard-confirm')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirm-discard-confirm')));
+    await tester.pumpAndSettle();
+
     expect(find.byKey(const Key('routine-host-open')), findsOneWidget);
     expect(find.byKey(const Key('active-session-title')), findsNothing);
     expect(find.text('Changed only in summary'), findsNothing);
@@ -1721,6 +1725,237 @@ void main() {
 
     expect(find.text('Cable Lateral Raise'), findsOneWidget);
     expect(repo.createdExerciseNames, contains('Cable Lateral Raise'));
+  });
+
+  testWidgets('finish summary discard cancellation retains session and draft', (
+    tester,
+  ) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutineInHost(tester, repo: repo);
+
+    await _openNotesComposer(tester);
+    await tester.enterText(
+      find.byKey(const Key('active-session-notes')),
+      'Original active note',
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+
+    await _completeFirstSet(tester);
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(repo.activeSessionDraft, isNotNull);
+
+    await tester.tap(find.byKey(const Key('active-session-finish')));
+    await tester.pumpAndSettle();
+
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(const Key('finish-discard-button')),
+    );
+    await tester.tap(find.byKey(const Key('finish-discard-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('confirm-discard-title')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirm-discard-cancel')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('confirm-discard-title')), findsNothing);
+    expect(find.byKey(const Key('finish-session-title')), findsOneWidget);
+    expect(repo.activeSessionDraft, isNotNull);
+  });
+
+  testWidgets(
+      'add exercise during active session preserves running rest timer and focuses new exercise',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutine(tester, repo: repo);
+
+    // Complete first set to trigger rest timer on Exercise 1
+    await _completeFirstSet(tester);
+    await tester.pump();
+
+    // Verify rest timer pill is running
+    expect(
+      find.byKey(const Key('active-session-floating-rest-timer')),
+      findsOneWidget,
+    );
+
+    // Now add new exercise (Romanian Deadlift, id 3)
+    await tester.tap(find.byKey(const Key('active-session-add-exercise')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Romanian Deadlift'), findsOneWidget);
+    await tester.tap(find.text('Romanian Deadlift'));
+    await tester.pumpAndSettle();
+
+    // Verify rest timer pill is STILL active and visible
+    expect(
+      find.byKey(const Key('active-session-floating-rest-timer')),
+      findsOneWidget,
+    );
+
+    // Verify Romanian Deadlift was added, focused, and its focus header is active
+    expect(find.text('Romanian Deadlift'), findsWidgets);
+    expect(
+      find.byKey(const Key('active-exercise-title-3')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'add duplicate exercise shows snackbar alert and focuses existing exercise without duplicate',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutine(tester, repo: repo);
+
+    // Verify Exercise 1 is already in session
+    expect(find.text('Barbell Bench Press'), findsWidgets);
+
+    // Try to add Barbell Bench Press again
+    await tester.tap(find.byKey(const Key('active-session-add-exercise')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Barbell Bench Press'), findsWidgets);
+    await tester.tap(find.text('Barbell Bench Press').first);
+    await tester.pumpAndSettle();
+
+    // Verify snackbar is displayed
+    expect(
+      find.textContaining('is already in this session'),
+      findsOneWidget,
+    );
+
+    // Verify only one exercise card exists for exercise 1
+    expect(
+      find.byKey(const Key('active-exercise-summary-1')),
+      findsOneWidget,
+    );
+    // Header still focuses Barbell Bench Press
+    expect(find.text('Barbell Bench Press'), findsWidgets);
+  });
+
+  testWidgets(
+      'pinned focus header and log button remain visible and pinned when exercise card is collapsed',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutine(tester, repo: repo);
+
+    // Initially Exercise 1 is expanded and focused
+    expect(find.text('Barbell Bench Press'), findsWidgets);
+    expect(
+      find.byKey(const Key('active-session-register-set')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('active-session-focus-header')),
+      findsOneWidget,
+    );
+
+    // Collapse Exercise 1 by tapping its header card in list
+    await tester.tap(find.byKey(const Key('active-exercise-toggle-1')));
+    await tester.pumpAndSettle();
+
+    // Pinned focus header must REMAIN rendered and visible with Barbell Bench Press
+    expect(
+      find.byKey(const Key('active-session-focus-header')),
+      findsOneWidget,
+    );
+    expect(find.text('Barbell Bench Press'), findsWidgets);
+    // LOG SET button remains visible and interactive
+    expect(
+      find.byKey(const Key('active-session-register-set')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'active session preserves elapsed session timer, input values, and drafts when adding exercise and toggling cards',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    var currentTestTime = DateTime(2026, 10, 2, 10, 0, 0);
+    await _pumpStartRoutine(
+      tester,
+      repo: repo,
+      now: () => currentTestTime,
+    );
+
+    // Initial elapsed timer starts at 00:00
+    expect(find.textContaining('00:00 · 0/'), findsOneWidget);
+
+    // Enter custom weight and reps for Set 1 of Exercise 1 before completing any set
+    await tester.enterText(
+      find.byKey(const Key('active-set-1-1-kg')),
+      '105',
+    );
+    await tester.enterText(
+      find.byKey(const Key('active-set-1-1-reps')),
+      '12',
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+
+    // Advance session time by 45 seconds to simulate running elapsed execution timer
+    currentTestTime = currentTestTime.add(const Duration(seconds: 45));
+    await tester.pump(const Duration(seconds: 1));
+
+    // Verify running elapsed timer reflects 00:45
+    expect(find.textContaining('00:45 · 0/'), findsOneWidget);
+
+    // Verify draft was persisted with custom inputs for exercise 1
+    expect(repo.activeSessionDraft, isNotNull);
+    final draftLog1 = repo.activeSessionDraft!.logs.firstWhere(
+      (log) => log.exerciseId == 1 && log.setNumber == 1,
+    );
+    expect(draftLog1.weight, 105.0);
+    expect(draftLog1.reps, 12);
+
+    // Add new exercise (Romanian Deadlift, id 3)
+    await tester.tap(find.byKey(const Key('active-session-add-exercise')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Romanian Deadlift'), findsOneWidget);
+    await tester.tap(find.text('Romanian Deadlift'));
+    await tester.pumpAndSettle();
+
+    // Elapsed session timer continues running without interruption
+    expect(find.textContaining('00:45 · 0/'), findsOneWidget);
+
+    // Pinned focus header now highlights Romanian Deadlift
+    expect(find.text('Romanian Deadlift'), findsWidgets);
+    expect(
+      find.byKey(const Key('active-exercise-summary-3')),
+      findsOneWidget,
+    );
+
+    // Now expand Exercise 1 again by tapping its card header in the list
+    await tester.tap(find.byKey(const Key('active-exercise-toggle-1')));
+    await tester.pumpAndSettle();
+
+    // Pinned header focuses Barbell Bench Press
+    expect(find.text('Barbell Bench Press'), findsWidgets);
+
+    // Custom weight and reps for Exercise 1 remain preserved (not reset or swapped)
+    final weightField = tester.widget<TextField>(
+      find.byKey(const Key('active-set-1-1-kg')),
+    );
+    expect(weightField.controller?.text, '105');
+    final repsField = tester.widget<TextField>(
+      find.byKey(const Key('active-set-1-1-reps')),
+    );
+    expect(repsField.controller?.text, '12');
+
+    // Tap active session close ('X') to verify Exit/Stay warning
+    await tester.tap(find.byKey(const Key('active-session-close')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('confirm-exit-title')), findsOneWidget);
+    expect(find.byKey(const Key('confirm-exit-stay')), findsOneWidget);
+    expect(find.byKey(const Key('confirm-exit-exit')), findsOneWidget);
+
+    // Tap STAY to resume session without abandoning
+    await tester.tap(find.byKey(const Key('confirm-exit-stay')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('confirm-exit-title')), findsNothing);
+    expect(find.text('Barbell Bench Press'), findsWidgets);
   });
 }
 
