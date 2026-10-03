@@ -80,6 +80,7 @@ class _FinishSessionSummaryScreenState
   String? _energy;
   String? _mood;
   late bool _notesExpanded;
+  bool _isDiscarding = false;
 
   static const _energyValues = <String>[
     '1',
@@ -117,6 +118,23 @@ class _FinishSessionSummaryScreenState
     super.dispose();
   }
 
+  void _handleResumeOrBack() {
+    Navigator.of(context).pop(FinishSessionSummaryResult.resume(
+      energy: _energy,
+      mood: _mood,
+      notes: _notesController.text,
+    ));
+  }
+
+  Future<void> _handleDiscard() async {
+    if (_isDiscarding) return;
+    final confirmed = await showConfirmDiscardSheet(context);
+    if (confirmed == true && mounted) {
+      setState(() => _isDiscarding = true);
+      Navigator.of(context).pop(const FinishSessionSummaryResult.discard());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final canSave = _energy != null && _mood != null;
@@ -129,7 +147,7 @@ class _FinishSessionSummaryScreenState
         if (didPop) {
           return;
         }
-        Navigator.of(context).pop(const FinishSessionSummaryResult.discard());
+        _handleResumeOrBack();
       },
       child: Scaffold(
         backgroundColor: KineticNoirPalette.background,
@@ -140,8 +158,7 @@ class _FinishSessionSummaryScreenState
             icon: const Icon(Icons.close_rounded),
             color: KineticNoirPalette.onSurfaceVariant,
             tooltip: 'Close',
-            onPressed: () => Navigator.of(context)
-                .pop(const FinishSessionSummaryResult.discard()),
+            onPressed: _handleResumeOrBack,
           ),
           title: const KeyedSubtree(
             key: Key('finish-session-title'),
@@ -212,12 +229,7 @@ class _FinishSessionSummaryScreenState
                   if (isLargeText) ...[
                     TextButton(
                       key: const Key('finish-resume-button'),
-                      onPressed: () => Navigator.of(context)
-                          .pop(FinishSessionSummaryResult.resume(
-                        energy: _energy,
-                        mood: _mood,
-                        notes: _notesController.text,
-                      )),
+                      onPressed: _handleResumeOrBack,
                       style: TextButton.styleFrom(
                         minimumSize: const Size(double.infinity, 48),
                         foregroundColor: KineticNoirPalette.primary,
@@ -226,8 +238,7 @@ class _FinishSessionSummaryScreenState
                     ),
                     TextButton(
                       key: const Key('finish-discard-button'),
-                      onPressed: () => Navigator.of(context)
-                          .pop(const FinishSessionSummaryResult.discard()),
+                      onPressed: _isDiscarding ? null : _handleDiscard,
                       style: TextButton.styleFrom(
                         minimumSize: const Size(double.infinity, 48),
                         foregroundColor: KineticNoirPalette.error,
@@ -240,12 +251,7 @@ class _FinishSessionSummaryScreenState
                         Expanded(
                           child: TextButton(
                             key: const Key('finish-resume-button'),
-                            onPressed: () => Navigator.of(context)
-                                .pop(FinishSessionSummaryResult.resume(
-                              energy: _energy,
-                              mood: _mood,
-                              notes: _notesController.text,
-                            )),
+                            onPressed: _handleResumeOrBack,
                             style: TextButton.styleFrom(
                               minimumSize: const Size(0, 48),
                               foregroundColor: KineticNoirPalette.primary,
@@ -255,8 +261,7 @@ class _FinishSessionSummaryScreenState
                         ),
                         TextButton(
                           key: const Key('finish-discard-button'),
-                          onPressed: () => Navigator.of(context)
-                              .pop(const FinishSessionSummaryResult.discard()),
+                          onPressed: _isDiscarding ? null : _handleDiscard,
                           style: TextButton.styleFrom(
                             minimumSize: const Size(0, 48),
                             foregroundColor: KineticNoirPalette.error,
@@ -274,7 +279,7 @@ class _FinishSessionSummaryScreenState
         body: SafeArea(
           top: false,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
@@ -288,121 +293,96 @@ class _FinishSessionSummaryScreenState
                             .withValues(alpha: 0.22),
                       ),
                     ),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: KineticNoirPalette.primary
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: KineticNoirPalette.primary
-                                      .withValues(alpha: 0.24),
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.celebration_rounded,
-                                color: KineticNoirPalette.primary,
+                            Text(
+                              'Session review',
+                              style: KineticNoirTypography.headline(
                                 size: 20,
+                                height: 1.15,
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Session review',
-                                    style: KineticNoirTypography.headline(
-                                      size: 20,
-                                      height: 1.15,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${widget.draft.planName} • Ready to save',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: KineticNoirTypography.body(
-                                      size: 12,
-                                      weight: FontWeight.w600,
-                                      color: KineticNoirPalette.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
+                            const SizedBox(height: 2),
+                            Text(
+                              '${widget.draft.planName} • Ready to save',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: KineticNoirTypography.body(
+                                size: 12,
+                                weight: FontWeight.w600,
+                                color: KineticNoirPalette.onSurfaceVariant,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 10),
                         _CompactSummaryBand(
                           duration: _formatDuration(widget.draft.duration),
                           volume: _formatVolume(widget.draft.volumeKg),
                           completedSets: widget.draft.completedSets,
                           totalSets: widget.draft.totalSets,
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 10),
                         _SectionLabel(
                           label: 'ENERGY LEVEL',
                           trailing: _energy == null ? '--/10' : '$_energy/10',
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         Column(
                           children: [
-                              Row(
-                                children: [
-                                  for (var i = 0; i < 5; i++)
-                                    Expanded(
-                                      child: Padding(
-                                        padding: EdgeInsets.only(
-                                          right: i == 4 ? 0 : 6,
-                                        ),
-                                        child: _SelectableNumberChip(
-                                          key: Key(
-                                              'finish-energy-${_energyValues[i]}'),
-                                          value: _energyValues[i],
-                                          isSelected:
-                                              _energy == _energyValues[i],
-                                          onTap: () => setState(() =>
-                                              _energy = _energyValues[i]),
-                                        ),
+                            Row(
+                              children: [
+                                for (var i = 0; i < 5; i++)
+                                  Expanded(
+                                    child: Padding(
+                                      padding: EdgeInsets.only(
+                                        right: i == 4 ? 0 : 6,
+                                      ),
+                                      child: _SelectableNumberChip(
+                                        key: Key(
+                                            'finish-energy-${_energyValues[i]}'),
+                                        value: _energyValues[i],
+                                        isSelected:
+                                            _energy == _energyValues[i],
+                                        onTap: () => setState(() =>
+                                            _energy = _energyValues[i]),
                                       ),
                                     ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  for (var i = 5; i < 10; i++)
-                                    Expanded(
-                                      child: Padding(
-                                        padding: EdgeInsets.only(
-                                          right: i == 9 ? 0 : 6,
-                                        ),
-                                        child: _SelectableNumberChip(
-                                          key: Key(
-                                              'finish-energy-${_energyValues[i]}'),
-                                          value: _energyValues[i],
-                                          isSelected:
-                                              _energy == _energyValues[i],
-                                          onTap: () => setState(() =>
-                                              _energy = _energyValues[i]),
-                                        ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                for (var i = 5; i < 10; i++)
+                                  Expanded(
+                                    child: Padding(
+                                      padding: EdgeInsets.only(
+                                        right: i == 9 ? 0 : 6,
+                                      ),
+                                      child: _SelectableNumberChip(
+                                        key: Key(
+                                            'finish-energy-${_energyValues[i]}'),
+                                        value: _energyValues[i],
+                                        isSelected:
+                                            _energy == _energyValues[i],
+                                        onTap: () => setState(() =>
+                                            _energy = _energyValues[i]),
                                       ),
                                     ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        const SizedBox(height: 12),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
                         const _SectionLabel(label: 'MOOD LEVEL'),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         Row(
                           children: [
                             for (final mood in _moodValues)
@@ -422,7 +402,7 @@ class _FinishSessionSummaryScreenState
                               ),
                           ],
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 10),
                         if (_notesExpanded) ...[
                           Row(
                             children: [
@@ -807,3 +787,197 @@ class _MoodButton extends StatelessWidget {
     );
   }
 }
+
+Future<bool> showConfirmDiscardSheet(BuildContext context) async {
+  final result = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    barrierColor: Colors.black.withValues(alpha: 0.65),
+    builder: (sheetContext) {
+      final isLargeText =
+          MediaQuery.textScalerOf(sheetContext).scale(12) > 17 ||
+              MediaQuery.sizeOf(sheetContext).width < 340;
+
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            decoration: BoxDecoration(
+              color: KineticNoirPalette.surfaceLow,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.22),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: KineticNoirPalette.shadow.withValues(alpha: 0.36),
+                  blurRadius: 32,
+                  offset: const Offset(0, 16),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.center,
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: KineticNoirPalette.error.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: KineticNoirPalette.error.withValues(alpha: 0.28),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.warning_amber_rounded,
+                      color: KineticNoirPalette.error,
+                      size: 28,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Discard session?',
+                  key: const Key('confirm-discard-title'),
+                  textAlign: TextAlign.center,
+                  style: KineticNoirTypography.headline(
+                    size: 24,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Are you sure you want to discard this workout? All progress and logged sets will be lost.',
+                  textAlign: TextAlign.center,
+                  style: KineticNoirTypography.body(
+                    size: 14,
+                    weight: FontWeight.w600,
+                    color: KineticNoirPalette.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                if (isLargeText) ...[
+                  FilledButton(
+                    key: const Key('confirm-discard-confirm'),
+                    onPressed: () => Navigator.of(sheetContext).pop(true),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                      backgroundColor: KineticNoirPalette.error,
+                      foregroundColor: KineticNoirPalette.onSurface,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      'DISCARD SESSION',
+                      style: KineticNoirTypography.body(
+                        size: 12,
+                        weight: FontWeight.w800,
+                        color: KineticNoirPalette.onSurface,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton(
+                    key: const Key('confirm-discard-cancel'),
+                    onPressed: () => Navigator.of(sheetContext).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                      foregroundColor: KineticNoirPalette.onSurfaceVariant,
+                      side: BorderSide(
+                        color: KineticNoirPalette.outlineVariant
+                            .withValues(alpha: 0.35),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      'KEEP WORKOUT',
+                      style: KineticNoirTypography.body(
+                        size: 12,
+                        weight: FontWeight.w800,
+                        color: KineticNoirPalette.onSurfaceVariant,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          key: const Key('confirm-discard-cancel'),
+                          onPressed: () => Navigator.of(sheetContext).pop(false),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 48),
+                            foregroundColor:
+                                KineticNoirPalette.onSurfaceVariant,
+                            side: BorderSide(
+                              color: KineticNoirPalette.outlineVariant
+                                  .withValues(alpha: 0.35),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Text(
+                            'KEEP WORKOUT',
+                            style: KineticNoirTypography.body(
+                              size: 12,
+                              weight: FontWeight.w800,
+                              color: KineticNoirPalette.onSurfaceVariant,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          key: const Key('confirm-discard-confirm'),
+                          onPressed: () => Navigator.of(sheetContext).pop(true),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(0, 48),
+                            backgroundColor: KineticNoirPalette.error,
+                            foregroundColor: KineticNoirPalette.onSurface,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Text(
+                            'DISCARD',
+                            style: KineticNoirTypography.body(
+                              size: 12,
+                              weight: FontWeight.w800,
+                              color: KineticNoirPalette.onSurface,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+  return result ?? false;
+}
+

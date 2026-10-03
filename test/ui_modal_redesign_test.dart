@@ -774,5 +774,118 @@ void main() {
       expect(tempoSize.width, greaterThan(60.0));
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets(
+        'FinishSessionSummaryScreen discard confirmation modal cancel keeps screen, confirm pops discard',
+        (tester) async {
+      FinishSessionSummaryResult? result;
+      const draft = FinishSessionSummaryDraft(
+        planName: 'Hypertrophy Day A',
+        duration: Duration(minutes: 45),
+        volumeKg: 3500,
+        completedSets: 12,
+        totalSets: 12,
+        notes: '',
+        energy: null,
+        mood: null,
+      );
+
+      await _pumpTestWidget(
+        tester,
+        surfaceSize: const Size(375, 667),
+        child: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () async {
+              result = await Navigator.of(context).push<FinishSessionSummaryResult>(
+                MaterialPageRoute(
+                  builder: (_) => const FinishSessionSummaryScreen(draft: draft),
+                ),
+              );
+            },
+            child: const Text('Open Summary'),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Summary'));
+      await tester.pumpAndSettle();
+
+      // Tap discard button
+      expect(find.byKey(const Key('finish-discard-button')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('finish-discard-button')));
+      await tester.pumpAndSettle();
+
+      // Verify discard confirmation sheet is displayed
+      expect(find.byKey(const Key('confirm-discard-title')), findsOneWidget);
+      expect(find.byKey(const Key('confirm-discard-cancel')), findsOneWidget);
+      expect(find.byKey(const Key('confirm-discard-confirm')), findsOneWidget);
+
+      // Tap Cancel (KEEP WORKOUT)
+      await tester.tap(find.byKey(const Key('confirm-discard-cancel')));
+      await tester.pumpAndSettle();
+
+      // Discard sheet is gone, but FinishSessionSummaryScreen is still open
+      expect(find.byKey(const Key('confirm-discard-title')), findsNothing);
+      expect(find.byKey(const Key('finish-session-title')), findsOneWidget);
+      expect(result, isNull);
+
+      // Tap discard again, and this time confirm
+      await tester.tap(find.byKey(const Key('finish-discard-button')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('confirm-discard-confirm')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('confirm-discard-confirm')));
+      await tester.pumpAndSettle();
+
+      // Summary screen popped with discard result
+      expect(result, isNotNull);
+      expect(result!.action, FinishSessionSummaryAction.discard);
+    });
+
+    testWidgets(
+        'FinishSessionSummaryScreen AppBar close button pops with resume result',
+        (tester) async {
+      FinishSessionSummaryResult? result;
+      const draft = FinishSessionSummaryDraft(
+        planName: 'Hypertrophy Day A',
+        duration: Duration(minutes: 45),
+        volumeKg: 3500,
+        completedSets: 12,
+        totalSets: 12,
+        notes: 'Session notes',
+        energy: '8',
+        mood: '4',
+      );
+
+      await _pumpTestWidget(
+        tester,
+        surfaceSize: const Size(375, 667),
+        child: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () async {
+              result = await Navigator.of(context).push<FinishSessionSummaryResult>(
+                MaterialPageRoute(
+                  builder: (_) => const FinishSessionSummaryScreen(draft: draft),
+                ),
+              );
+            },
+            child: const Text('Open Summary'),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Summary'));
+      await tester.pumpAndSettle();
+
+      // Tap AppBar close button (X)
+      expect(find.byTooltip('Close'), findsOneWidget);
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+
+      expect(result, isNotNull);
+      expect(result!.action, FinishSessionSummaryAction.resume);
+      expect(result!.energy, '8');
+      expect(result!.mood, '4');
+      expect(result!.notes, 'Session notes');
+    });
   });
 }
