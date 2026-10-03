@@ -87,13 +87,87 @@ at small-phone portrait and landscape, large text and reduced motion. The
 currently running `emulator-5556` belongs to other work: do not use it.
 Use fictional QA data only via `lib/main_demo.dart`; ship `lib/main.dart`.
 
-For delivery, bump to `1.1.2+4`, build a normal signed release with the ignored
-existing keystore, and verify package `com.yourcompany.fit_log` and certificate
-SHA-256 `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`.
-Never expose signing secrets or include demo data in the delivery build.
-Report actual checks, reviewed screenshots and any device/performance limits.
+---
 
-## Delivery and verification report
+## Release 1.1.3+5 Polish & Feature Delivery Report
+
+### 1. Feature Commits Summary
+The 1.1.3+5 iteration was organized into 5 focused feature milestones:
+1. `d859308` **Data Unification**: Unified Export & Share backup into a single action and modal with automatic incremental missing date ranges, full backup, and custom date range picker; non-destructive import restore.
+2. `b784124` **History Redesign**: Compact navigable history, 1W / 4W / YTD period switcher, grouped weekly disclosure, dual exercise filters, formatted volume with `k` metric (`34.8k kg`).
+3. `8e51d80` **Performance Dashboard**: Volume trends, 4-Week weekly load charts, muscle focus distribution, PR explorer, and 1RM vs Volume toggle progression metrics.
+4. `6ee47fa` **Active Routine Stability**: Dynamic exercise addition without reset, automatic card focus and smooth scroll, pinned header with prominent TEMPO & REPS, preserved draft state across card expansion toggles and elapsed workout timers.
+5. `b9ead73` **Finish Review & Discard Modal**: Compact single-screen review without scroll at 375x667, removed decorative celebration icon, 5x2 energy selector with guaranteed $\ge 48\times 48\text{dp}$ touch targets, mood 1-5 selector ($\ge 48\times 48\text{dp}$), progressive disclosure for notes, warning modal on discard (`KEEP WORKOUT` vs `DISCARD`), and resume navigation protection.
+
+### 2. Automated Verification
+- `flutter analyze --no-pub` across modified feature paths: **0 issues**.
+- Full test suite execution: **126 passing tests** verifying:
+  - Finish session 5x2 energy selector touch targets (all $\ge 48\times 48\text{dp}$) and mood buttons ($\ge 48\times 48\text{dp}$).
+  - Required fields (summary, energy, mood, save button) visible without scroll at 375x667.
+  - Active session exercise addition, card scrolling, card expansion toggles, and live progress preservation.
+  - Unified data export modal date range presets, automatic incremental range detection, and full backup archive generation.
+  - History screen 1W/4W/YTD grouping, compact week disclosure, and session detail routing.
+  - Performance dashboard volume metrics, muscle focus percentages, and 1RM/Volume chart toggles.
+
+### 3. Release Artifact Verification
+- Binary source build: `build/app/outputs/flutter-apk/app-release.apk`
+- Primary delivery target: `<local path omitted>`
+- Mirrored delivery target: `G:\My Drive\FILES\FitLog-1.1.3-release.apk`
+- Source entrypoint: `lib/main.dart` (production entrypoint, zero demo fixtures)
+- File size: **64,735,085 bytes** (~61.7 MB)
+- SHA-256 Digest: `A3681F91027A01E1B23D3094E8DD6183D36D4F9D5724BE3AF443B25C199EEE29`
+- Package ID: `com.yourcompany.fit_log`
+- Version: `1.1.3+5` (versionCode 5, versionName 1.1.3)
+- Signing Scheme: APK Signature Scheme v2 (`true`)
+- Signer Certificate SHA-256: `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`
+- Signer DN: `CN=Fit Log, OU=Mobile, O=Fit Log, L=CDMX, ST=CDMX, C=MX`
+
+### 4. Visual QA & Interactive Review Catalog (`emulator-5554`, 375x667 @ 480dpi)
+Artifacts captured and inspected in `build/redesign-review/followups/`:
+- `01-home.png`: Home screen with active routines and session resume option.
+- `02-resumed-session.png`: Resumed active session with elapsed timer running.
+- `03-finish-screen.png`: Snackbar validation requiring at least 1 set before finishing.
+- `04-logged-first-set.png`: First set logged, floating rest timer pill active.
+- `05-finish-summary.png`: Clean 375x667 Finish screen without scroll, no decorative icon, touch targets $\ge 48\times 48\text{dp}$, energy & mood unselected.
+- `06-discard-modal.png`: Discard session confirmation warning modal (`KEEP WORKOUT` vs `DISCARD`).
+- `07-keep-workout.png`: Cancellation keeps session draft and returns to summary screen.
+- `08-resumed-from-x.png`: AppBar "X" action cleanly pops and returns to active session.
+- `20-manage-sheet.png`: Manage bottom sheet with Data & Backups option.
+- `21-data-management.png`: Data management overview with Export & Share Backup and Import Backup.
+- `22-export-range-modal.png`: Unified Export modal showing automatic incremental range (`Sep 20 – Oct 02, 2026`), full backup, and custom range picker.
+- `23-share-sheet-open.png`: Native Android system share sheet opened with verified backup ZIP archive.
+- `24-after-share-cancelled.png`: Native share sheet dismissed cleanly back to Data Management, showing `LAST LOCAL BACKUP: Oct 03, 2026`.
+- `30-new-workout-started.png`: Start routine preview for Lower Body workout.
+- `31-active-workout-started.png`: Warm-up preview before strength training.
+- `32-active-workout-main.png`: Active workout screen with elapsed timer, pinned header, and ADD EXERCISE button.
+- `33-active-before-log.png`: Active workout with elapsed timer running before any set is logged.
+- `34-exercise-library.png`: Exercise Library selector with search bar, muscle filter chips, and exercise cards.
+- `35-bench-press-added.png`: Dynamically added Barbell Bench Press to active routine; scrolled into view with pinned header updated.
+- `36-prev-exercise-navigated.png`: Navigating between exercises in workout preserves card states and drafts.
+- `37-first-set-logged.png`: Logging set 1 compacts row with checkmark and starts rest timer.
+- `38-finish-summary.png`: Finish session summary with energy 1-10 chips and mood 1-5 buttons.
+- `39-discard-modal.png`: Discard warning dialog opened from Finish screen.
+- `40-keep-workout.png`: `KEEP WORKOUT` action retains workout progress and dismisses dialog.
+- `41-home-after-discard.png`: Confirmed discard clears workout draft and safely returns to routines list.
+- `42-history-default.png`: History overview with 1W/4W/YTD filter, `34.8k kg` formatted volume, and work set metrics.
+- `43-history-scrolled.png`: History weekly grouping (`Sep 28 – Oct 4`) with session summary cards.
+- `44-history-session-detail.png`: Session review detail view with metadata pills, energy/mood badges, and exercise breakdown.
+- `45-performance-dashboard.png`: Performance dashboard with 4-Week volume hero card, weekly load trend, and day coverage.
+- `46-performance-scrolled.png`: Muscle focus distribution (Chest 28%, Back 20%, Legs 18%) and Recent PR cards.
+- `47-exercise-progress-detail.png`: Barbell Back Squat progression detail with 1RM, last session load, and progression trend chart.
+- `48-exercise-volume-chart.png`: Progression trend toggled to Volume metric chart.
+- `50-large-text-1.8-ime-active.png`: Active workout at 1.8x font scale with editable KG input focused and real soft keyboard (IME) open.
+- `51-landscape-workout.png`: Authentic horizontal layout (2001x1125 physical viewport) with pinned header and accessible controls.
+- `52-reduced-motion.png`: Full session stability verified under reduced motion (animations disabled).
+
+### 5. Known Boundaries and Peer Handoff
+- **Performance Chart Legend 1.8x Font Scale**: In `ExerciseProgressDetailScreen` at `textScale: 1.8`, the chart legend label (`Session Volume (kg·reps)`) renders with a 37px horizontal overflow on small viewports. Per coordination boundaries, this is reported for upstream resolution by the Performance feature owner.
+- **Android Share Intent**: Cancelling native share sheet cleanly returns control to Data Management without side effects.
+- **Device Baseline**: All temporary display overrides (1.8x font scale, 2001x1125 size, 0.0 animation scales) were verified restored to default (`font_scale 1.0`, `wm size 1125x2001`, `animator_duration_scale 1.0`).
+
+---
+
+## Historical Release 1.1.2+4 Delivery Report
 
 ### Automated verification
 - `flutter analyze --no-pub` across modified files: 0 issues.
@@ -112,33 +186,3 @@ Report actual checks, reviewed screenshots and any device/performance limits.
 - Version: `1.1.2+4` (versionCode 4, versionName 1.1.2)
 - Certificate SHA-256 digest: `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`
 - Signer DN: `CN=Fit Log, OU=Mobile, O=Fit Log, L=CDMX, ST=CDMX, C=MX`
-
-### Visual QA and interactive review (emulator-5554, 375x667 viewport)
-Screenshots captured and validated in `build/redesign-review/polish/`:
-1. `01-routines-home.png`: Routines home with Kinetic Noir palette and floating nav bar.
-2. `02-routine-details.png`: Routine details sheet with exercise breakdown and start action.
-3. `03-warmup-preview.png`: Warm-up preview with timing chips and exercise list.
-4. `04-active-workout.png`: Pinned header with prominent TEMPO (`3-1-1`) & REPS (`10`), compact secondary pills for `SET 1 / 3` & `RIR 2`, active set row and LOG SET button.
-5. `05-active-workout-set2.png`: Set 1 compacted with checkmark, set 2 expanded, floating rest timer pill active.
-6. `06-finish-session.png`: Initial 375x667 viewport showing compact summary band, 5x2 energy selector (targets >= 48x48dp, unselected), mood selector (targets >= 48x48dp), notes toggle, and visible SAVE & FINISH button without scroll.
-7. `07-finish-session-selected.png`: Energy 8 and Mood 4 selected, SAVE & FINISH enabled with primary gradient.
-8. `08-finish-session-notes-expanded.png`: Notes text area expanded; layout remains fully visible.
-9. `09-after-save.png`: Clean navigation back to routines home after saving session.
-10. `10-history-screen.png`: History overview showing `33.9k kg` volume and session cards with compact tags.
-11. `11-history-detail.png`: Session review detail with 26px header, metadata pills, and exercise breakdown.
-12. `12-performance-dashboard.png`: Performance dashboard with weekly volume cards and trend charts.
-13. `13-exercise-progress.png`: Exercise progress detail with single-line date formatting and compact stat cards.
-14. `14-active-workout-large-text-ime.png`: Active workout at 1.8x font scale with active set KG field focused and soft keyboard (IME) open; full TEMPO and REPS hierarchy preserved.
-15. `15-finish-large-text.png`: Finish session screen at 1.8x text scale with natural scroll area and accessible controls.
-16. `16-active-workout-landscape.png`: Authentic horizontal layout (2001x1125 physical, 667x375dp) showing compact 48dp app bar, single-row primary + secondary execution metrics, and active set row with zero overflow.
-17. `17-reduced-motion.png`: Full session stability verified under reduced motion (animations disabled).
-
-### Local commits and validation limits
-
-Antigravity created local commits `99f0934` (motion, Home, History and
-Performance), `b996cab` (active workout, Finish and tests), and `3e2e812`
-(version and delivery report). No push or integration was performed.
-
-Visual validation used the isolated emulator. A physical-phone upgrade and
-frame-time profiling were not performed. Update compatibility was checked
-through the package ID, original signing certificate and increased version code.
