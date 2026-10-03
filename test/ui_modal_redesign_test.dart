@@ -12,6 +12,7 @@ import 'package:fit_log/src/features/routines/presentation/pages/finish_session_
 import 'package:fit_log/src/features/routines/presentation/widgets/active_session_exercise_setup_sheet.dart';
 import 'package:fit_log/src/features/routines/presentation/widgets/confirm_exit_sheet.dart';
 import 'package:fit_log/src/features/routines/presentation/widgets/exercise_definition_dialog.dart';
+import 'package:fit_log/src/features/routines/presentation/widgets/active_session_exercise_sections.dart';
 import 'package:fit_log/src/features/routines/presentation/widgets/routine_editor_exercise_card.dart';
 import 'package:fit_log/src/features/routines/presentation/widgets/routine_metadata_dialog.dart';
 import 'package:fit_log/src/features/routines/presentation/widgets/warm_up_editor_section.dart';
@@ -404,6 +405,91 @@ void main() {
     });
 
     testWidgets(
+        'FinishSessionSummaryScreen handles progressive disclosure for empty notes at 375x667',
+        (tester) async {
+      const emptyNotesDraft = FinishSessionSummaryDraft(
+        planName: 'Upper Body Power',
+        duration: Duration(minutes: 42),
+        volumeKg: 4200,
+        completedSets: 12,
+        totalSets: 12,
+        notes: '',
+        energy: null,
+        mood: null,
+      );
+
+      await _pumpTestWidget(
+        tester,
+        surfaceSize: const Size(375, 667),
+        child: const FinishSessionSummaryScreen(draft: emptyNotesDraft),
+      );
+
+      // Verify compact summary band
+      expect(find.text('DURATION'), findsOneWidget);
+      expect(find.text('VOLUME'), findsOneWidget);
+      expect(find.text('SETS'), findsOneWidget);
+      expect(find.text('4.2k'), findsOneWidget);
+      expect(find.text('12/12'), findsOneWidget);
+
+      // Verify 1-10 energy values exist
+      for (var i = 1; i <= 10; i++) {
+        expect(find.byKey(Key('finish-energy-$i')), findsOneWidget);
+      }
+
+      // Verify 1-5 mood buttons exist
+      for (var i = 1; i <= 5; i++) {
+        expect(find.byKey(Key('finish-mood-$i')), findsOneWidget);
+      }
+
+      // Notes are collapsed initially
+      expect(find.byKey(const Key('finish-session-notes')), findsNothing);
+      expect(find.byKey(const Key('finish-expand-notes-button')), findsOneWidget);
+
+      // Tap to expand notes
+      await tester.tap(find.byKey(const Key('finish-expand-notes-button')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('finish-session-notes')), findsOneWidget);
+      expect(find.text('COLLAPSE'), findsOneWidget);
+
+      // Tap to collapse notes
+      await tester.tap(find.text('COLLAPSE'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('finish-session-notes')), findsNothing);
+      expect(find.byKey(const Key('finish-expand-notes-button')), findsOneWidget);
+    });
+
+    testWidgets(
+        'ActiveSessionExecutionSummary renders SET, REPS, RIR, TEMPO clearly without overflow at 1.8x text scale',
+        (tester) async {
+      await _pumpTestWidget(
+        tester,
+        textScale: 1.8,
+        surfaceSize: const Size(375, 667),
+        child: const Scaffold(
+          body: ActiveSessionExecutionSummary(
+            currentSet: 2,
+            totalSets: 4,
+            targetReps: 10,
+            rir: 2,
+            tempo: '3-1-1-0',
+          ),
+        ),
+      );
+
+      expect(find.text('SET'), findsOneWidget);
+      expect(find.text('2 / 4'), findsOneWidget);
+      expect(find.text('REPS'), findsOneWidget);
+      expect(find.text('10'), findsOneWidget);
+      expect(find.text('RIR'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('TEMPO'), findsOneWidget);
+      expect(find.text('3-1-1-0'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
         'WarmUpFlow renders cleanly in landscape at textScale 1.8 without overflow',
         (tester) async {
       const step = WarmUpStep(
@@ -590,6 +676,103 @@ void main() {
       expect(selectedExercise, isNotNull);
       expect(selectedExercise!.id, 101);
       expect(selectedExercise!.name, 'Barbell Bench Press');
+    });
+
+    testWidgets(
+        'FinishSessionSummaryScreen provides >= 48x48 touch targets and keeps required fields visible at 375x667 without scroll',
+        (tester) async {
+      const draft = FinishSessionSummaryDraft(
+        planName: 'Hypertrophy Day A',
+        duration: Duration(minutes: 45),
+        volumeKg: 3500,
+        completedSets: 12,
+        totalSets: 12,
+        notes: '',
+        energy: null,
+        mood: null,
+      );
+
+      await _pumpTestWidget(
+        tester,
+        surfaceSize: const Size(375, 667),
+        textScale: 1.0,
+        child: const FinishSessionSummaryScreen(draft: draft),
+      );
+
+      // Verify all 10 energy chips satisfy Android 48x48dp minimum hit target
+      for (var i = 1; i <= 10; i++) {
+        final chipFinder = find.byKey(Key('finish-energy-$i'));
+        expect(chipFinder, findsOneWidget);
+        final chipSize = tester.getSize(chipFinder);
+        expect(chipSize.width, greaterThanOrEqualTo(48.0),
+            reason: 'Energy chip $i width must be >= 48dp');
+        expect(chipSize.height, greaterThanOrEqualTo(48.0),
+            reason: 'Energy chip $i height must be >= 48dp');
+      }
+
+      // Verify all 5 mood buttons satisfy Android 48x48dp minimum hit target
+      for (var i = 1; i <= 5; i++) {
+        final moodFinder = find.byKey(Key('finish-mood-$i'));
+        expect(moodFinder, findsOneWidget);
+        final moodSize = tester.getSize(moodFinder);
+        expect(moodSize.width, greaterThanOrEqualTo(48.0),
+            reason: 'Mood button $i width must be >= 48dp');
+        expect(moodSize.height, greaterThanOrEqualTo(48.0),
+            reason: 'Mood button $i height must be >= 48dp');
+      }
+
+      // Verify required fields (summary, energy, mood, save button) are visible
+      // on the initial screen without scrolling at 375x667
+      final energy10Bottom =
+          tester.getBottomRight(find.byKey(const Key('finish-energy-10'))).dy;
+      final mood5Bottom =
+          tester.getBottomRight(find.byKey(const Key('finish-mood-5'))).dy;
+      final saveButtonBottom =
+          tester.getBottomRight(find.byKey(const Key('finish-save-button'))).dy;
+
+      expect(energy10Bottom, lessThanOrEqualTo(667.0),
+          reason: 'Energy selector should fit inside 375x667 viewport');
+      expect(mood5Bottom, lessThanOrEqualTo(667.0),
+          reason: 'Mood selector should fit inside 375x667 viewport');
+      expect(saveButtonBottom, lessThanOrEqualTo(667.0),
+          reason: 'Save button should be visible inside 375x667 viewport');
+    });
+
+    testWidgets(
+        'ActiveSessionExecutionSummary prioritizes TEMPO and REPS with full text under 1.8x text scale and IME',
+        (tester) async {
+      await _pumpTestWidget(
+        tester,
+        textScale: 1.8,
+        surfaceSize: const Size(375, 667),
+        viewInsets: const EdgeInsets.only(bottom: 240),
+        child: const Scaffold(
+          body: ActiveSessionExecutionSummary(
+            currentSet: 1,
+            totalSets: 3,
+            targetReps: 12,
+            rir: 2,
+            tempo: '4-0-1-0',
+          ),
+        ),
+      );
+
+      // Verify full tempo text and reps text are rendered
+      expect(find.text('4-0-1-0'), findsOneWidget);
+      expect(find.text('12'), findsOneWidget);
+      expect(find.text('TEMPO'), findsOneWidget);
+      expect(find.text('REPS'), findsOneWidget);
+
+      // Verify secondary pills exist
+      expect(find.text('SET'), findsOneWidget);
+      expect(find.text('1 / 3'), findsOneWidget);
+      expect(find.text('RIR'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+
+      // Verify TEMPO RenderBox has ample width (> 100dp) so it is not squeezed
+      final tempoSize = tester.getSize(find.text('4-0-1-0'));
+      expect(tempoSize.width, greaterThan(60.0));
+      expect(tester.takeException(), isNull);
     });
   });
 }

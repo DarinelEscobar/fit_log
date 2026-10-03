@@ -1237,7 +1237,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         appBar: AppBar(
           backgroundColor: KineticNoirPalette.background,
           surfaceTintColor: Colors.transparent,
-          toolbarHeight: 64,
+          toolbarHeight: MediaQuery.orientationOf(context) == Orientation.landscape
+              ? 48
+              : 64,
           leading: IconButton(
             key: const Key('active-session-close'),
             icon: const Icon(Icons.close_rounded),

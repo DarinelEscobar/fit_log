@@ -79,6 +79,7 @@ class _FinishSessionSummaryScreenState
   late final TextEditingController _notesController;
   String? _energy;
   String? _mood;
+  late bool _notesExpanded;
 
   static const _energyValues = <String>[
     '1',
@@ -107,6 +108,7 @@ class _FinishSessionSummaryScreenState
     _energy = widget.draft.energy;
     _mood = widget.draft.mood;
     _notesController = TextEditingController(text: widget.draft.notes);
+    _notesExpanded = widget.draft.notes.trim().isNotEmpty;
   }
 
   @override
@@ -271,147 +273,191 @@ class _FinishSessionSummaryScreenState
         ),
         body: SafeArea(
           top: false,
-          child: Stack(
-            children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 56),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 520),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: KineticNoirPalette.surfaceLow,
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(
-                          color: KineticNoirPalette.outlineVariant
-                              .withValues(alpha: 0.22),
-                        ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: KineticEntrance(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: KineticNoirPalette.surfaceLow,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: KineticNoirPalette.outlineVariant
+                            .withValues(alpha: 0.22),
                       ),
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            margin: const EdgeInsets.only(bottom: 16),
-                            decoration: BoxDecoration(
-                              color: KineticNoirPalette.primary
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
                                 color: KineticNoirPalette.primary
-                                    .withValues(alpha: 0.24),
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.celebration_rounded,
-                              color: KineticNoirPalette.primary,
-                              size: 24,
-                            ),
-                          ),
-                          Text(
-                            'Session review',
-                            style: KineticNoirTypography.headline(
-                              size: 26,
-                              height: 1.15,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${widget.draft.planName} is ready to save. Review your session and finish cleanly.',
-                            style: KineticNoirTypography.body(
-                              size: 14,
-                              weight: FontWeight.w500,
-                              color: KineticNoirPalette.onSurfaceVariant,
-                              height: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _SummaryMetricCard(
-                                  label: 'DURATION',
-                                  value: _formatDuration(widget.draft.duration),
-                                  suffix: 'MIN',
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: KineticNoirPalette.primary
+                                      .withValues(alpha: 0.24),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _SummaryMetricCard(
-                                  label: 'VOLUME',
-                                  value: _formatVolume(widget.draft.volumeKg),
-                                  suffix: 'KG',
-                                ),
+                              child: const Icon(
+                                Icons.celebration_rounded,
+                                color: KineticNoirPalette.primary,
+                                size: 20,
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          _SummaryProgressChip(
-                            completedSets: widget.draft.completedSets,
-                            totalSets: widget.draft.totalSets,
-                          ),
-                          const SizedBox(height: 26),
-                          _SectionLabel(
-                            label: 'ENERGY LEVEL',
-                            trailing: _energy == null ? '--/10' : '$_energy/10',
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              for (final value in _energyValues)
-                                _SelectableNumberChip(
-                                  key: Key('finish-energy-$value'),
-                                  value: value,
-                                  isSelected: _energy == value,
-                                  onTap: () => setState(() => _energy = value),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          const _SectionLabel(label: 'MOOD LEVEL'),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              for (final mood in _moodValues)
-                                Expanded(
-                                  child: Padding(
-                                    padding: EdgeInsets.only(
-                                      right: mood == _moodValues.last ? 0 : 8,
-                                    ),
-                                    child: _MoodButton(
-                                      key: Key('finish-mood-${mood.label}'),
-                                      mood: mood,
-                                      isSelected: _mood == mood.label,
-                                      onTap: () =>
-                                          setState(() => _mood = mood.label),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Session review',
+                                    style: KineticNoirTypography.headline(
+                                      size: 20,
+                                      height: 1.15,
                                     ),
                                   ),
-                                ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${widget.draft.planName} • Ready to save',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: KineticNoirTypography.body(
+                                      size: 12,
+                                      weight: FontWeight.w600,
+                                      color: KineticNoirPalette.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        _CompactSummaryBand(
+                          duration: _formatDuration(widget.draft.duration),
+                          volume: _formatVolume(widget.draft.volumeKg),
+                          completedSets: widget.draft.completedSets,
+                          totalSets: widget.draft.totalSets,
+                        ),
+                        const SizedBox(height: 14),
+                        _SectionLabel(
+                          label: 'ENERGY LEVEL',
+                          trailing: _energy == null ? '--/10' : '$_energy/10',
+                        ),
+                        const SizedBox(height: 8),
+                        Column(
+                          children: [
+                              Row(
+                                children: [
+                                  for (var i = 0; i < 5; i++)
+                                    Expanded(
+                                      child: Padding(
+                                        padding: EdgeInsets.only(
+                                          right: i == 4 ? 0 : 6,
+                                        ),
+                                        child: _SelectableNumberChip(
+                                          key: Key(
+                                              'finish-energy-${_energyValues[i]}'),
+                                          value: _energyValues[i],
+                                          isSelected:
+                                              _energy == _energyValues[i],
+                                          onTap: () => setState(() =>
+                                              _energy = _energyValues[i]),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  for (var i = 5; i < 10; i++)
+                                    Expanded(
+                                      child: Padding(
+                                        padding: EdgeInsets.only(
+                                          right: i == 9 ? 0 : 6,
+                                        ),
+                                        child: _SelectableNumberChip(
+                                          key: Key(
+                                              'finish-energy-${_energyValues[i]}'),
+                                          value: _energyValues[i],
+                                          isSelected:
+                                              _energy == _energyValues[i],
+                                          onTap: () => setState(() =>
+                                              _energy = _energyValues[i]),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 24),
-                          const _SectionLabel(label: 'SESSION NOTES'),
-                          const SizedBox(height: 12),
+                        const SizedBox(height: 12),
+                        const _SectionLabel(label: 'MOOD LEVEL'),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            for (final mood in _moodValues)
+                              Expanded(
+                                child: Padding(
+                                  padding: EdgeInsets.only(
+                                    right: mood == _moodValues.last ? 0 : 6,
+                                  ),
+                                  child: _MoodButton(
+                                    key: Key('finish-mood-${mood.label}'),
+                                    mood: mood,
+                                    isSelected: _mood == mood.label,
+                                    onTap: () =>
+                                        setState(() => _mood = mood.label),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        if (_notesExpanded) ...[
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: _SectionLabel(label: 'SESSION NOTES'),
+                              ),
+                              TextButton(
+                                onPressed: () =>
+                                    setState(() => _notesExpanded = false),
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  foregroundColor:
+                                      KineticNoirPalette.onSurfaceVariant,
+                                ),
+                                child: const Text('COLLAPSE'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
                           TextField(
                             key: const Key('finish-session-notes'),
                             controller: _notesController,
                             minLines: 2,
-                            maxLines: 5,
+                            maxLines: 4,
                             textInputAction: TextInputAction.newline,
                             style: KineticNoirTypography.body(
-                              size: 15,
+                              size: 14,
                               weight: FontWeight.w600,
-                              height: 1.5,
+                              height: 1.4,
                               color: KineticNoirPalette.onSurface,
                             ),
                             decoration: InputDecoration(
                               hintText: 'How did it feel? Any new PRs?',
                               hintStyle: KineticNoirTypography.body(
-                                size: 14,
+                                size: 13,
                                 weight: FontWeight.w500,
                                 color: KineticNoirPalette.onSurfaceVariant
                                     .withValues(alpha: 0.55),
@@ -419,25 +465,25 @@ class _FinishSessionSummaryScreenState
                               filled: true,
                               fillColor: KineticNoirPalette.surfaceBright,
                               contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 14,
+                                horizontal: 14,
+                                vertical: 12,
                               ),
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(16),
                                 borderSide: BorderSide(
                                   color: KineticNoirPalette.outlineVariant
                                       .withValues(alpha: 0.25),
                                 ),
                               ),
                               enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(16),
                                 borderSide: BorderSide(
                                   color: KineticNoirPalette.outlineVariant
                                       .withValues(alpha: 0.25),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(16),
                                 borderSide: const BorderSide(
                                   color: KineticNoirPalette.primary,
                                   width: 1.5,
@@ -445,14 +491,35 @@ class _FinishSessionSummaryScreenState
                               ),
                             ),
                           ),
-                          const SizedBox(height: 20),
+                        ] else ...[
+                          OutlinedButton.icon(
+                            key: const Key('finish-expand-notes-button'),
+                            onPressed: () =>
+                                setState(() => _notesExpanded = true),
+                            icon: const Icon(Icons.add_comment_outlined,
+                                size: 16),
+                            label:
+                                const Text('ADD SESSION NOTES (OPTIONAL)'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(double.infinity, 42),
+                              foregroundColor:
+                                  KineticNoirPalette.onSurfaceVariant,
+                              side: BorderSide(
+                                color: KineticNoirPalette.outlineVariant
+                                    .withValues(alpha: 0.22),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -472,8 +539,71 @@ class _FinishSessionSummaryScreenState
   }
 }
 
-class _SummaryMetricCard extends StatelessWidget {
-  const _SummaryMetricCard({
+class _CompactSummaryBand extends StatelessWidget {
+  const _CompactSummaryBand({
+    required this.duration,
+    required this.volume,
+    required this.completedSets,
+    required this.totalSets,
+  });
+
+  final String duration;
+  final String volume;
+  final int completedSets;
+  final int totalSets;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: KineticNoirPalette.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _SummaryBandColumn(
+              label: 'DURATION',
+              value: duration,
+              suffix: 'MIN',
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 32,
+            color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.2),
+          ),
+          Expanded(
+            child: _SummaryBandColumn(
+              label: 'VOLUME',
+              value: volume,
+              suffix: 'KG',
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 32,
+            color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.2),
+          ),
+          Expanded(
+            child: _SummaryBandColumn(
+              label: 'SETS',
+              value: '$completedSets/$totalSets',
+              suffix: 'DONE',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryBandColumn extends StatelessWidget {
+  const _SummaryBandColumn({
     required this.label,
     required this.value,
     required this.suffix,
@@ -485,107 +615,48 @@ class _SummaryMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: KineticNoirPalette.surface,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 104),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.22),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: KineticNoirTypography.body(
+            size: 9,
+            weight: FontWeight.w800,
+            color: KineticNoirPalette.onSurfaceVariant,
+            letterSpacing: 1.2,
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: KineticNoirTypography.body(
-                size: 10,
-                weight: FontWeight.w800,
-                color: KineticNoirPalette.onSurfaceVariant,
-                letterSpacing: 1.5,
+        const SizedBox(height: 3),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value,
+                style: KineticNoirTypography.headline(
+                  size: 18,
+                  weight: FontWeight.w700,
+                  color: KineticNoirPalette.primary,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              crossAxisAlignment: WrapCrossAlignment.end,
-              spacing: 6,
-              children: [
-                Text(
-                  value,
-                  style: KineticNoirTypography.headline(
-                    size: 26,
-                    color: KineticNoirPalette.primary,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    suffix,
-                    style: KineticNoirTypography.body(
-                      size: 11,
-                      weight: FontWeight.w700,
-                      color: KineticNoirPalette.onSurfaceVariant,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SummaryProgressChip extends StatelessWidget {
-  const _SummaryProgressChip({
-    required this.completedSets,
-    required this.totalSets,
-  });
-
-  final int completedSets;
-  final int totalSets;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: KineticNoirPalette.surface,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.2),
-          ),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.check_circle_outline_rounded,
-              color: KineticNoirPalette.primary,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                '$completedSets / $totalSets sets completed',
+              const SizedBox(width: 3),
+              Text(
+                suffix,
                 style: KineticNoirTypography.body(
-                  size: 13,
+                  size: 10,
                   weight: FontWeight.w700,
                   color: KineticNoirPalette.onSurfaceVariant,
+                  letterSpacing: 0.8,
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -647,19 +718,19 @@ class _SelectableNumberChip extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: motionDuration,
-          width: 38,
           height: 48,
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           decoration: BoxDecoration(
             color: isSelected
                 ? KineticNoirPalette.primary
                 : KineticNoirPalette.surface,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected
                   ? KineticNoirPalette.primary
@@ -702,18 +773,19 @@ class _MoodButton extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         child: AnimatedContainer(
           duration: motionDuration,
-          height: 56,
+          height: 48,
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           decoration: BoxDecoration(
             color: isSelected
                 ? KineticNoirPalette.primary.withValues(alpha: 0.16)
                 : KineticNoirPalette.surface,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isSelected
                   ? KineticNoirPalette.primary
@@ -721,12 +793,14 @@ class _MoodButton extends StatelessWidget {
               width: isSelected ? 2 : 1,
             ),
           ),
-          child: Icon(
-            mood.icon,
-            size: 24,
-            color: isSelected
-                ? KineticNoirPalette.primary
-                : KineticNoirPalette.onSurfaceVariant,
+          child: Center(
+            child: Icon(
+              mood.icon,
+              size: 22,
+              color: isSelected
+                  ? KineticNoirPalette.primary
+                  : KineticNoirPalette.onSurfaceVariant,
+            ),
           ),
         ),
       ),

@@ -91,12 +91,14 @@ class ActiveSessionExecutionSummary extends StatelessWidget {
     final statusLabel = currentSet == null
         ? 'Exercise complete'
         : 'Current set $currentSet of $totalSets';
+    final textScaler = MediaQuery.textScalerOf(context);
+    final isLargeText = textScaler.scale(1) >= 1.25;
 
     return Semantics(
       excludeSemantics: true,
-      label: '$statusLabel. Target $targetReps reps. RIR $rir. Tempo $tempo.',
+      label: '$statusLabel. Prescribed $targetReps reps. RIR $rir. Tempo $tempo.',
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: KineticNoirPalette.surfaceLow,
           borderRadius: BorderRadius.circular(16),
@@ -104,26 +106,94 @@ class ActiveSessionExecutionSummary extends StatelessWidget {
             color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.14),
           ),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _ExecutionMetric(
-                label: currentSet == null ? 'STATUS' : 'NEXT SET',
-                value: currentSet == null ? 'DONE' : '$currentSet / $totalSets',
-                highlighted: true,
-              ),
-            ),
-            Expanded(
-              child: _ExecutionMetric(
-                label: 'TARGET',
-                value: '$targetReps REPS',
-              ),
-            ),
-            Expanded(child: _ExecutionMetric(label: 'RIR', value: '$rir')),
-            Expanded(
-              child: _ExecutionMetric(label: 'TEMPO', value: tempo),
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wideLayout = constraints.maxWidth >= 520 ||
+                (constraints.maxWidth >= 440 && !isLargeText);
+
+            if (wideLayout) {
+              return Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: _PrimaryMetric(
+                      label: 'REPS',
+                      value: '$targetReps',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 4,
+                    child: _PrimaryMetric(
+                      label: 'TEMPO',
+                      value: tempo,
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    height: 28,
+                    margin: const EdgeInsets.symmetric(horizontal: 12),
+                    color: KineticNoirPalette.outlineVariant
+                        .withValues(alpha: 0.2),
+                  ),
+                  _SecondaryPill(
+                    label: 'SET',
+                    value: currentSet == null
+                        ? 'DONE'
+                        : '$currentSet / $totalSets',
+                    highlighted: true,
+                  ),
+                  const SizedBox(width: 8),
+                  _SecondaryPill(
+                    label: 'RIR',
+                    value: '$rir',
+                  ),
+                ],
+              );
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _PrimaryMetric(
+                        label: 'REPS',
+                        value: '$targetReps',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _PrimaryMetric(
+                        label: 'TEMPO',
+                        value: tempo,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    _SecondaryPill(
+                      label: 'SET',
+                      value: currentSet == null
+                          ? 'DONE'
+                          : '$currentSet / $totalSets',
+                      highlighted: true,
+                    ),
+                    _SecondaryPill(
+                      label: 'RIR',
+                      value: '$rir',
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -368,8 +438,53 @@ class ActiveSessionPlanDetailsPanel extends StatelessWidget {
   }
 }
 
-class _ExecutionMetric extends StatelessWidget {
-  const _ExecutionMetric({
+class _PrimaryMetric extends StatelessWidget {
+  const _PrimaryMetric({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: KineticNoirTypography.body(
+            size: 10,
+            weight: FontWeight.w800,
+            color: KineticNoirPalette.onSurfaceVariant,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            maxLines: 1,
+            style: KineticNoirTypography.headline(
+              size: 18,
+              weight: FontWeight.w700,
+              color: KineticNoirPalette.onSurface,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SecondaryPill extends StatelessWidget {
+  const _SecondaryPill({
     required this.label,
     required this.value,
     this.highlighted = false,
@@ -381,36 +496,46 @@ class _ExecutionMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        highlighted ? KineticNoirPalette.primary : KineticNoirPalette.onSurface;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: KineticNoirTypography.body(
-            size: 8,
-            weight: FontWeight.w900,
-            color: highlighted
-                ? KineticNoirPalette.primary
-                : KineticNoirPalette.onSurfaceVariant,
-            letterSpacing: 0.8,
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: highlighted
+            ? KineticNoirPalette.primary.withValues(alpha: 0.12)
+            : KineticNoirPalette.surfaceBright.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: highlighted
+              ? KineticNoirPalette.primary.withValues(alpha: 0.25)
+              : KineticNoirPalette.outlineVariant.withValues(alpha: 0.15),
         ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: KineticNoirTypography.body(
-            size: 11,
-            weight: FontWeight.w900,
-            color: color,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: KineticNoirTypography.body(
+              size: 10,
+              weight: FontWeight.w800,
+              color: highlighted
+                  ? KineticNoirPalette.primary
+                  : KineticNoirPalette.onSurfaceVariant,
+              letterSpacing: 0.8,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: KineticNoirTypography.body(
+              size: 12,
+              weight: FontWeight.w800,
+              color: highlighted
+                  ? KineticNoirPalette.primary
+                  : KineticNoirPalette.onSurface,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
