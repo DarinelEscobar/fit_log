@@ -74,7 +74,8 @@ The taste skill excludes native mobile; do not import its React stack,
 marketing-page layouts or photographic requirements into this product.
 Antigravity owns implementation and corrections in the existing FitLog chat.
 Use one writer so shared theme/navigation and screen changes remain coherent.
-Codex performs scoped review and serial local commits after writers finish.
+Antigravity owns implementation, validation and serial local commits; Codex
+performs scoped review and verifies the delivery artifact after the writer finishes.
 No push, merge, production changes or unrelated edits.
 
 Use the existing focused widget tests for execution summary and Finish flows;
@@ -114,7 +115,7 @@ Report actual checks, reviewed screenshots and any device/performance limits.
 
 ### Visual QA and interactive review (emulator-5554, 375x667 viewport)
 Screenshots captured and validated in `build/redesign-review/polish/`:
-1. `01-routines-home.png`: Routines home with Kinetic Noir palette and floating nav bar; clean header at 1.8x text scale.
+1. `01-routines-home.png`: Routines home with Kinetic Noir palette and floating nav bar.
 2. `02-routine-details.png`: Routine details sheet with exercise breakdown and start action.
 3. `03-warmup-preview.png`: Warm-up preview with timing chips and exercise list.
 4. `04-active-workout.png`: Pinned header with prominent TEMPO (`3-1-1`) & REPS (`10`), compact secondary pills for `SET 1 / 3` & `RIR 2`, active set row and LOG SET button.
@@ -132,4 +133,12 @@ Screenshots captured and validated in `build/redesign-review/polish/`:
 16. `16-active-workout-landscape.png`: Authentic horizontal layout (2001x1125 physical, 667x375dp) showing compact 48dp app bar, single-row primary + secondary execution metrics, and active set row with zero overflow.
 17. `17-reduced-motion.png`: Full session stability verified under reduced motion (animations disabled).
 
+### Local commits and validation limits
 
+Antigravity created local commits `99f0934` (motion, Home, History and
+Performance), `b996cab` (active workout, Finish and tests), and `3e2e812`
+(version and delivery report). No push or integration was performed.
+
+Visual validation used the isolated emulator. A physical-phone upgrade and
+frame-time profiling were not performed. Update compatibility was checked
+through the package ID, original signing certificate and increased version code.
