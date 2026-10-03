@@ -167,7 +167,7 @@ Artifacts captured and inspected in `build/redesign-review/followups/`:
 - `53-performance-volume-large-text.png`: Performance exercise progression chart at 1.8x text scale verified with adaptive legend wrap and zero horizontal overflow.
 
 ### 5. Known Boundaries and Verification Limits
-- **Network & Offline Font Fallback**: Offline font rendering relies on cached Google Fonts or falls back gracefully to system sans-serif without layout distortion; fresh uncached font downloads were not tested without network connectivity.
+- **Network & Offline Fonts**: The app uses Google Fonts. Fresh uncached font loading and fallback layout without network connectivity were not validated; the emulator captures do not establish that behavior.
 - **Device & Cloud Verification**: All visual QA was conducted on `emulator-5554` (375x667 @ 480dpi). Physical phone deployment, OS-level cloud drive sync, and frame-time profiling were not performed.
 - **Device Baseline**: All temporary display overrides (1.8x font scale, 2001x1125 size, 0.0 animation scales) were verified restored to default (`font_scale 1.0`, `wm size 1125x2001`, `animator_duration_scale 1.0`).
 
