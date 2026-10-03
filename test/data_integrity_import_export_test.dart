@@ -469,6 +469,87 @@ void main() {
     expect(await _countTable(mergedDb, 'workout_logs'), 2);
     expect(await _countTable(mergedDb, 'workout_sessions'), 2);
   });
+
+  test('full backup export packages complete database and all workout history',
+      () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    await service.reopenIfNeeded();
+    await service.close();
+
+    final db = await databaseFactoryFfi.openDatabase(databasePath);
+    await db.insert('workout_plans', {
+      'plan_id': 1,
+      'name': 'Upper',
+      'frequency': 'Weekly',
+      'is_active': 1,
+    });
+    await db.insert('exercises', {
+      'exercise_id': 1,
+      'name': 'Press',
+      'description': '',
+      'category': 'Compound',
+      'main_muscle_group': 'Chest',
+    });
+    await db.insert('workout_logs', {
+      'date': '2026-02-01',
+      'plan_id': 1,
+      'exercise_id': 1,
+      'set_number': 1,
+      'reps': 10,
+      'weight': 60.0,
+      'rir': 2,
+    });
+    await db.insert('workout_sessions', {
+      'date': '2026-02-01',
+      'plan_id': 1,
+      'fatigue_level': '3',
+      'duration_minutes': 45,
+      'mood': '4',
+      'notes': '',
+    });
+    await db.close();
+
+    final repository = AppDataRepositoryImpl(storageService: service);
+    final fullBackup = await repository.exportData(
+      request: const ExportRequest.full(),
+    );
+    final archive = ZipDecoder().decodeBytes(await fullBackup.readAsBytes());
+    final manifest = _readExportManifest(archive);
+
+    expect(manifest['historyMode'], 'complete');
+    expect(manifest['startDate'], '2026-02-01');
+    expect(manifest['endDate'], '2026-02-01');
+    expect(archive.files.any((file) => file.name == 'fit_log.db'), isTrue);
+
+    // Import into fresh database to ensure complete restore
+    await service.close();
+    final freshDb = await databaseFactoryFfi.openDatabase(databasePath);
+    await freshDb.delete('workout_logs');
+    await freshDb.delete('workout_sessions');
+    await freshDb.close();
+
+    await repository.importData(fullBackup);
+    final restoredDb = await databaseFactoryFfi.openDatabase(databasePath);
+    addTearDown(restoredDb.close);
+    expect(await _countTable(restoredDb, 'workout_logs'), 1);
+    expect(await _countTable(restoredDb, 'workout_sessions'), 1);
+  });
+
+  test('custom date range enforces inclusive bounds and rejects inverted dates',
+      () {
+    expect(
+      () => ExportDateRange(DateTime(2026, 3, 10), DateTime(2026, 3, 5)),
+      throwsArgumentError,
+    );
+
+    final range = ExportDateRange(DateTime(2026, 3, 1), DateTime(2026, 3, 5));
+    expect(range.dayCount, 5);
+    expect(range.contains(DateTime(2026, 3, 1)), isTrue);
+    expect(range.contains(DateTime(2026, 3, 3)), isTrue);
+    expect(range.contains(DateTime(2026, 3, 5)), isTrue);
+    expect(range.contains(DateTime(2026, 2, 28)), isFalse);
+    expect(range.contains(DateTime(2026, 3, 6)), isFalse);
+  });
 }
 
 Map<String, dynamic> _readExportManifest(Archive archive) {

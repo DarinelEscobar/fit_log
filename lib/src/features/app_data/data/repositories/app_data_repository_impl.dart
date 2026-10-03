@@ -68,17 +68,25 @@ class AppDataRepositoryImpl implements AppDataRepository {
     await _storageService.exportRoutineRuntimeToXlsxFiles(dir);
 
     final availability = await getExportAvailability();
-    final history = await _readExportRanges();
-    final selectedRange = request.mode == ExportRangeMode.automatic
-        ? availability.nextMissingRange ??
-            (!availability.hasWorkoutData && !availability.hasExportHistory
-                ? ExportDateRange(DateTime.now(), DateTime.now())
-                : null)
-        : request.range;
+    final selectedRange = switch (request.mode) {
+      ExportRangeMode.automatic => availability.nextMissingRange ??
+          (!availability.hasWorkoutData && !availability.hasExportHistory
+              ? ExportDateRange(DateTime.now(), DateTime.now())
+              : null),
+      ExportRangeMode.full => request.range ??
+          (availability.hasWorkoutData
+              ? ExportDateRange(availability.firstDate!, availability.lastDate!)
+              : ExportDateRange(DateTime.now(), DateTime.now())),
+      ExportRangeMode.custom => request.range,
+    };
     if (selectedRange == null) {
-      throw StateError(
-        'No new workout data to export. Choose a custom date range to export again.',
-      );
+      if (request.mode == ExportRangeMode.automatic) {
+        throw StateError(
+          'No new workout data to export. Choose a custom date range to export again.',
+        );
+      } else {
+        throw StateError('No date range specified for export.');
+      }
     }
 
     final logs = await _storageService.fetchWorkoutLogs(
@@ -99,9 +107,10 @@ class AppDataRepositoryImpl implements AppDataRepository {
       final file = File(p.join(dir.path, filename));
       await _addFileToArchive(archive, file, filename);
     }
-    final isFirstAutomaticExport =
-        request.mode == ExportRangeMode.automatic && history.isEmpty;
-    if (isFirstAutomaticExport) {
+    final isCompleteBackup = request.mode == ExportRangeMode.full ||
+        (request.mode == ExportRangeMode.automatic &&
+            !availability.hasExportHistory);
+    if (isCompleteBackup) {
       final databaseFile = File(p.join(databaseDir, _databaseFilename));
       await _addFileToArchive(
         archive,
@@ -111,7 +120,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
     }
     final manifest = jsonEncode({
       'format': 'fitlog-range-export-v1',
-      'historyMode': isFirstAutomaticExport ? 'complete' : 'incremental',
+      'historyMode': isCompleteBackup ? 'complete' : 'incremental',
       'startDate': selectedRange.startIso,
       'endDate': selectedRange.endIso,
       'createdAt': DateTime.now().toIso8601String(),

@@ -1,4 +1,4 @@
-enum ExportRangeMode { automatic, custom }
+enum ExportRangeMode { automatic, full, custom }
 
 class ExportDateRange {
   ExportDateRange(DateTime startDate, DateTime endDate)
@@ -12,6 +12,8 @@ class ExportDateRange {
 
   final DateTime startDate;
   final DateTime endDate;
+
+  int get dayCount => endDate.difference(startDate).inDays + 1;
 
   bool contains(DateTime date) {
     final normalized = _dateOnly(date);
@@ -53,6 +55,8 @@ class ExportRequest {
       : mode = ExportRangeMode.automatic,
         range = null;
 
+  const ExportRequest.full([this.range]) : mode = ExportRangeMode.full;
+
   const ExportRequest.custom(this.range) : mode = ExportRangeMode.custom;
 
   final ExportRangeMode mode;
@@ -75,4 +79,7 @@ class ExportAvailability {
   final bool hasExportHistory;
 
   bool get hasWorkoutData => firstDate != null && lastDate != null;
+
+  ExportDateRange? get fullRange =>
+      hasWorkoutData ? ExportDateRange(firstDate!, lastDate!) : null;
 }

@@ -1664,20 +1664,14 @@ void main() {
       ),
     );
 
-    expect(find.text('Export Data'), findsOneWidget);
+    expect(find.text('Export & Share Backup'), findsOneWidget);
     expect(find.byType(KineticBottomNavBar), findsNothing);
     await tester.scrollUntilVisible(
-      find.text('Share Backup'),
+      find.text('Import Backup'),
       180,
       scrollable: find.byType(Scrollable),
     );
-    expect(find.text('Share Backup'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Import Data'),
-      180,
-      scrollable: find.byType(Scrollable),
-    );
-    expect(find.text('Import Data'), findsOneWidget);
+    expect(find.text('Import Backup'), findsOneWidget);
   });
 
   testWidgets('exercise selector creates a new library exercise', (
