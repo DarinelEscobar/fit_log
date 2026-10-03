@@ -71,7 +71,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             Text(
               'HISTORY',
               style: KineticNoirTypography.headline(
-                size: 24,
+                size: 22,
                 weight: FontWeight.w700,
                 color: KineticNoirPalette.primary,
               ),
@@ -104,7 +104,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               cacheExtent: 800,
               slivers: [
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                   sliver: SliverToBoxAdapter(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -114,7 +114,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           onChanged: _onPeriodChanged,
                         ),
                         if (data.planOptions.isNotEmpty) ...[
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 8),
                           _PlanFilter(
                             options: data.planOptions,
                             selectedPlanId: _selectedPlanId,
@@ -128,7 +128,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           ),
                         ],
                         if (data.exerciseOptions.isNotEmpty) ...[
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 6),
                           _ExerciseFilter(
                             options: data.exerciseOptions,
                             selectedExerciseId: _selectedExerciseId,
@@ -141,28 +141,31 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                             },
                           ),
                         ],
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 8),
                         Row(
                           children: [
-                            Text(
-                              'SESSION REVIEW',
-                              style: KineticNoirTypography.body(
-                                size: 12,
-                                weight: FontWeight.w800,
-                                color: KineticNoirPalette.onSurfaceVariant,
-                                letterSpacing: 2.2,
+                            Expanded(
+                              child: Text(
+                                _rangeLabel(data.range),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: KineticNoirTypography.body(
+                                  size: 12,
+                                  weight: FontWeight.w600,
+                                  color: KineticNoirPalette.onSurfaceVariant,
+                                ),
                               ),
                             ),
                             if (_selectedPlanId != null ||
                                 _selectedExerciseId != null) ...[
-                              const Spacer(),
+                              const SizedBox(width: 8),
                               TextButton(
                                 style: TextButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
+                                    horizontal: 6,
+                                    vertical: 2,
                                   ),
-                                  minimumSize: const Size(48, 36),
+                                  minimumSize: const Size(48, 32),
                                   foregroundColor: KineticNoirPalette.primary,
                                 ),
                                 onPressed: () {
@@ -179,7 +182,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                     size: 11,
                                     weight: FontWeight.w800,
                                     color: KineticNoirPalette.primary,
-                                    letterSpacing: 1.0,
+                                    letterSpacing: 0.8,
                                   ),
                                 ),
                               ),
@@ -187,33 +190,26 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          _rangeLabel(data.range),
-                          style: KineticNoirTypography.body(
-                            size: 13,
-                            weight: FontWeight.w600,
-                            color: KineticNoirPalette.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
                 ),
                 if (data.hasSessions) ...[
                   SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
                     sliver: SliverToBoxAdapter(
-                      child: KineticEntrance(child: _OverviewGrid(data: data)),
+                      child: KineticEntrance(
+                        child: _OverviewSummaryBand(data: data),
+                      ),
                     ),
                   ),
                   const SliverPadding(
-                    padding: EdgeInsets.only(top: 18),
+                    padding: EdgeInsets.only(top: 12),
                     sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
                   ),
                   if (isGrouped)
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
@@ -223,7 +219,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                             return Padding(
                               padding: EdgeInsets.only(
                                 bottom:
-                                    index == data.groups.length - 1 ? 0 : 14,
+                                    index == data.groups.length - 1 ? 0 : 10,
                               ),
                               child: _HistoryGroupSection(
                                 group: group,
@@ -239,7 +235,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     )
                   else
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
@@ -247,7 +243,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                             return Padding(
                               padding: EdgeInsets.only(
                                 bottom:
-                                    index == data.sessions.length - 1 ? 0 : 14,
+                                    index == data.sessions.length - 1 ? 0 : 10,
                               ),
                               child: _HistorySessionCard(
                                 session: session,
@@ -261,7 +257,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     ),
                 ] else
                   const SliverPadding(
-                    padding: EdgeInsets.fromLTRB(24, 0, 24, 120),
+                    padding: EdgeInsets.fromLTRB(20, 0, 20, 100),
                     sliver: SliverToBoxAdapter(
                       child: _EmptyState(),
                     ),
@@ -302,7 +298,7 @@ class _PeriodSelector extends StatelessWidget {
           color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.16),
         ),
       ),
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(3),
       child: Row(
         children: [
           for (final period in HistoryPeriod.values)
@@ -333,45 +329,30 @@ class _PlanFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'ROUTINE',
-          style: KineticNoirTypography.body(
-            size: 10,
-            weight: FontWeight.w800,
-            color: KineticNoirPalette.onSurfaceVariant,
-            letterSpacing: 1.4,
+    return SizedBox(
+      height: 38,
+      child: ListView(
+        key: const Key('history-plan-filter-list'),
+        scrollDirection: Axis.horizontal,
+        children: [
+          _PillButton(
+            key: const Key('history-plan-filter-all'),
+            label: 'All Routines',
+            selected: selectedPlanId == null,
+            onTap: () => onChanged(null),
           ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 48,
-          child: ListView(
-            key: const Key('history-plan-filter-list'),
-            scrollDirection: Axis.horizontal,
-            children: [
-              _PillButton(
-                key: const Key('history-plan-filter-all'),
-                label: 'All Routines',
-                selected: selectedPlanId == null,
-                onTap: () => onChanged(null),
-              ),
-              const SizedBox(width: 8),
-              for (final option in options) ...[
-                _PillButton(
-                  key: Key('history-plan-filter-${option.planId}'),
-                  label: option.name,
-                  selected: selectedPlanId == option.planId,
-                  onTap: () => onChanged(option.planId),
-                ),
-                const SizedBox(width: 8),
-              ],
-            ],
-          ),
-        ),
-      ],
+          const SizedBox(width: 6),
+          for (final option in options) ...[
+            _PillButton(
+              key: Key('history-plan-filter-${option.planId}'),
+              label: option.name,
+              selected: selectedPlanId == option.planId,
+              onTap: () => onChanged(option.planId),
+            ),
+            const SizedBox(width: 6),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -389,45 +370,30 @@ class _ExerciseFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'EXERCISE',
-          style: KineticNoirTypography.body(
-            size: 10,
-            weight: FontWeight.w800,
-            color: KineticNoirPalette.onSurfaceVariant,
-            letterSpacing: 1.4,
+    return SizedBox(
+      height: 38,
+      child: ListView(
+        key: const Key('history-exercise-filter-list'),
+        scrollDirection: Axis.horizontal,
+        children: [
+          _PillButton(
+            key: const Key('history-exercise-filter-all'),
+            label: 'All Exercises',
+            selected: selectedExerciseId == null,
+            onTap: () => onChanged(null),
           ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 48,
-          child: ListView(
-            key: const Key('history-exercise-filter-list'),
-            scrollDirection: Axis.horizontal,
-            children: [
-              _PillButton(
-                key: const Key('history-exercise-filter-all'),
-                label: 'All Exercises',
-                selected: selectedExerciseId == null,
-                onTap: () => onChanged(null),
-              ),
-              const SizedBox(width: 8),
-              for (final option in options) ...[
-                _PillButton(
-                  key: Key('history-exercise-filter-${option.exerciseId}'),
-                  label: option.name,
-                  selected: selectedExerciseId == option.exerciseId,
-                  onTap: () => onChanged(option.exerciseId),
-                ),
-                const SizedBox(width: 8),
-              ],
-            ],
-          ),
-        ),
-      ],
+          const SizedBox(width: 6),
+          for (final option in options) ...[
+            _PillButton(
+              key: Key('history-exercise-filter-${option.exerciseId}'),
+              label: option.name,
+              selected: selectedExerciseId == option.exerciseId,
+              onTap: () => onChanged(option.exerciseId),
+            ),
+            const SizedBox(width: 6),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -453,9 +419,9 @@ class _FilterChipButton extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          constraints: const BoxConstraints(minHeight: 44),
+          constraints: const BoxConstraints(minHeight: 34),
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: 7),
           decoration: BoxDecoration(
             color: selected
                 ? KineticNoirPalette.surfaceBright
@@ -471,7 +437,7 @@ class _FilterChipButton extends StatelessWidget {
               color: selected
                   ? KineticNoirPalette.primary
                   : KineticNoirPalette.onSurfaceVariant,
-              letterSpacing: 1.4,
+              letterSpacing: 1.2,
             ),
           ),
         ),
@@ -498,71 +464,160 @@ class _PillButton extends StatelessWidget {
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       labelStyle: KineticNoirTypography.body(
-        size: 12,
-        weight: FontWeight.w800,
+        size: 11,
+        weight: FontWeight.w700,
         color: selected
             ? KineticNoirPalette.primary
             : KineticNoirPalette.onSurfaceVariant,
       ),
-      selectedColor: KineticNoirPalette.primary.withValues(alpha: 0.12),
+      selectedColor: KineticNoirPalette.primary.withValues(alpha: 0.14),
       backgroundColor: KineticNoirPalette.surfaceLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(999),
         side: BorderSide(
           color: selected
-              ? KineticNoirPalette.primary.withValues(alpha: 0.28)
-              : KineticNoirPalette.outlineVariant.withValues(alpha: 0.18),
+              ? KineticNoirPalette.primary.withValues(alpha: 0.32)
+              : KineticNoirPalette.outlineVariant.withValues(alpha: 0.16),
         ),
       ),
     );
   }
 }
 
-class _OverviewGrid extends StatelessWidget {
-  const _OverviewGrid({required this.data});
+class _OverviewSummaryBand extends StatelessWidget {
+  const _OverviewSummaryBand({required this.data});
 
   final HistoryOverviewData data;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final columns = MediaQuery.textScalerOf(context).scale(14) > 21 ? 1 : 2;
-      final width = (constraints.maxWidth - (columns - 1) * 12) / columns;
-      return Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          _StatCard(
-            label: 'WORKOUTS',
-            value: '${data.sessions.length}',
-            detail: '${data.trainingDays} training days',
+    final isLargeText = MediaQuery.textScalerOf(context).scale(14) > 20;
+
+    if (isLargeText) {
+      return Container(
+        decoration: BoxDecoration(
+          color: KineticNoirPalette.surfaceLow,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.14),
           ),
-          _StatCard(
-            label: 'VOLUME',
-            value: _formatCompactKg(data.totalVolumeKg),
-            detail: 'kg across reviewed sets',
-          ),
-          _StatCard(
-            label: 'SETS',
-            value: '${data.totalSets}',
-            detail: 'completed work sets',
-          ),
-          _StatCard(
-            label: 'AVG TIME',
-            value: data.averageDurationMinutes <= 0
-                ? '--'
-                : '${data.averageDurationMinutes}',
-            detail: 'minutes per session',
-          ),
-        ].map((child) => SizedBox(width: width, child: child)).toList(),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _StatColumn(
+                    label: 'WORKOUTS',
+                    value: '${data.sessions.length}',
+                    detail: '${data.trainingDays} training days',
+                  ),
+                ),
+                Expanded(
+                  child: _StatColumn(
+                    label: 'VOLUME',
+                    value: '${_formatCompactKg(data.totalVolumeKg)} kg',
+                    detail: 'total load moved',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _StatColumn(
+                    label: 'SETS',
+                    value: '${data.totalSets}',
+                    detail: 'completed sets',
+                  ),
+                ),
+                Expanded(
+                  child: _StatColumn(
+                    label: 'AVG TIME',
+                    value: data.averageDurationMinutes <= 0
+                        ? '--'
+                        : '${data.averageDurationMinutes}m',
+                    detail: 'per session',
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       );
-    });
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: KineticNoirPalette.surfaceLow,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.14),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: _StatColumn(
+              label: 'WORKOUTS',
+              value: '${data.sessions.length}',
+              detail: '${data.trainingDays} training days',
+            ),
+          ),
+          _VerticalDivider(),
+          Expanded(
+            child: _StatColumn(
+              label: 'VOLUME',
+              value: _formatCompactKg(data.totalVolumeKg),
+              detail: 'kg moved',
+            ),
+          ),
+          _VerticalDivider(),
+          Expanded(
+            child: _StatColumn(
+              label: 'SETS',
+              value: '${data.totalSets}',
+              detail: 'sets',
+            ),
+          ),
+          _VerticalDivider(),
+          Expanded(
+            child: _StatColumn(
+              label: 'AVG TIME',
+              value: data.averageDurationMinutes <= 0
+                  ? '--'
+                  : '${data.averageDurationMinutes}m',
+              detail: 'per session',
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
+class _VerticalDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 32,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+    );
+  }
+}
+
+class _StatColumn extends StatelessWidget {
+  const _StatColumn({
     required this.label,
     required this.value,
     required this.detail,
@@ -574,49 +629,38 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: KineticNoirPalette.surfaceLow,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: KineticNoirTypography.body(
+            size: 9,
+            weight: FontWeight.w800,
+            color: KineticNoirPalette.onSurfaceVariant,
+            letterSpacing: 1.0,
+          ),
         ),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: KineticNoirTypography.body(
-              size: 10,
-              weight: FontWeight.w800,
-              color: KineticNoirPalette.onSurfaceVariant,
-              letterSpacing: 1.4,
-            ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: KineticNoirTypography.headline(
+            size: 17,
+            weight: FontWeight.w700,
+            color: KineticNoirPalette.primary,
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: KineticNoirTypography.headline(
-              size: 24,
-              weight: FontWeight.w700,
-              color: KineticNoirPalette.primary,
-            ),
+        ),
+        Text(
+          detail,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: KineticNoirTypography.body(
+            size: 10,
+            weight: FontWeight.w600,
+            color: KineticNoirPalette.onSurfaceVariant,
           ),
-          Text(
-            detail,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: KineticNoirTypography.body(
-              size: 11,
-              weight: FontWeight.w700,
-              color: KineticNoirPalette.onSurfaceVariant,
-              height: 1.3,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -640,7 +684,7 @@ class _HistoryGroupSection extends StatelessWidget {
       key: Key('history-group-${group.key}'),
       decoration: BoxDecoration(
         color: KineticNoirPalette.surfaceLow,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.14),
         ),
@@ -652,10 +696,10 @@ class _HistoryGroupSection extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               key: Key('history-group-toggle-${group.key}'),
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(18),
               onTap: onToggle,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
                 child: Row(
                   children: [
                     Expanded(
@@ -665,16 +709,16 @@ class _HistoryGroupSection extends StatelessWidget {
                           Text(
                             group.title,
                             style: KineticNoirTypography.headline(
-                              size: 17,
+                              size: 15,
                               weight: FontWeight.w700,
                               color: KineticNoirPalette.onSurface,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             group.subtitle,
                             style: KineticNoirTypography.body(
-                              size: 12,
+                              size: 11,
                               weight: FontWeight.w600,
                               color: KineticNoirPalette.onSurfaceVariant,
                             ),
@@ -685,8 +729,8 @@ class _HistoryGroupSection extends StatelessWidget {
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
+                        horizontal: 8,
+                        vertical: 3,
                       ),
                       decoration: BoxDecoration(
                         color:
@@ -696,13 +740,13 @@ class _HistoryGroupSection extends StatelessWidget {
                       child: Text(
                         '${group.sessionCount}',
                         style: KineticNoirTypography.body(
-                          size: 11,
+                          size: 10,
                           weight: FontWeight.w800,
                           color: KineticNoirPalette.primary,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 4),
                     AnimatedRotation(
                       turns: isExpanded ? 0.5 : 0.0,
                       duration: const Duration(milliseconds: 180),
@@ -710,7 +754,7 @@ class _HistoryGroupSection extends StatelessWidget {
                       child: const Icon(
                         Icons.expand_more_rounded,
                         color: KineticNoirPalette.onSurfaceVariant,
-                        size: 24,
+                        size: 20,
                       ),
                     ),
                   ],
@@ -726,11 +770,11 @@ class _HistoryGroupSection extends StatelessWidget {
                   KineticNoirPalette.outlineVariant.withValues(alpha: 0.10),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
               child: Column(
                 children: [
                   for (int i = 0; i < group.sessions.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 10),
+                    if (i > 0) const SizedBox(height: 8),
                     _HistorySessionCard(
                       session: group.sessions[i],
                       onTap: () => onSelectSession(group.sessions[i]),
@@ -768,20 +812,20 @@ class _HistorySessionCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         key: Key('history-session-${session.planId}-${_keyDate(session.date)}'),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Ink(
           decoration: BoxDecoration(
             color: bgColor,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border(
               left: BorderSide(
                 color: KineticNoirPalette.primary.withValues(alpha: 0.55),
-                width: 3.5,
+                width: 3.0,
               ),
             ),
           ),
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -791,10 +835,10 @@ class _HistorySessionCard extends StatelessWidget {
                     child: Text(
                       DateFormat('EEE, MMM d').format(session.date).toUpperCase(),
                       style: KineticNoirTypography.body(
-                        size: 11,
+                        size: 10,
                         weight: FontWeight.w800,
                         color: KineticNoirPalette.primary,
-                        letterSpacing: 1.3,
+                        letterSpacing: 1.2,
                       ),
                     ),
                   ),
@@ -804,7 +848,7 @@ class _HistorySessionCard extends StatelessWidget {
                       child: Text(
                         '${session.durationMinutes} min',
                         style: KineticNoirTypography.body(
-                          size: 12,
+                          size: 11,
                           weight: FontWeight.w700,
                           color: KineticNoirPalette.onSurfaceVariant,
                         ),
@@ -813,22 +857,22 @@ class _HistorySessionCard extends StatelessWidget {
                   const Icon(
                     Icons.chevron_right_rounded,
                     color: KineticNoirPalette.onSurfaceVariant,
-                    size: 20,
+                    size: 18,
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 session.planName,
                 style: KineticNoirTypography.headline(
-                  size: 19,
+                  size: 17,
                   weight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: 6,
+                runSpacing: 6,
                 children: [
                   _MetaPill(label: '${session.totalSets} sets'),
                   _MetaPill(
@@ -841,16 +885,16 @@ class _HistorySessionCard extends StatelessWidget {
                 ],
               ),
               if (session.notes.trim().isNotEmpty) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Text(
                   session.notes.trim(),
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: KineticNoirTypography.body(
-                    size: 12,
+                    size: 11,
                     weight: FontWeight.w600,
                     color: KineticNoirPalette.onSurfaceVariant,
-                    height: 1.4,
+                    height: 1.3,
                   ),
                 ),
               ],
@@ -870,7 +914,7 @@ class _MetaPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: KineticNoirPalette.surfaceBright.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(999),
@@ -881,7 +925,7 @@ class _MetaPill extends StatelessWidget {
           size: 10,
           weight: FontWeight.w800,
           color: KineticNoirPalette.onSurfaceVariant,
-          letterSpacing: 0.8,
+          letterSpacing: 0.6,
         ),
       ),
     );
@@ -896,31 +940,31 @@ class _EmptyState extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: KineticNoirPalette.surfaceLow,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
       ),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       child: Column(
         children: [
           const Icon(
             Icons.history_toggle_off_rounded,
-            size: 36,
+            size: 32,
             color: KineticNoirPalette.primary,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Text(
             'No sessions in this window',
-            style: KineticNoirTypography.headline(size: 24),
+            style: KineticNoirTypography.headline(size: 20),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             'Finish a workout or choose a wider period to review previous training.',
             textAlign: TextAlign.center,
             style: KineticNoirTypography.body(
-              size: 14,
+              size: 13,
               weight: FontWeight.w600,
               color: KineticNoirPalette.onSurfaceVariant,
-              height: 1.5,
+              height: 1.4,
             ),
           ),
         ],
@@ -949,15 +993,15 @@ class _ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Text(
           'Unable to load history.\n$message',
           textAlign: TextAlign.center,
           style: KineticNoirTypography.body(
-            size: 15,
+            size: 14,
             weight: FontWeight.w600,
             color: KineticNoirPalette.onSurfaceVariant,
-            height: 1.5,
+            height: 1.4,
           ),
         ),
       ),

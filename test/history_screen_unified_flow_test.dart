@@ -207,7 +207,6 @@ void main() {
     // Verify Title & Period
     expect(find.byKey(const Key('history-screen-title')), findsOneWidget);
     expect(find.text('HISTORY'), findsOneWidget);
-    expect(find.text('SESSION REVIEW'), findsOneWidget);
 
     // In 4W: session1 (Oct 2), session2 (Sep 30), session3 (Sep 22) are within 28 days. session4 (Aug 15) is outside.
     // 3 sessions total in 4W
@@ -250,6 +249,27 @@ void main() {
     expect(find.byKey(Key('history-session-2-${DateFormat('yyyy-MM-dd').format(session2.date)}')), findsNothing);
     // Week 2 session remains visible:
     expect(session3Card, findsOneWidget);
+  });
+
+  testWidgets('HistoryScreen renders first group and first session card without scrolling at 375x667', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(375, 667));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
+
+    // Verify Title
+    expect(find.text('HISTORY'), findsOneWidget);
+
+    // First group header is rendered within viewport
+    final groupHeader = find.byKey(const Key('history-group-toggle-week_2026_09_28'));
+    expect(groupHeader, findsOneWidget);
+    expect(tester.getTopLeft(groupHeader).dy, lessThan(667.0));
+
+    // First session card is rendered within viewport without any scrolling
+    final session1Card = find.byKey(Key('history-session-1-${DateFormat('yyyy-MM-dd').format(session1.date)}'));
+    expect(session1Card, findsOneWidget);
+    expect(tester.getTopLeft(session1Card).dy, lessThan(667.0));
   });
 
   testWidgets('HistoryScreen 1W renders direct flat concise list without grouping headers', (tester) async {
