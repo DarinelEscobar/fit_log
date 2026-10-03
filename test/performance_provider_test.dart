@@ -49,6 +49,11 @@ void main() {
     expect(summary.totalVolumeKg, 1000);
     expect(summary.totalReps, 10);
     expect(summary.endDate, DateTime(2024, 2, 10));
+    expect(summary.activeExercises, isNotEmpty);
+    expect(summary.activeExercises.first.exerciseId, 10);
+    expect(summary.activeExercises.first.name, 'Leg Press');
+    expect(summary.activeExercises.first.totalVolumeKg, 1000);
+    expect(summary.recentPrs.first.exerciseId, 10);
   });
 
   test(
@@ -84,6 +89,45 @@ void main() {
     expect(summary.hasData, isTrue);
     expect(summary.totalVolumeKg, 400);
     expect(summary.totalReps, 8);
+  });
+
+  test('exercise progress detail builds correct trend and session history',
+      () async {
+    final storage = _FakePerformanceStorage(
+      activeExerciseIds: const [10],
+      exerciseLogs: [
+        WorkoutLogEntry(
+          date: DateTime(2024, 2, 1),
+          planId: 1,
+          exerciseId: 10,
+          setNumber: 1,
+          reps: 10,
+          weight: 100,
+          rir: 2,
+        ),
+        WorkoutLogEntry(
+          date: DateTime(2024, 2, 8),
+          planId: 1,
+          exerciseId: 10,
+          setNumber: 1,
+          reps: 8,
+          weight: 120,
+          rir: 1,
+        ),
+      ],
+    );
+    final container = _container(storage);
+    addTearDown(container.dispose);
+
+    final detail = await container.read(
+      exerciseProgressDetailProvider(10).future,
+    );
+
+    expect(detail.totalVolumeKg, 100 * 10 + 120 * 8);
+    expect(detail.lastWeightKg, 120);
+    expect(detail.lastReps, 8);
+    expect(detail.recentSessions.length, 2);
+    expect(detail.trend.length, 2);
   });
 
   test('active exercise progress excludes current-day logs from baseline',

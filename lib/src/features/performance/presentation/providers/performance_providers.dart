@@ -51,6 +51,7 @@ final performanceDashboardProvider = FutureProvider.family<
     range: range,
     logs: logs,
     exerciseMap: exerciseMap,
+    activeExerciseIds: activeExerciseIds,
   );
 });
 
@@ -67,7 +68,83 @@ PerformanceDashboardSummary _buildDashboardSummary({
   required PerformancePeriodRange range,
   required List<WorkoutLogEntry> logs,
   required Map<int, Exercise> exerciseMap,
+  List<int> activeExerciseIds = const [],
 }) {
+  final targetExerciseIds = activeExerciseIds.isNotEmpty
+      ? activeExerciseIds
+      : exerciseMap.keys.toList();
+
+  final groupedByExercise = <int, List<WorkoutLogEntry>>{};
+  for (final log in logs) {
+    groupedByExercise.putIfAbsent(log.exerciseId, () => []).add(log);
+  }
+
+  final activeExerciseItems = <PerformanceExerciseItem>[];
+  for (final exerciseId in targetExerciseIds) {
+    final exercise = exerciseMap[exerciseId];
+    if (exercise == null) continue;
+    final exerciseLogs =
+        groupedByExercise[exerciseId] ?? const <WorkoutLogEntry>[];
+
+    double exerciseVolume = 0;
+    double bestWeight = 0;
+    int bestReps = 0;
+    double bestOneRm = 0;
+    DateTime? lastDate;
+
+    if (exerciseLogs.isNotEmpty) {
+      exerciseVolume = exerciseLogs.fold<double>(
+        0,
+        (sum, entry) => sum + entry.weight * entry.reps,
+      );
+      for (final log in exerciseLogs) {
+        final oneRm = _estimateOneRm(log);
+        if (oneRm > bestOneRm) {
+          bestOneRm = oneRm;
+        }
+        if (log.weight > bestWeight ||
+            (log.weight == bestWeight && log.reps > bestReps)) {
+          bestWeight = log.weight;
+          bestReps = log.reps;
+        }
+        if (lastDate == null || log.date.isAfter(lastDate)) {
+          lastDate = log.date;
+        }
+      }
+    }
+
+    final uniqueDays = exerciseLogs
+        .map((e) => DateTime(e.date.year, e.date.month, e.date.day))
+        .toSet()
+        .length;
+
+    activeExerciseItems.add(
+      PerformanceExerciseItem(
+        exerciseId: exercise.id,
+        name: exercise.name,
+        category: exercise.category,
+        mainMuscleGroup: exercise.mainMuscleGroup,
+        totalVolumeKg: exerciseVolume,
+        sessionCount: uniqueDays,
+        lastTrainedDate: lastDate,
+        bestWeightKg: bestWeight,
+        bestReps: bestReps,
+        estimatedOneRmKg: bestOneRm,
+        description: exercise.description,
+      ),
+    );
+  }
+
+  activeExerciseItems.sort((a, b) {
+    if (a.totalVolumeKg > 0 && b.totalVolumeKg == 0) return -1;
+    if (a.totalVolumeKg == 0 && b.totalVolumeKg > 0) return 1;
+    if (a.lastTrainedDate != null && b.lastTrainedDate != null) {
+      final comp = b.lastTrainedDate!.compareTo(a.lastTrainedDate!);
+      if (comp != 0) return comp;
+    }
+    return a.name.compareTo(b.name);
+  });
+
   if (logs.isEmpty) {
     return PerformanceDashboardSummary(
       period: period,
@@ -80,6 +157,7 @@ PerformanceDashboardSummary _buildDashboardSummary({
       trend: const [],
       muscleFocus: const [],
       recentPrs: const [],
+      activeExercises: activeExerciseItems,
     );
   }
 
@@ -149,11 +227,6 @@ PerformanceDashboardSummary _buildDashboardSummary({
       ),
   ];
 
-  final groupedByExercise = <int, List<WorkoutLogEntry>>{};
-  for (final log in logs) {
-    groupedByExercise.putIfAbsent(log.exerciseId, () => []).add(log);
-  }
-
   final prCards = <PerformancePrCard>[];
   final oneRmCandidate = _bestSetForMetric(
     groupedByExercise,
@@ -190,6 +263,7 @@ PerformanceDashboardSummary _buildDashboardSummary({
     trend: trend,
     muscleFocus: focusCards,
     recentPrs: prCards,
+    activeExercises: activeExerciseItems,
   );
 }
 
@@ -344,6 +418,7 @@ PerformancePrCard? _bestSetForMetric(
       valueKg: selected.value,
       deltaLabel: deltaLabel,
       date: selected.date,
+      exerciseId: entry.key,
     );
 
     if (best == null ||

@@ -5,10 +5,14 @@ import 'package:intl/intl.dart';
 
 import '../../../../theme/kinetic_noir.dart';
 import '../../../../theme/toru_brand.dart';
+import '../../../routines/domain/entities/exercise.dart';
 import '../../../routines/domain/entities/workout_plan.dart';
+import '../../../routines/presentation/models/exercise_list_view_data.dart';
+import '../../../routines/presentation/providers/exercises_provider.dart';
 import '../../../routines/presentation/providers/workout_plan_provider.dart';
 import '../models/performance_models.dart';
 import '../providers/performance_providers.dart';
+import 'exercise_progress_detail_screen.dart';
 
 class PerformanceDashboardScreen extends ConsumerStatefulWidget {
   const PerformanceDashboardScreen({super.key});
@@ -21,10 +25,57 @@ class PerformanceDashboardScreen extends ConsumerStatefulWidget {
 class _PerformanceDashboardScreenState
     extends ConsumerState<PerformanceDashboardScreen> {
   PerformancePeriod _selectedPeriod = PerformancePeriod.fourWeeks;
+  late final TextEditingController _exerciseSearchController;
+  late final ValueNotifier<String> _exerciseQueryNotifier;
+
+  @override
+  void initState() {
+    super.initState();
+    _exerciseQueryNotifier = ValueNotifier('');
+    _exerciseSearchController = TextEditingController()
+      ..addListener(() {
+        _exerciseQueryNotifier.value =
+            _exerciseSearchController.text.trim().toLowerCase();
+      });
+  }
+
+  @override
+  void dispose() {
+    _exerciseSearchController.dispose();
+    _exerciseQueryNotifier.dispose();
+    super.dispose();
+  }
+
+  void _openExerciseProgress(
+    BuildContext context,
+    PerformanceExerciseItem item,
+    Map<int, Exercise> exerciseMap,
+  ) {
+    final exerciseEntity = exerciseMap[item.exerciseId];
+    final itemView = ExerciseListItemView(
+      exerciseId: item.exerciseId,
+      name: item.name,
+      description: exerciseEntity?.description ?? item.description,
+      category: item.category,
+      mainMuscleGroup: item.mainMuscleGroup,
+      sets: item.targetSets > 0 ? item.targetSets : 3,
+      reps: item.targetReps > 0 ? item.targetReps : item.bestReps,
+      restSeconds: item.restSeconds > 0 ? item.restSeconds : 90,
+      weight: item.bestWeightKg,
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExerciseProgressDetailScreen(exercise: itemView),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final plansAsync = ref.watch(workoutPlanProvider);
+    final allExercisesAsync = ref.watch(allExercisesProvider);
 
     return Scaffold(
       backgroundColor: KineticNoirPalette.background,
@@ -87,6 +138,13 @@ class _PerformanceDashboardScreenState
             activePlanIds: activePlanIds,
           );
           final summaryAsync = ref.watch(performanceDashboardProvider(request));
+
+          final exerciseMap = allExercisesAsync.maybeWhen(
+            data: (exercises) => {
+              for (final exercise in exercises) exercise.id: exercise,
+            },
+            orElse: () => const <int, Exercise>{},
+          );
 
           return summaryAsync.when(
             loading: () => const Center(
@@ -166,7 +224,7 @@ class _PerformanceDashboardScreenState
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Based on exercises in current active routines',
+                            'Analytics for exercises across active routines',
                             style: KineticNoirTypography.body(
                               size: 12,
                               weight: FontWeight.w600,
@@ -187,14 +245,12 @@ class _PerformanceDashboardScreenState
                         ),
                       ),
                     ),
-                    const SliverPadding(
-                      padding: EdgeInsets.only(top: 18),
-                      sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
-                    ),
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                       sliver: SliverToBoxAdapter(
-                        child: _TrendSection(summary: summary),
+                        child: _TrendSection(
+                          summary: summary,
+                        ),
                       ),
                     ),
                     SliverPadding(
@@ -204,16 +260,72 @@ class _PerformanceDashboardScreenState
                       ),
                     ),
                     SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: _RecentPrsSection(
+                          summary: summary,
+                          onOpenExercise: (exerciseId) {
+                            final item = summary.activeExercises.firstWhere(
+                              (e) => e.exerciseId == exerciseId,
+                              orElse: () {
+                                final ex = exerciseMap[exerciseId];
+                                return PerformanceExerciseItem(
+                                  exerciseId: exerciseId,
+                                  name: ex?.name ?? 'Exercise $exerciseId',
+                                  category: ex?.category ?? 'Compound',
+                                  mainMuscleGroup:
+                                      ex?.mainMuscleGroup ?? 'Full Body',
+                                  totalVolumeKg: 0,
+                                  sessionCount: 0,
+                                  lastTrainedDate: null,
+                                  bestWeightKg: 0,
+                                  bestReps: 0,
+                                  estimatedOneRmKg: 0,
+                                );
+                              },
+                            );
+                            _openExerciseProgress(context, item, exerciseMap);
+                          },
+                        ),
+                      ),
+                    ),
+                    SliverPadding(
                       padding: const EdgeInsets.fromLTRB(24, 18, 24, 120),
                       sliver: SliverToBoxAdapter(
-                        child: _RecentPrsSection(summary: summary),
+                        child: _ExerciseExplorerSection(
+                          activeExercises: summary.activeExercises,
+                          searchController: _exerciseSearchController,
+                          queryNotifier: _exerciseQueryNotifier,
+                          onSelectExercise: (item) {
+                            _openExerciseProgress(context, item, exerciseMap);
+                          },
+                        ),
                       ),
                     ),
                   ] else
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
                       sliver: SliverToBoxAdapter(
-                        child: _PerformanceNoLogsState(period: summary.period),
+                        child: Column(
+                          children: [
+                            _PerformanceNoLogsState(period: summary.period),
+                            if (summary.activeExercises.isNotEmpty) ...[
+                              const SizedBox(height: 20),
+                              _ExerciseExplorerSection(
+                                activeExercises: summary.activeExercises,
+                                searchController: _exerciseSearchController,
+                                queryNotifier: _exerciseQueryNotifier,
+                                onSelectExercise: (item) {
+                                  _openExerciseProgress(
+                                    context,
+                                    item,
+                                    exerciseMap,
+                                  );
+                                },
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                 ],
@@ -251,6 +363,7 @@ class _PeriodSelector extends StatelessWidget {
           for (final period in PerformancePeriod.values)
             Expanded(
               child: _PeriodChip(
+                key: Key('performance-period-${period.name}'),
                 label: period.label,
                 selected: selected == period,
                 onTap: () => onChanged(period),
@@ -264,6 +377,7 @@ class _PeriodSelector extends StatelessWidget {
 
 class _PeriodChip extends StatelessWidget {
   const _PeriodChip({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,
@@ -402,9 +516,9 @@ class _PerformanceHero extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
-                      'kg',
+                      'kg·reps',
                       style: KineticNoirTypography.body(
-                        size: 16,
+                        size: 15,
                         weight: FontWeight.w600,
                         color: KineticNoirPalette.onSurfaceVariant,
                       ),
@@ -423,22 +537,45 @@ class _PerformanceHero extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: KineticNoirPalette.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '${summary.consistencyPercent}% day coverage • ${summary.totalReps} reps',
-                  style: KineticNoirTypography.body(
-                    size: 11,
-                    weight: FontWeight.w800,
-                    color: KineticNoirPalette.primary,
-                    letterSpacing: 1.0,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: KineticNoirPalette.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${summary.consistencyPercent}% day coverage',
+                      style: KineticNoirTypography.body(
+                        size: 11,
+                        weight: FontWeight.w800,
+                        color: KineticNoirPalette.primary,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
                   ),
-                ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: KineticNoirPalette.surfaceBright,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${summary.totalReps} total reps',
+                      style: KineticNoirTypography.body(
+                        size: 11,
+                        weight: FontWeight.w800,
+                        color: KineticNoirPalette.onSurfaceVariant,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -449,7 +586,9 @@ class _PerformanceHero extends StatelessWidget {
 }
 
 class _TrendSection extends StatelessWidget {
-  const _TrendSection({required this.summary});
+  const _TrendSection({
+    required this.summary,
+  });
 
   final PerformanceDashboardSummary summary;
 
@@ -468,6 +607,7 @@ class _TrendSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'Volume Trend',
@@ -476,20 +616,39 @@ class _TrendSection extends StatelessWidget {
                   weight: FontWeight.w700,
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: KineticNoirPalette.surfaceBright,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${summary.period.label} WEEKLY LOAD',
+                  style: KineticNoirTypography.body(
+                    size: 9,
+                    weight: FontWeight.w800,
+                    color: KineticNoirPalette.onSurfaceVariant,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 18),
           SizedBox(
             height: 210,
-            child: _VolumeTrendChart(points: summary.trend),
+            child: _VolumeTrendChart(
+              points: summary.trend,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _Legend(color: KineticNoirPalette.primary, text: 'Volume'),
-              SizedBox(width: 16),
-              _Legend(color: KineticNoirPalette.primaryDim, text: 'Peak 1RM'),
+              _Legend(
+                color: KineticNoirPalette.primary,
+                text: 'Weekly Volume (kg·reps)',
+              ),
             ],
           ),
         ],
@@ -497,6 +656,7 @@ class _TrendSection extends StatelessWidget {
     );
   }
 }
+
 
 class _Legend extends StatelessWidget {
   const _Legend({required this.color, required this.text});
@@ -507,9 +667,17 @@ class _Legend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 12, height: 12, color: color),
-        const SizedBox(width: 4),
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
         Text(
           text,
           style: KineticNoirTypography.body(
@@ -534,22 +702,42 @@ class _MuscleFocusSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: KineticNoirPalette.surfaceLow,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+        ),
       ),
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Muscle Focus',
-            style: KineticNoirTypography.headline(
-              size: 19,
-              weight: FontWeight.w700,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Muscle Focus',
+                  style: KineticNoirTypography.headline(
+                    size: 19,
+                    weight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${summary.period.label} DISTRIBUTION',
+                style: KineticNoirTypography.body(
+                  size: 10,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.onSurfaceVariant,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           if (summary.muscleFocus.isEmpty)
             Text(
-              'No focus data yet.',
+              'No focus data recorded yet.',
               style: KineticNoirTypography.body(
                 size: 14,
                 weight: FontWeight.w600,
@@ -585,17 +773,20 @@ class _FocusBar extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              item.label.toUpperCase(),
-              style: KineticNoirTypography.body(
-                size: 12,
-                weight: FontWeight.w800,
-                color: KineticNoirPalette.onSurface,
-                letterSpacing: 1.0,
+            Expanded(
+              child: Text(
+                item.label.toUpperCase(),
+                style: KineticNoirTypography.body(
+                  size: 12,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.onSurface,
+                  letterSpacing: 1.0,
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             Text(
-              '${item.percent}%',
+              '${item.percent}% • ${_formatKg(item.volumeKg)} kg·reps',
               style: KineticNoirTypography.body(
                 size: 12,
                 weight: FontWeight.w600,
@@ -624,9 +815,13 @@ class _FocusBar extends StatelessWidget {
 }
 
 class _RecentPrsSection extends StatelessWidget {
-  const _RecentPrsSection({required this.summary});
+  const _RecentPrsSection({
+    required this.summary,
+    required this.onOpenExercise,
+  });
 
   final PerformanceDashboardSummary summary;
+  final ValueChanged<int> onOpenExercise;
 
   @override
   Widget build(BuildContext context) {
@@ -636,13 +831,16 @@ class _RecentPrsSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Recent PRs',
-              style: KineticNoirTypography.headline(
-                size: 19,
-                weight: FontWeight.w700,
+            Expanded(
+              child: Text(
+                'Recent PRs',
+                style: KineticNoirTypography.headline(
+                  size: 19,
+                  weight: FontWeight.w700,
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             Text(
               '${summary.period.label} • ACTIVE ONLY',
               style: KineticNoirTypography.body(
@@ -657,13 +855,18 @@ class _RecentPrsSection extends StatelessWidget {
         const SizedBox(height: 14),
         if (summary.recentPrs.isEmpty)
           Container(
+            width: double.infinity,
             decoration: BoxDecoration(
               color: KineticNoirPalette.surfaceLow,
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color:
+                    KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+              ),
             ),
             padding: const EdgeInsets.all(20),
             child: Text(
-              'No performance peaks yet.',
+              'No performance peaks recorded in this period yet.',
               style: KineticNoirTypography.body(
                 size: 14,
                 weight: FontWeight.w600,
@@ -675,7 +878,12 @@ class _RecentPrsSection extends StatelessWidget {
           Column(
             children: [
               for (final card in summary.recentPrs) ...[
-                _PrCard(card: card),
+                _PrCard(
+                  card: card,
+                  onTap: card.exerciseId != null
+                      ? () => onOpenExercise(card.exerciseId!)
+                      : null,
+                ),
                 const SizedBox(height: 10),
               ],
             ],
@@ -686,130 +894,441 @@ class _RecentPrsSection extends StatelessWidget {
 }
 
 class _PrCard extends StatelessWidget {
-  const _PrCard({required this.card});
+  const _PrCard({
+    required this.card,
+    this.onTap,
+  });
 
   final PerformancePrCard card;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: KineticNoirPalette.surfaceLow,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
-        ),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: KineticNoirPalette.surfaceBright,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              card.label == '1RM'
-                  ? Icons.military_tech_rounded
-                  : Icons.timeline_rounded,
-              color: KineticNoirPalette.primary,
+    return Material(
+      color: KineticNoirPalette.surfaceLow,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: Key('performance-pr-card-${card.exerciseId ?? card.label}'),
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  card.exerciseName,
-                  style: KineticNoirTypography.headline(
-                    size: 17,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  card.detail,
-                  style: KineticNoirTypography.body(
-                    size: 12,
-                    weight: FontWeight.w600,
-                    color: KineticNoirPalette.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  DateFormat('MMM d').format(card.date),
-                  style: KineticNoirTypography.body(
-                    size: 10,
-                    weight: FontWeight.w700,
-                    color: KineticNoirPalette.onSurfaceVariant,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          padding: const EdgeInsets.all(16),
+          child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: KineticNoirPalette.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
+                  color: KineticNoirPalette.surfaceBright,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Text(
-                  card.label,
-                  style: KineticNoirTypography.body(
-                    size: 9,
-                    weight: FontWeight.w800,
-                    color: KineticNoirPalette.primary,
-                    letterSpacing: 1.0,
-                  ),
+                child: Icon(
+                  card.label == '1RM'
+                      ? Icons.military_tech_rounded
+                      : Icons.timeline_rounded,
+                  color: KineticNoirPalette.primary,
+                  size: 22,
                 ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    _formatKg(card.valueKg),
-                    style: KineticNoirTypography.headline(
-                      size: 20,
-                      weight: FontWeight.w700,
-                      color: KineticNoirPalette.onSurface,
-                    ),
-                  ),
-                  const SizedBox(width: 3),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Text(
-                      card.label == 'VOL' ? 'kg·reps' : 'kg',
-                      style: KineticNoirTypography.body(
-                        size: 11,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      card.exerciseName,
+                      style: KineticNoirTypography.headline(
+                        size: 17,
                         weight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      card.detail,
+                      style: KineticNoirTypography.body(
+                        size: 12,
+                        weight: FontWeight.w600,
                         color: KineticNoirPalette.onSurfaceVariant,
                       ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      DateFormat('MMM d').format(card.date),
+                      style: KineticNoirTypography.body(
+                        size: 10,
+                        weight: FontWeight.w700,
+                        color: KineticNoirPalette.onSurfaceVariant,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: KineticNoirPalette.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      card.label,
+                      style: KineticNoirTypography.body(
+                        size: 9,
+                        weight: FontWeight.w800,
+                        color: KineticNoirPalette.primary,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        _formatKg(card.valueKg),
+                        style: KineticNoirTypography.headline(
+                          size: 20,
+                          weight: FontWeight.w700,
+                          color: KineticNoirPalette.onSurface,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text(
+                          card.label == 'VOL' ? 'kg·reps' : 'kg',
+                          style: KineticNoirTypography.body(
+                            size: 11,
+                            weight: FontWeight.w700,
+                            color: KineticNoirPalette.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    card.deltaLabel,
+                    style: KineticNoirTypography.body(
+                      size: 10,
+                      weight: FontWeight.w800,
+                      color: KineticNoirPalette.onSurfaceVariant,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                card.deltaLabel,
-                style: KineticNoirTypography.body(
-                  size: 10,
-                  weight: FontWeight.w800,
-                  color: KineticNoirPalette.onSurfaceVariant,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExerciseExplorerSection extends StatelessWidget {
+  const _ExerciseExplorerSection({
+    required this.activeExercises,
+    required this.searchController,
+    required this.queryNotifier,
+    required this.onSelectExercise,
+  });
+
+  final List<PerformanceExerciseItem> activeExercises;
+  final TextEditingController searchController;
+  final ValueNotifier<String> queryNotifier;
+  final ValueChanged<PerformanceExerciseItem> onSelectExercise;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                'Exercise Progress',
+                style: KineticNoirTypography.headline(
+                  size: 19,
+                  weight: FontWeight.w700,
                 ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: KineticNoirPalette.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '${activeExercises.length} EXERCISES',
+                style: KineticNoirTypography.body(
+                  size: 9,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.primary,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: searchController,
+          style: KineticNoirTypography.body(
+            size: 14,
+            weight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Search active exercises...',
+            prefixIcon: const Icon(
+              Icons.search_rounded,
+              color: KineticNoirPalette.onSurfaceVariant,
+            ),
+            suffixIcon: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: searchController,
+              builder: (context, value, _) {
+                if (value.text.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                return IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  color: KineticNoirPalette.onSurfaceVariant,
+                  tooltip: 'Clear search',
+                  onPressed: searchController.clear,
+                );
+              },
+            ),
+            filled: true,
+            fillColor: KineticNoirPalette.surfaceLow,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color:
+                    KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color:
+                    KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(
+                color: KineticNoirPalette.primary,
+                width: 1.5,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        ValueListenableBuilder<String>(
+          valueListenable: queryNotifier,
+          builder: (context, query, _) {
+            final filtered = activeExercises.where((item) {
+              if (query.isEmpty) return true;
+              return item.name.toLowerCase().contains(query) ||
+                  item.mainMuscleGroup.toLowerCase().contains(query) ||
+                  item.category.toLowerCase().contains(query);
+            }).toList(growable: false);
+
+            if (filtered.isEmpty) {
+              return Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: KineticNoirPalette.surfaceLow,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                padding: const EdgeInsets.all(20),
+                child: Text(
+                  'No exercises match your search.',
+                  textAlign: TextAlign.center,
+                  style: KineticNoirTypography.body(
+                    size: 14,
+                    weight: FontWeight.w600,
+                    color: KineticNoirPalette.onSurfaceVariant,
+                  ),
+                ),
+              );
+            }
+
+            return Column(
+              children: [
+                for (final item in filtered) ...[
+                  _ExerciseProgressTile(
+                    item: item,
+                    onTap: () => onSelectExercise(item),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ExerciseProgressTile extends StatelessWidget {
+  const _ExerciseProgressTile({
+    required this.item,
+    required this.onTap,
+  });
+
+  final PerformanceExerciseItem item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: KineticNoirPalette.surfaceLow,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: Key('performance-exercise-card-${item.exerciseId}'),
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+            ),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: KineticNoirPalette.surfaceBright,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.show_chart_rounded,
+                  color: KineticNoirPalette.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.name,
+                      style: KineticNoirTypography.headline(
+                        size: 16,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (item.category.isNotEmpty)
+                          _MiniBadge(label: item.category),
+                        if (item.mainMuscleGroup.isNotEmpty)
+                          _MiniBadge(label: item.mainMuscleGroup),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.totalVolumeKg > 0
+                          ? '${_formatKg(item.bestWeightKg)} kg top • ${item.sessionCount} sessions'
+                          : 'No sessions in period',
+                      style: KineticNoirTypography.body(
+                        size: 11,
+                        weight: FontWeight.w600,
+                        color: KineticNoirPalette.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (item.estimatedOneRmKg > 0) ...[
+                    Text(
+                      '${_formatKg(item.estimatedOneRmKg)} kg',
+                      style: KineticNoirTypography.headline(
+                        size: 17,
+                        weight: FontWeight.w700,
+                        color: KineticNoirPalette.primary,
+                      ),
+                    ),
+                    Text(
+                      'EST. 1RM',
+                      style: KineticNoirTypography.body(
+                        size: 9,
+                        weight: FontWeight.w800,
+                        color: KineticNoirPalette.onSurfaceVariant,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: KineticNoirPalette.onSurfaceVariant,
+                    size: 20,
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniBadge extends StatelessWidget {
+  const _MiniBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: KineticNoirPalette.surfaceBright,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: KineticNoirTypography.body(
+          size: 9,
+          weight: FontWeight.w800,
+          color: KineticNoirPalette.onSurfaceVariant,
+          letterSpacing: 0.8,
+        ),
       ),
     );
   }
@@ -915,39 +1434,41 @@ class _PerformanceNoLogsState extends StatelessWidget {
 }
 
 class _VolumeTrendChart extends StatelessWidget {
-  const _VolumeTrendChart({required this.points});
+  const _VolumeTrendChart({
+    required this.points,
+  });
 
   final List<PerformanceTrendPoint> points;
 
   @override
   Widget build(BuildContext context) {
     if (points.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'No data yet',
-          style: TextStyle(color: KineticNoirPalette.onSurfaceVariant),
+          'No data recorded for this window',
+          style: KineticNoirTypography.body(
+            size: 13,
+            weight: FontWeight.w600,
+            color: KineticNoirPalette.onSurfaceVariant,
+          ),
         ),
       );
     }
 
     final spots = [
       for (var index = 0; index < points.length; index++)
-        FlSpot(index.toDouble(), points[index].volumeKg),
+        FlSpot(
+          index.toDouble(),
+          points[index].volumeKg,
+        ),
     ];
-    final maxVolume = points.fold<double>(
+
+    final maxVal = spots.fold<double>(
       0,
-      (peak, point) => point.volumeKg > peak ? point.volumeKg : peak,
+      (peak, spot) => spot.y > peak ? spot.y : peak,
     );
-    final maxOneRm = points.fold<double>(
-      0,
-      (peak, point) => point.topSetKg > peak ? point.topSetKg : peak,
-    );
-    final scale = maxOneRm > 0 ? maxVolume / maxOneRm : 1.0;
-    final peakSpots = [
-      for (var index = 0; index < points.length; index++)
-        FlSpot(index.toDouble(), points[index].topSetKg * scale),
-    ];
-    final maxY = (maxVolume <= 0 ? 1.0 : maxVolume * 1.15).toDouble();
+
+    final maxY = (maxVal <= 0 ? 1.0 : maxVal * 1.15).toDouble();
     final maxX = points.length <= 1 ? 1.0 : (points.length - 1).toDouble();
     final interval =
         points.length <= 4 ? 1.0 : (points.length / 3).ceilToDouble();
@@ -973,7 +1494,7 @@ class _VolumeTrendChart extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               interval: maxY / 3,
-              reservedSize: 36,
+              reservedSize: 42,
               getTitlesWidget: (value, _) => Text(
                 value <= 0 ? '' : _formatCompactKg(value),
                 style: KineticNoirTypography.body(
@@ -1036,14 +1557,6 @@ class _VolumeTrendChart extends StatelessWidget {
               ),
             ),
           ),
-          LineChartBarData(
-            spots: peakSpots,
-            isCurved: true,
-            barWidth: 2.5,
-            color: KineticNoirPalette.primaryDim,
-            dashArray: const [6, 5],
-            dotData: const FlDotData(show: false),
-          ),
         ],
         lineTouchData: LineTouchData(
           touchTooltipData: LineTouchTooltipData(
@@ -1051,9 +1564,7 @@ class _VolumeTrendChart extends StatelessWidget {
             getTooltipItems: (items) => [
               for (final item in items)
                 LineTooltipItem(
-                  item.barIndex == 0
-                      ? '${_formatCompactKg(points[item.spotIndex].volumeKg)} kg·reps'
-                      : '${_formatCompactKg(points[item.spotIndex].topSetKg)} kg',
+                  '${DateFormat('MM/dd').format(points[item.spotIndex].weekStart)}\n${_formatCompactKg(points[item.spotIndex].volumeKg)} kg·reps',
                   const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,

@@ -4,11 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../theme/kinetic_noir.dart';
+import '../../../../theme/toru_brand.dart';
 import '../../../routines/presentation/models/exercise_list_view_data.dart';
 import '../models/performance_models.dart';
 import '../providers/performance_providers.dart';
 
-class ExerciseProgressDetailScreen extends ConsumerWidget {
+enum _ExerciseChartMetric { oneRm, volume }
+
+class ExerciseProgressDetailScreen extends ConsumerStatefulWidget {
   const ExerciseProgressDetailScreen({
     required this.exercise,
     super.key,
@@ -17,27 +20,50 @@ class ExerciseProgressDetailScreen extends ConsumerWidget {
   final ExerciseListItemView exercise;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExerciseProgressDetailScreen> createState() =>
+      _ExerciseProgressDetailScreenState();
+}
+
+class _ExerciseProgressDetailScreenState
+    extends ConsumerState<ExerciseProgressDetailScreen> {
+  _ExerciseChartMetric _chartMetric = _ExerciseChartMetric.oneRm;
+
+  @override
+  Widget build(BuildContext context) {
     final asyncData =
-        ref.watch(exerciseProgressDetailProvider(exercise.exerciseId));
+        ref.watch(exerciseProgressDetailProvider(widget.exercise.exerciseId));
 
     return Scaffold(
       backgroundColor: KineticNoirPalette.background,
       appBar: AppBar(
         backgroundColor: KineticNoirPalette.background,
         surfaceTintColor: Colors.transparent,
+        titleSpacing: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          color: KineticNoirPalette.onSurfaceVariant,
+          color: KineticNoirPalette.primary,
+          tooltip: 'Back',
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          'PERFORMANCE',
-          style: KineticNoirTypography.headline(
-            size: 24,
-            weight: FontWeight.w700,
-            color: KineticNoirPalette.primary,
-          ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ToruMark(
+              size: 24,
+              variant: ToruMarkVariant.white,
+              opacity: 0.94,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'PROGRESSION',
+              style: KineticNoirTypography.headline(
+                size: 22,
+                weight: FontWeight.w700,
+                color: KineticNoirPalette.primary,
+              ),
+            ),
+          ],
         ),
       ),
       body: asyncData.when(
@@ -67,7 +93,7 @@ class ExerciseProgressDetailScreen extends ConsumerWidget {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
                 sliver: SliverToBoxAdapter(
-                  child: _ExerciseHeader(exercise: exercise),
+                  child: _ExerciseHeader(exercise: widget.exercise),
                 ),
               ),
               SliverPadding(
@@ -79,13 +105,19 @@ class ExerciseProgressDetailScreen extends ConsumerWidget {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                 sliver: SliverToBoxAdapter(
-                  child: _ProgressChart(summary: summary),
+                  child: _ProgressChart(
+                    summary: summary,
+                    metric: _chartMetric,
+                    onMetricChanged: (metric) {
+                      setState(() => _chartMetric = metric);
+                    },
+                  ),
                 ),
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                 sliver: SliverToBoxAdapter(
-                  child: _MuscleFocusCard(exercise: exercise),
+                  child: _ExerciseBlueprintCard(exercise: widget.exercise),
                 ),
               ),
               SliverPadding(
@@ -116,12 +148,16 @@ class _ExerciseHeader extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            _TagChip(
-                label: exercise.category, accent: KineticNoirPalette.primary),
-            _TagChip(
-              label: exercise.mainMuscleGroup,
-              accent: KineticNoirPalette.primaryDim,
-            ),
+            if (exercise.category.isNotEmpty)
+              _TagChip(
+                label: exercise.category,
+                accent: KineticNoirPalette.primary,
+              ),
+            if (exercise.mainMuscleGroup.isNotEmpty)
+              _TagChip(
+                label: exercise.mainMuscleGroup,
+                accent: KineticNoirPalette.primaryDim,
+              ),
           ],
         ),
         const SizedBox(height: 14),
@@ -223,6 +259,9 @@ class _TagChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.25),
+        ),
       ),
       child: Text(
         label.toUpperCase(),
@@ -378,9 +417,15 @@ class _StatCard extends StatelessWidget {
 }
 
 class _ProgressChart extends StatelessWidget {
-  const _ProgressChart({required this.summary});
+  const _ProgressChart({
+    required this.summary,
+    required this.metric,
+    required this.onMetricChanged,
+  });
 
   final ExerciseProgressDetailData summary;
+  final _ExerciseChartMetric metric;
+  final ValueChanged<_ExerciseChartMetric> onMetricChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -397,31 +442,131 @@ class _ProgressChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '1RM Progression',
-                style: KineticNoirTypography.headline(
-                  size: 19,
-                  weight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  'Progression Trend',
+                  style: KineticNoirTypography.headline(
+                    size: 19,
+                    weight: FontWeight.w700,
+                  ),
                 ),
+              ),
+              const SizedBox(width: 8),
+              _ChartMetricToggle(
+                selected: metric,
+                onChanged: onMetricChanged,
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           SizedBox(
             height: 220,
-            child: _ProgressChartBody(points: summary.trend),
+            child: _ProgressChartBody(
+              points: summary.trend,
+              metric: metric,
+            ),
           ),
-          const SizedBox(height: 8),
-          const Row(
+          const SizedBox(height: 12),
+          Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _Legend(color: KineticNoirPalette.primary, text: '1RM'),
-              SizedBox(width: 16),
-              _Legend(color: KineticNoirPalette.primaryDim, text: 'Volume'),
+              _Legend(
+                color: metric == _ExerciseChartMetric.oneRm
+                    ? KineticNoirPalette.primary
+                    : KineticNoirPalette.primaryDim,
+                text: metric == _ExerciseChartMetric.oneRm
+                    ? 'Estimated 1RM (kg)'
+                    : 'Session Volume (kg·reps)',
+              ),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ChartMetricToggle extends StatelessWidget {
+  const _ChartMetricToggle({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final _ExerciseChartMetric selected;
+  final ValueChanged<_ExerciseChartMetric> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: KineticNoirPalette.surfaceBright,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+        ),
+      ),
+      padding: const EdgeInsets.all(2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _TogglePill(
+            label: '1RM',
+            selected: selected == _ExerciseChartMetric.oneRm,
+            onTap: () => onChanged(_ExerciseChartMetric.oneRm),
+          ),
+          _TogglePill(
+            label: 'VOLUME',
+            selected: selected == _ExerciseChartMetric.volume,
+            onTap: () => onChanged(_ExerciseChartMetric.volume),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TogglePill extends StatelessWidget {
+  const _TogglePill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: KineticMotion.duration(context, 160),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected
+                ? KineticNoirPalette.primary.withValues(alpha: 0.18)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            label,
+            style: KineticNoirTypography.body(
+              size: 10,
+              weight: selected ? FontWeight.w800 : FontWeight.w600,
+              color: selected
+                  ? KineticNoirPalette.primary
+                  : KineticNoirPalette.onSurfaceVariant,
+              letterSpacing: 1.0,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -436,9 +581,17 @@ class _Legend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 12, height: 12, color: color),
-        const SizedBox(width: 4),
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
         Text(
           text,
           style: KineticNoirTypography.body(
@@ -453,46 +606,50 @@ class _Legend extends StatelessWidget {
 }
 
 class _ProgressChartBody extends StatelessWidget {
-  const _ProgressChartBody({required this.points});
+  const _ProgressChartBody({
+    required this.points,
+    required this.metric,
+  });
 
   final List<ExerciseProgressTrendPoint> points;
+  final _ExerciseChartMetric metric;
 
   @override
   Widget build(BuildContext context) {
     if (points.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'No progress history yet',
-          style: TextStyle(color: KineticNoirPalette.onSurfaceVariant),
+          'No progress history recorded yet',
+          style: KineticNoirTypography.body(
+            size: 13,
+            weight: FontWeight.w600,
+            color: KineticNoirPalette.onSurfaceVariant,
+          ),
         ),
       );
     }
 
-    final weightSpots = [
+    final isOneRm = metric == _ExerciseChartMetric.oneRm;
+    final spots = [
       for (var i = 0; i < points.length; i++)
-        FlSpot(i.toDouble(), points[i].oneRmKg),
+        FlSpot(
+          i.toDouble(),
+          isOneRm ? points[i].oneRmKg : points[i].volumeKg,
+        ),
     ];
-    final rawVolumeSpots = [
-      for (var i = 0; i < points.length; i++)
-        FlSpot(i.toDouble(), points[i].volumeKg),
-    ];
-    final maxOneRm = points.fold<double>(
-      0,
-      (peak, point) => point.oneRmKg > peak ? point.oneRmKg : peak,
-    );
-    final maxVolume = points.fold<double>(
-      0,
-      (peak, point) => point.volumeKg > peak ? point.volumeKg : peak,
-    );
-    final scale = maxOneRm > 0 ? maxVolume / maxOneRm : 1.0;
-    final volumeSpots = rawVolumeSpots
-        .map((spot) => FlSpot(spot.x, spot.y / scale))
-        .toList(growable: false);
 
-    final maxY = (maxOneRm <= 0 ? 1.0 : maxOneRm * 1.15).toDouble();
+    final maxVal = spots.fold<double>(
+      0,
+      (peak, spot) => spot.y > peak ? spot.y : peak,
+    );
+
+    final maxY = (maxVal <= 0 ? 1.0 : maxVal * 1.15).toDouble();
     final maxX = points.length <= 1 ? 1.0 : (points.length - 1).toDouble();
     final interval =
         points.length <= 4 ? 1.0 : (points.length / 3).ceilToDouble();
+    final lineColor = isOneRm
+        ? KineticNoirPalette.primary
+        : KineticNoirPalette.primaryDim;
 
     return LineChart(
       LineChartData(
@@ -515,7 +672,7 @@ class _ProgressChartBody extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               interval: maxY / 3,
-              reservedSize: 36,
+              reservedSize: 42,
               getTitlesWidget: (value, _) => Text(
                 value <= 0 ? '' : _formatCompactKg(value),
                 style: KineticNoirTypography.body(
@@ -561,10 +718,10 @@ class _ProgressChartBody extends StatelessWidget {
         ),
         lineBarsData: [
           LineChartBarData(
-            spots: weightSpots,
+            spots: spots,
             isCurved: true,
             barWidth: 3,
-            color: KineticNoirPalette.primary,
+            color: lineColor,
             dotData: const FlDotData(show: true),
             belowBarData: BarAreaData(
               show: true,
@@ -572,19 +729,11 @@ class _ProgressChartBody extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  KineticNoirPalette.primary.withValues(alpha: 0.2),
+                  lineColor.withValues(alpha: 0.22),
                   Colors.transparent,
                 ],
               ),
             ),
-          ),
-          LineChartBarData(
-            spots: volumeSpots,
-            isCurved: true,
-            barWidth: 2.5,
-            color: KineticNoirPalette.primaryDim,
-            dashArray: const [6, 5],
-            dotData: const FlDotData(show: false),
           ),
         ],
         lineTouchData: LineTouchData(
@@ -593,9 +742,9 @@ class _ProgressChartBody extends StatelessWidget {
             getTooltipItems: (items) => [
               for (final item in items)
                 LineTooltipItem(
-                  item.barIndex == 0
-                      ? '${_formatCompactKg(points[item.spotIndex].oneRmKg)} kg\n1RM'
-                      : '${_formatCompactKg(points[item.spotIndex].volumeKg)} kg·reps\nVolume',
+                  isOneRm
+                      ? '${DateFormat('MM/dd').format(points[item.spotIndex].weekStart)}\n${_formatKg(points[item.spotIndex].oneRmKg)} kg 1RM'
+                      : '${DateFormat('MM/dd').format(points[item.spotIndex].weekStart)}\n${_formatKg(points[item.spotIndex].volumeKg)} kg·reps',
                   const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -609,8 +758,8 @@ class _ProgressChartBody extends StatelessWidget {
   }
 }
 
-class _MuscleFocusCard extends StatelessWidget {
-  const _MuscleFocusCard({required this.exercise});
+class _ExerciseBlueprintCard extends StatelessWidget {
+  const _ExerciseBlueprintCard({required this.exercise});
 
   final ExerciseListItemView exercise;
 
@@ -620,53 +769,47 @@ class _MuscleFocusCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KineticNoirPalette.surfaceLow,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+        ),
       ),
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Muscle Focus',
+            'Exercise Blueprint',
             style: KineticNoirTypography.headline(
               size: 19,
               weight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 14),
-          _FocusRow(
-            label: 'PRIMARY',
-            value: exercise.mainMuscleGroup,
-            percent: 100,
+          _BlueprintRow(
+            label: 'TARGET SETS & REPS',
+            value: '${exercise.sets} sets × ${exercise.reps} reps',
           ),
           const SizedBox(height: 12),
-          _FocusRow(
+          _BlueprintRow(
+            label: 'REST INTERVAL',
+            value: '${exercise.restSeconds}s',
+          ),
+          if (exercise.weight > 0) ...[
+            const SizedBox(height: 12),
+            _BlueprintRow(
+              label: 'PRESCRIBED LOAD',
+              value: '${_formatKg(exercise.weight)} kg',
+            ),
+          ],
+          const SizedBox(height: 12),
+          _BlueprintRow(
+            label: 'PRIMARY TARGET',
+            value: exercise.mainMuscleGroup,
+          ),
+          const SizedBox(height: 12),
+          _BlueprintRow(
             label: 'CATEGORY',
             value: exercise.category,
-            percent: 72,
-            accent: KineticNoirPalette.primaryDim,
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _TagChip(
-                  label: '${exercise.sets} SETS',
-                  accent: KineticNoirPalette.primary),
-              _TagChip(
-                label: '${exercise.reps} REPS',
-                accent: KineticNoirPalette.primaryDim,
-              ),
-              _TagChip(
-                label: '${exercise.restSeconds}s REST',
-                accent: KineticNoirPalette.primary,
-              ),
-              if (exercise.weight > 0)
-                _TagChip(
-                  label: '${_formatCompactKg(exercise.weight)} kg LOAD',
-                  accent: KineticNoirPalette.primaryDim,
-                ),
-            ],
           ),
         ],
       ),
@@ -674,54 +817,38 @@ class _MuscleFocusCard extends StatelessWidget {
   }
 }
 
-class _FocusRow extends StatelessWidget {
-  const _FocusRow({
+class _BlueprintRow extends StatelessWidget {
+  const _BlueprintRow({
     required this.label,
     required this.value,
-    required this.percent,
-    this.accent = KineticNoirPalette.primary,
   });
 
   final String label;
   final String value;
-  final int percent;
-  final Color accent;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: KineticNoirTypography.body(
-                size: 10,
-                weight: FontWeight.w800,
-                color: KineticNoirPalette.onSurfaceVariant,
-                letterSpacing: 1.3,
-              ),
+        Expanded(
+          child: Text(
+            label,
+            style: KineticNoirTypography.body(
+              size: 11,
+              weight: FontWeight.w800,
+              color: KineticNoirPalette.onSurfaceVariant,
+              letterSpacing: 1.1,
             ),
-            Text(
-              value,
-              style: KineticNoirTypography.body(
-                size: 12,
-                weight: FontWeight.w800,
-                color: KineticNoirPalette.onSurface,
-              ),
-            ),
-          ],
+          ),
         ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            value: percent / 100,
-            minHeight: 10,
-            backgroundColor: KineticNoirPalette.surfaceBright,
-            valueColor: AlwaysStoppedAnimation<Color>(accent),
+        const SizedBox(width: 8),
+        Text(
+          value,
+          style: KineticNoirTypography.body(
+            size: 13,
+            weight: FontWeight.w700,
+            color: KineticNoirPalette.onSurface,
           ),
         ),
       ],
@@ -742,20 +869,30 @@ class _RecentSessions extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Recent Sessions',
-              style: KineticNoirTypography.headline(
-                size: 19,
-                weight: FontWeight.w700,
+            Expanded(
+              child: Text(
+                'Recent Sessions',
+                style: KineticNoirTypography.headline(
+                  size: 19,
+                  weight: FontWeight.w700,
+                ),
               ),
             ),
-            Text(
-              'kg only',
-              style: KineticNoirTypography.body(
-                size: 10,
-                weight: FontWeight.w800,
-                color: KineticNoirPalette.onSurfaceVariant,
-                letterSpacing: 2.0,
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: KineticNoirPalette.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '${summary.recentSessions.length} LOGGED',
+                style: KineticNoirTypography.body(
+                  size: 9,
+                  weight: FontWeight.w800,
+                  color: KineticNoirPalette.primary,
+                  letterSpacing: 1.2,
+                ),
               ),
             ),
           ],
@@ -763,19 +900,35 @@ class _RecentSessions extends StatelessWidget {
         const SizedBox(height: 14),
         if (summary.recentSessions.isEmpty)
           Container(
+            width: double.infinity,
             decoration: BoxDecoration(
               color: KineticNoirPalette.surfaceLow,
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color:
+                    KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+              ),
             ),
             padding: const EdgeInsets.all(20),
-            child: Text(
-              'No previous sessions recorded for this exercise yet.',
-              style: KineticNoirTypography.body(
-                size: 14,
-                weight: FontWeight.w600,
-                color: KineticNoirPalette.onSurfaceVariant,
-                height: 1.5,
-              ),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.history_toggle_off_rounded,
+                  size: 32,
+                  color: KineticNoirPalette.onSurfaceVariant,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'No previous sessions recorded for this exercise yet.',
+                  textAlign: TextAlign.center,
+                  style: KineticNoirTypography.body(
+                    size: 14,
+                    weight: FontWeight.w600,
+                    color: KineticNoirPalette.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
+              ],
             ),
           )
         else
@@ -820,6 +973,7 @@ class _SessionCard extends StatelessWidget {
             child: const Icon(
               Icons.event_rounded,
               color: KineticNoirPalette.primary,
+              size: 20,
             ),
           ),
           const SizedBox(width: 14),
@@ -853,14 +1007,14 @@ class _SessionCard extends StatelessWidget {
               Text(
                 '${_formatKg(session.topWeightKg)} kg',
                 style: KineticNoirTypography.headline(
-                  size: 20,
+                  size: 19,
                   weight: FontWeight.w700,
                   color: KineticNoirPalette.onSurface,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
-                '${session.topReps} reps • ${_formatKg(session.topOneRmKg)} kg est. 1RM',
+                '${session.topReps} reps • ${_formatKg(session.topOneRmKg)} kg 1RM',
                 textAlign: TextAlign.right,
                 style: KineticNoirTypography.body(
                   size: 10,

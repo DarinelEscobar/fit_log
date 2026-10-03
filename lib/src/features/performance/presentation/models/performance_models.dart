@@ -82,6 +82,7 @@ final class PerformanceDashboardSummary {
     required this.trend,
     required this.muscleFocus,
     required this.recentPrs,
+    this.activeExercises = const [],
   });
 
   final PerformancePeriod period;
@@ -94,6 +95,7 @@ final class PerformanceDashboardSummary {
   final List<PerformanceTrendPoint> trend;
   final List<PerformanceMuscleFocus> muscleFocus;
   final List<PerformancePrCard> recentPrs;
+  final List<PerformanceExerciseItem> activeExercises;
 
   bool get hasData =>
       trainingDays > 0 ||
@@ -115,6 +117,7 @@ final class PerformanceDashboardSummary {
       trend: const [],
       muscleFocus: const [],
       recentPrs: const [],
+      activeExercises: const [],
     );
   }
 }
@@ -151,6 +154,7 @@ final class PerformancePrCard {
     required this.valueKg,
     required this.deltaLabel,
     required this.date,
+    this.exerciseId,
   });
 
   final String label;
@@ -159,6 +163,41 @@ final class PerformancePrCard {
   final double valueKg;
   final String deltaLabel;
   final DateTime date;
+  final int? exerciseId;
+}
+
+final class PerformanceExerciseItem {
+  const PerformanceExerciseItem({
+    required this.exerciseId,
+    required this.name,
+    required this.category,
+    required this.mainMuscleGroup,
+    required this.totalVolumeKg,
+    required this.sessionCount,
+    required this.lastTrainedDate,
+    required this.bestWeightKg,
+    required this.bestReps,
+    required this.estimatedOneRmKg,
+    this.description = '',
+    this.targetSets = 0,
+    this.targetReps = 0,
+    this.restSeconds = 0,
+  });
+
+  final int exerciseId;
+  final String name;
+  final String category;
+  final String mainMuscleGroup;
+  final double totalVolumeKg;
+  final int sessionCount;
+  final DateTime? lastTrainedDate;
+  final double bestWeightKg;
+  final int bestReps;
+  final double estimatedOneRmKg;
+  final String description;
+  final int targetSets;
+  final int targetReps;
+  final int restSeconds;
 }
 
 final class ExerciseProgressDetailData {
