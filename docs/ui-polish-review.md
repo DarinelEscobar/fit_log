@@ -91,3 +91,45 @@ existing keystore, and verify package `com.yourcompany.fit_log` and certificate
 SHA-256 `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`.
 Never expose signing secrets or include demo data in the delivery build.
 Report actual checks, reviewed screenshots and any device/performance limits.
+
+## Delivery and verification report
+
+### Automated verification
+- `flutter analyze --no-pub` across modified files: 0 issues.
+- `flutter test --no-pub`: 85/85 tests passing (100%).
+  - Added coverage for Finish session 5x2 energy selector touch targets (all >= 48x48dp) and mood buttons (>= 48x48dp).
+  - Added coverage for required fields (summary, energy, mood, save button) visible without scroll at 375x667.
+  - Added coverage for `ActiveSessionExecutionSummary` giving broad priority to TEMPO and REPS under 1.8x text scale and keyboard IME insets.
+  - Added coverage for Home active routines header text wrapping without overflow at 1.8x text scale.
+
+### Release artifact verification
+- Binary target: `build/redesign-review/fitlog-1.1.2-release.apk`
+- Mirrored delivery target: `<local path omitted>`
+- Source entrypoint: `lib/main.dart` (production entrypoint, zero demo fixtures)
+- File size: 64,456,793 bytes (~61.5 MB)
+- Package ID: `com.yourcompany.fit_log`
+- Version: `1.1.2+4` (versionCode 4, versionName 1.1.2)
+- Certificate SHA-256 digest: `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`
+- Signer DN: `CN=Fit Log, OU=Mobile, O=Fit Log, L=CDMX, ST=CDMX, C=MX`
+
+### Visual QA and interactive review (emulator-5554, 375x667 viewport)
+Screenshots captured and validated in `build/redesign-review/polish/`:
+1. `01-routines-home.png`: Routines home with Kinetic Noir palette and floating nav bar; clean header at 1.8x text scale.
+2. `02-routine-details.png`: Routine details sheet with exercise breakdown and start action.
+3. `03-warmup-preview.png`: Warm-up preview with timing chips and exercise list.
+4. `04-active-workout.png`: Pinned header with prominent TEMPO (`3-1-1`) & REPS (`10`), compact secondary pills for `SET 1 / 3` & `RIR 2`, active set row and LOG SET button.
+5. `05-active-workout-set2.png`: Set 1 compacted with checkmark, set 2 expanded, floating rest timer pill active.
+6. `06-finish-session.png`: Initial 375x667 viewport showing compact summary band, 5x2 energy selector (targets >= 48x48dp, unselected), mood selector (targets >= 48x48dp), notes toggle, and visible SAVE & FINISH button without scroll.
+7. `07-finish-session-selected.png`: Energy 8 and Mood 4 selected, SAVE & FINISH enabled with primary gradient.
+8. `08-finish-session-notes-expanded.png`: Notes text area expanded; layout remains fully visible.
+9. `09-after-save.png`: Clean navigation back to routines home after saving session.
+10. `10-history-screen.png`: History overview showing `33.9k kg` volume and session cards with compact tags.
+11. `11-history-detail.png`: Session review detail with 26px header, metadata pills, and exercise breakdown.
+12. `12-performance-dashboard.png`: Performance dashboard with weekly volume cards and trend charts.
+13. `13-exercise-progress.png`: Exercise progress detail with single-line date formatting and compact stat cards.
+14. `14-active-workout-large-text-ime.png`: Active workout at 1.8x font scale with active set KG field focused and soft keyboard (IME) open; full TEMPO and REPS hierarchy preserved.
+15. `15-finish-large-text.png`: Finish session screen at 1.8x text scale with natural scroll area and accessible controls.
+16. `16-active-workout-landscape.png`: Authentic horizontal layout (2001x1125 physical, 667x375dp) showing compact 48dp app bar, single-row primary + secondary execution metrics, and active set row with zero overflow.
+17. `17-reduced-motion.png`: Full session stability verified under reduced motion (animations disabled).
+
+
