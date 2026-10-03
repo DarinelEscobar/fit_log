@@ -55,12 +55,18 @@ class _ExerciseProgressDetailScreenState
               opacity: 0.94,
             ),
             const SizedBox(width: 8),
-            Text(
-              'PROGRESSION',
-              style: KineticNoirTypography.headline(
-                size: 22,
-                weight: FontWeight.w700,
-                color: KineticNoirPalette.primary,
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'PROGRESSION',
+                  style: KineticNoirTypography.headline(
+                    size: 22,
+                    weight: FontWeight.w700,
+                    color: KineticNoirPalette.primary,
+                  ),
+                ),
               ),
             ),
           ],
@@ -469,18 +475,15 @@ class _ProgressChart extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _Legend(
-                color: metric == _ExerciseChartMetric.oneRm
-                    ? KineticNoirPalette.primary
-                    : KineticNoirPalette.primaryDim,
-                text: metric == _ExerciseChartMetric.oneRm
-                    ? 'Estimated 1RM (kg)'
-                    : 'Session Volume (kg·reps)',
-              ),
-            ],
+          Center(
+            child: _Legend(
+              color: metric == _ExerciseChartMetric.oneRm
+                  ? KineticNoirPalette.primary
+                  : KineticNoirPalette.primaryDim,
+              text: metric == _ExerciseChartMetric.oneRm
+                  ? 'Estimated 1RM (kg)'
+                  : 'Session Volume (kg·reps)',
+            ),
           ),
         ],
       ),
@@ -582,6 +585,7 @@ class _Legend extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
           width: 10,
@@ -591,13 +595,16 @@ class _Legend extends StatelessWidget {
             shape: BoxShape.circle,
           ),
         ),
-        const SizedBox(width: 6),
-        Text(
-          text,
-          style: KineticNoirTypography.body(
-            size: 11,
-            weight: FontWeight.w600,
-            color: KineticNoirPalette.onSurfaceVariant,
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: KineticNoirTypography.body(
+              size: 11,
+              weight: FontWeight.w600,
+              color: KineticNoirPalette.onSurfaceVariant,
+            ),
           ),
         ),
       ],
@@ -843,12 +850,15 @@ class _BlueprintRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          value,
-          style: KineticNoirTypography.body(
-            size: 13,
-            weight: FontWeight.w700,
-            color: KineticNoirPalette.onSurface,
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: KineticNoirTypography.body(
+              size: 13,
+              weight: FontWeight.w700,
+              color: KineticNoirPalette.onSurface,
+            ),
           ),
         ),
       ],
@@ -952,6 +962,9 @@ class _SessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textScale = MediaQuery.textScalerOf(context).scale(1.0);
+    final isLargeText = textScale >= 1.35;
+
     return Container(
       decoration: BoxDecoration(
         color: KineticNoirPalette.surfaceLow,
@@ -961,34 +974,38 @@ class _SessionCard extends StatelessWidget {
         ),
       ),
       padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: KineticNoirPalette.surfaceBright,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.event_rounded,
-              color: KineticNoirPalette.primary,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
+      child: isLargeText
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _formatRelativeDate(session.date),
-                  style: KineticNoirTypography.headline(
-                    size: 16,
-                    weight: FontWeight.w700,
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: KineticNoirPalette.surfaceBright,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.event_rounded,
+                        color: KineticNoirPalette.primary,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _formatRelativeDate(session.date),
+                        style: KineticNoirTypography.headline(
+                          size: 16,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Text(
                   '${session.setCount} sets • ${_formatKg(session.volumeKg)} kg·reps',
                   style: KineticNoirTypography.body(
@@ -997,35 +1014,99 @@ class _SessionCard extends StatelessWidget {
                     color: KineticNoirPalette.onSurfaceVariant,
                   ),
                 ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${_formatKg(session.topWeightKg)} kg',
+                      style: KineticNoirTypography.headline(
+                        size: 18,
+                        weight: FontWeight.w700,
+                        color: KineticNoirPalette.onSurface,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '${session.topReps} reps • ${_formatKg(session.topOneRmKg)} kg 1RM',
+                        textAlign: TextAlign.right,
+                        style: KineticNoirTypography.body(
+                          size: 11,
+                          weight: FontWeight.w800,
+                          color: KineticNoirPalette.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: KineticNoirPalette.surfaceBright,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.event_rounded,
+                    color: KineticNoirPalette.primary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _formatRelativeDate(session.date),
+                        style: KineticNoirTypography.headline(
+                          size: 16,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${session.setCount} sets • ${_formatKg(session.volumeKg)} kg·reps',
+                        style: KineticNoirTypography.body(
+                          size: 12,
+                          weight: FontWeight.w600,
+                          color: KineticNoirPalette.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${_formatKg(session.topWeightKg)} kg',
+                      style: KineticNoirTypography.headline(
+                        size: 19,
+                        weight: FontWeight.w700,
+                        color: KineticNoirPalette.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${session.topReps} reps • ${_formatKg(session.topOneRmKg)} kg 1RM',
+                      textAlign: TextAlign.right,
+                      style: KineticNoirTypography.body(
+                        size: 10,
+                        weight: FontWeight.w800,
+                        color: KineticNoirPalette.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${_formatKg(session.topWeightKg)} kg',
-                style: KineticNoirTypography.headline(
-                  size: 19,
-                  weight: FontWeight.w700,
-                  color: KineticNoirPalette.onSurface,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${session.topReps} reps • ${_formatKg(session.topOneRmKg)} kg 1RM',
-                textAlign: TextAlign.right,
-                style: KineticNoirTypography.body(
-                  size: 10,
-                  weight: FontWeight.w800,
-                  color: KineticNoirPalette.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }

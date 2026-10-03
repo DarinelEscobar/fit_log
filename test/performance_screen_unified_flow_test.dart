@@ -442,4 +442,64 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+      'ExerciseProgressDetailScreen renders at 375x667 with 1.8x text scale without overflow',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(375, 667));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    const itemView = ExerciseListItemView(
+      exerciseId: 10,
+      name: 'Bench Press',
+      description: 'Flat bench test description',
+      category: 'Barbell',
+      mainMuscleGroup: 'Chest',
+      sets: 3,
+      reps: 8,
+      restSeconds: 120,
+      weight: 100,
+    );
+
+    final storage = _FakePerformanceFlowStorage(
+      activeExerciseIds: const [10],
+      logs: testLogs,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          workoutStorageServiceProvider.overrideWithValue(storage),
+        ],
+        child: const MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: Size(375, 667),
+              textScaler: TextScaler.linear(1.8),
+            ),
+            child: ExerciseProgressDetailScreen(exercise: itemView),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Scroll chart into view
+    final trendFinder = find.text('Progression Trend');
+    await tester.scrollUntilVisible(
+      trendFinder,
+      100,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    // Verify 1RM mode legend renders cleanly
+    expect(find.text('Estimated 1RM (kg)'), findsOneWidget);
+
+    // Toggle to volume mode and ensure legend wraps without overflow
+    await tester.tap(find.text('VOLUME'));
+    await tester.pumpAndSettle();
+    expect(find.text('Session Volume (kg·reps)'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
