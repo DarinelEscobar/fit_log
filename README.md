@@ -196,7 +196,7 @@ Important runtime entrypoints:
 
 ## Backup and Import
 
-The app features a unified **Export & Share Backup** flow alongside non-destructive **Import Backup**:
+The app features a unified **Export & Share Backup** flow alongside **Import Backup**, whose restore behavior depends on the backup type:
 
 - **Unified Export & Share**: Generating a backup automatically presents the system share sheet in a single flow without requiring a separate share step.
 - **Range Presets & Selection**:
@@ -204,7 +204,7 @@ The app features a unified **Export & Share Backup** flow alongside non-destruct
   - **Full Backup**: Packages the complete SQLite database archive along with all historical spreadsheets.
   - **Custom Range**: Allows selecting explicit inclusive start and end dates with real-time validation and preview.
 - **ZIP Archive Format**: Names include exported bounds (e.g. `fitlog_backup_2026-09-07_to_2026-09-13.zip` or `fitlog_backup_full_2026-10-02.zip`).
-- **Non-destructive Restore**: Restores complete backups or merges incremental ranges into the existing database without data loss.
+- **Import Behavior**: Incremental range archives merge workout history into the existing database. Full backups restore their database snapshot, and full or spreadsheet imports can replace current data.
 - **Local Ownership**: Preserves offline ownership of training data while keeping runtime operations optimized for SQLite. Successful export ranges are tracked in local SQLite metadata.
 
 ## Validation

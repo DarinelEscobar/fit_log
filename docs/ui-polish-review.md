@@ -40,6 +40,10 @@ Preserve ignored signing files, build outputs and fictional QA fixtures.
 - Performance: prioritize the selected exercise/period, a clear leading
   metric and readable chart units. Keep existing calculations and honest
   empty/loading/error states; do not manufacture comparisons or data.
+- Data & Backups: unify Export & Share into a single action presenting date
+  range presets, automatic incremental detection, full backups and custom ranges.
+  Import behavior distinguishes incremental archives (which merge workout history)
+  from full database snapshots or spreadsheet imports (which can replace existing data).
 
 ## Motion identity
 
@@ -72,42 +76,42 @@ Keep useful current layouts unless the review above requests recomposition.
 Use UI/UX Pro Max's Flutter, touch, motion, accessibility and chart guidance.
 The taste skill excludes native mobile; do not import its React stack,
 marketing-page layouts or photographic requirements into this product.
-Antigravity owns implementation and corrections in the existing FitLog chat.
-Use one writer so shared theme/navigation and screen changes remain coherent.
-Antigravity owns implementation, validation and serial local commits; Codex
-performs scoped review and verifies the delivery artifact after the writer finishes.
+Parallel feature chats coordinate feature implementations with turn-based
+mutable checks, serial Git commits, dedicated builds, and single shared-theme
+ownership. Codex performs scoped review and verifies delivery artifacts.
 No push, merge, production changes or unrelated edits.
 
-Use the existing focused widget tests for execution summary and Finish flows;
-add meaningful coverage for required metrics, compact layout, keyboard/large
-text, reduced motion and entrance stability if the changed behavior needs it.
-Run relevant Flutter analyze and focused tests; run combined checks once all
-edits are stable. Compare real rendered views on an isolated FitLog emulator
-at small-phone portrait and landscape, large text and reduced motion. The
-currently running `emulator-5556` belongs to other work: do not use it.
+Use focused widget tests for execution summary, Finish flows, history,
+performance, and unified data backup; add meaningful coverage for required
+metrics, compact layout, keyboard/large text, reduced motion and entrance
+stability. Run relevant Flutter analyze and full test suites post-corrections.
+Compare real rendered views on an isolated FitLog emulator at small-phone
+portrait and landscape, large text and reduced motion. The running
+`emulator-5556` belongs to other work: do not touch it.
 Use fictional QA data only via `lib/main_demo.dart`; ship `lib/main.dart`.
 
 ---
 
 ## Release 1.1.3+5 Polish & Feature Delivery Report
 
-### 1. Feature Commits Summary
-The 1.1.3+5 iteration was organized into 5 focused feature milestones:
-1. `d859308` **Data Unification**: Unified Export & Share backup into a single action and modal with automatic incremental missing date ranges, full backup, and custom date range picker; non-destructive import restore.
-2. `b784124` **History Redesign**: Compact navigable history, 1W / 4W / YTD period switcher, grouped weekly disclosure, dual exercise filters, formatted volume with `k` metric (`34.8k kg`).
-3. `8e51d80` **Performance Dashboard**: Volume trends, 4-Week weekly load charts, muscle focus distribution, PR explorer, and 1RM vs Volume toggle progression metrics.
+### 1. Feature Commits & Fixes Summary
+The 1.1.3+5 release delivers the complete Kinetic Noir redesign across 5 coordinated domains:
+1. `d859308` **Data Unification**: Unified Export & Share backup into a single modal action with automatic incremental missing date ranges, full backup, and custom date range picker. Incremental archives merge into SQLite without deleting existing logs, while full backups or spreadsheet imports can replace existing data.
+2. `b784124` & `82d4d40` **History Redesign & Compact Layout**: Redesigned navigable history with 1W / 4W / YTD period selector, grouped weekly disclosure, dual exercise filters, formatted volume with `k` metric (`34.8k kg`), and compact 375x667 header fitting the first week group and full routine card without scroll.
+3. `8e51d80` & `bb9d5ca` **Performance Dashboard & Legend Wrap**: Hero volume card, 4-Week weekly load charts, muscle focus distribution (Chest, Back, Legs), Recent PR explorer, and 1RM vs Volume toggle progression metrics. Resolved 37px horizontal overflow in chart legend under 1.8x text scale with adaptive wrapping.
 4. `6ee47fa` **Active Routine Stability**: Dynamic exercise addition without reset, automatic card focus and smooth scroll, pinned header with prominent TEMPO & REPS, preserved draft state across card expansion toggles and elapsed workout timers.
 5. `b9ead73` **Finish Review & Discard Modal**: Compact single-screen review without scroll at 375x667, removed decorative celebration icon, 5x2 energy selector with guaranteed $\ge 48\times 48\text{dp}$ touch targets, mood 1-5 selector ($\ge 48\times 48\text{dp}$), progressive disclosure for notes, warning modal on discard (`KEEP WORKOUT` vs `DISCARD`), and resume navigation protection.
+6. `d00a3c7` **Version Bump & Docs**: Bumped `pubspec.yaml` to `1.1.3+5` and structured UI polish documentation.
 
-### 2. Automated Verification
-- `flutter analyze --no-pub` across modified feature paths: **0 issues**.
-- Full test suite execution: **126 passing tests** verifying:
+### 2. Automated Verification Post-Corrections
+- `flutter analyze --no-pub` across modified feature paths and tests: **0 issues**.
+- Full test suite `flutter test --no-pub` on `HEAD bb9d5ca`: **129/129 tests passing (100% GREEN)**:
   - Finish session 5x2 energy selector touch targets (all $\ge 48\times 48\text{dp}$) and mood buttons ($\ge 48\times 48\text{dp}$).
   - Required fields (summary, energy, mood, save button) visible without scroll at 375x667.
   - Active session exercise addition, card scrolling, card expansion toggles, and live progress preservation.
-  - Unified data export modal date range presets, automatic incremental range detection, and full backup archive generation.
   - History screen 1W/4W/YTD grouping, compact week disclosure, and session detail routing.
-  - Performance dashboard volume metrics, muscle focus percentages, and 1RM/Volume chart toggles.
+  - Performance dashboard volume metrics, muscle focus percentages, and 1RM/Volume progression detail at 1.8x text scale without overflow.
+  - Unified data export modal date range presets, automatic incremental range detection, and full backup archive generation.
 
 ### 3. Release Artifact Verification
 - Binary source build: `build/app/outputs/flutter-apk/app-release.apk`
@@ -115,9 +119,10 @@ The 1.1.3+5 iteration was organized into 5 focused feature milestones:
 - Mirrored delivery target: `G:\My Drive\FILES\FitLog-1.1.3-release.apk`
 - Source entrypoint: `lib/main.dart` (production entrypoint, zero demo fixtures)
 - File size: **64,735,085 bytes** (~61.7 MB)
-- SHA-256 Digest: `A3681F91027A01E1B23D3094E8DD6183D36D4F9D5724BE3AF443B25C199EEE29`
+- SHA-256 Digest: `C53CFFB990503F3B924479BB246EBB0348D0FC8762F2F108EA1998DDC4D0646E`
 - Package ID: `com.yourcompany.fit_log`
 - Version: `1.1.3+5` (versionCode 5, versionName 1.1.3)
+- Non-debuggable: Verified (`application-debuggable` absent in release badging)
 - Signing Scheme: APK Signature Scheme v2 (`true`)
 - Signer Certificate SHA-256: `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`
 - Signer DN: `CN=Fit Log, OU=Mobile, O=Fit Log, L=CDMX, ST=CDMX, C=MX`
@@ -149,7 +154,7 @@ Artifacts captured and inspected in `build/redesign-review/followups/`:
 - `39-discard-modal.png`: Discard warning dialog opened from Finish screen.
 - `40-keep-workout.png`: `KEEP WORKOUT` action retains workout progress and dismisses dialog.
 - `41-home-after-discard.png`: Confirmed discard clears workout draft and safely returns to routines list.
-- `42-history-default.png`: History overview with 1W/4W/YTD filter, `34.8k kg` formatted volume, and work set metrics.
+- `42-history-compact-default.png`: Compact History overview showing period switcher, summary metrics, and first week group with routine card visible at 375x667.
 - `43-history-scrolled.png`: History weekly grouping (`Sep 28 – Oct 4`) with session summary cards.
 - `44-history-session-detail.png`: Session review detail view with metadata pills, energy/mood badges, and exercise breakdown.
 - `45-performance-dashboard.png`: Performance dashboard with 4-Week volume hero card, weekly load trend, and day coverage.
@@ -159,10 +164,11 @@ Artifacts captured and inspected in `build/redesign-review/followups/`:
 - `50-large-text-1.8-ime-active.png`: Active workout at 1.8x font scale with editable KG input focused and real soft keyboard (IME) open.
 - `51-landscape-workout.png`: Authentic horizontal layout (2001x1125 physical viewport) with pinned header and accessible controls.
 - `52-reduced-motion.png`: Full session stability verified under reduced motion (animations disabled).
+- `53-performance-volume-large-text.png`: Performance exercise progression chart at 1.8x text scale verified with adaptive legend wrap and zero horizontal overflow.
 
-### 5. Known Boundaries and Peer Handoff
-- **Performance Chart Legend 1.8x Font Scale**: In `ExerciseProgressDetailScreen` at `textScale: 1.8`, the chart legend label (`Session Volume (kg·reps)`) renders with a 37px horizontal overflow on small viewports. Per coordination boundaries, this is reported for upstream resolution by the Performance feature owner.
-- **Android Share Intent**: Cancelling native share sheet cleanly returns control to Data Management without side effects.
+### 5. Known Boundaries and Verification Limits
+- **Network & Offline Font Fallback**: Offline font rendering relies on cached Google Fonts or falls back gracefully to system sans-serif without layout distortion; fresh uncached font downloads were not tested without network connectivity.
+- **Device & Cloud Verification**: All visual QA was conducted on `emulator-5554` (375x667 @ 480dpi). Physical phone deployment, OS-level cloud drive sync, and frame-time profiling were not performed.
 - **Device Baseline**: All temporary display overrides (1.8x font scale, 2001x1125 size, 0.0 animation scales) were verified restored to default (`font_scale 1.0`, `wm size 1125x2001`, `animator_duration_scale 1.0`).
 
 ---
