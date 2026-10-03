@@ -80,6 +80,17 @@ HistoryOverviewData _buildHistoryOverview({
       ),
   ]..sort((a, b) => a.name.compareTo(b.name));
 
+  final availableExerciseIds = <int>{
+    for (final log in logs) log.exerciseId,
+  };
+  final exerciseOptions = [
+    for (final exerciseId in availableExerciseIds)
+      HistoryExerciseOption(
+        exerciseId: exerciseId,
+        name: exerciseMap[exerciseId]?.name ?? 'Exercise $exerciseId',
+      ),
+  ]..sort((a, b) => a.name.compareTo(b.name));
+
   final filteredSessions = sessions.where((session) {
     return _matchesFilter(
       planId: session.planId,
@@ -90,6 +101,9 @@ HistoryOverviewData _buildHistoryOverview({
   }).toList(growable: false);
 
   final filteredLogs = logs.where((log) {
+    if (filter.exerciseId != null && log.exerciseId != filter.exerciseId) {
+      return false;
+    }
     return _matchesFilter(
       planId: log.planId,
       date: log.date,
@@ -108,10 +122,13 @@ HistoryOverviewData _buildHistoryOverview({
     logsByKey.putIfAbsent(key, () => <WorkoutLogEntry>[]).add(log);
   }
 
-  final keys = <_HistorySessionKey>{
-    ...sessionsByKey.keys,
-    ...logsByKey.keys,
-  }.toList()
+  final keys = (filter.exerciseId != null
+          ? logsByKey.keys.toSet()
+          : <_HistorySessionKey>{
+              ...sessionsByKey.keys,
+              ...logsByKey.keys,
+            })
+      .toList()
     ..sort((a, b) {
       final dateCompare = b.date.compareTo(a.date);
       if (dateCompare != 0) {
@@ -153,17 +170,139 @@ HistoryOverviewData _buildHistoryOverview({
               durationSessions.length)
           .round();
 
+  final groups = switch (filter.period) {
+    HistoryPeriod.oneWeek => const <HistorySessionGroup>[],
+    HistoryPeriod.fourWeeks ||
+    HistoryPeriod.twelveWeeks =>
+      _buildWeekGroups(sessionSummaries),
+    HistoryPeriod.yearToDate => _buildMonthGroups(sessionSummaries),
+  };
+
   return HistoryOverviewData(
     filter: filter,
     range: range,
     planOptions: planOptions,
+    exerciseOptions: exerciseOptions,
     sessions: sessionSummaries,
+    groups: groups,
     totalVolumeKg: totalVolumeKg,
     totalSets: totalSets,
     trainingDays:
         sessionSummaries.map((session) => _day(session.date)).toSet().length,
     averageDurationMinutes: averageDurationMinutes,
   );
+}
+
+List<HistorySessionGroup> _buildWeekGroups(
+  List<HistorySessionSummary> sessions,
+) {
+  final groupsByWeek = <DateTime, List<HistorySessionSummary>>{};
+  for (final session in sessions) {
+    final d = _day(session.date);
+    final monday = d.subtract(Duration(days: d.weekday - 1));
+    groupsByWeek.putIfAbsent(monday, () => <HistorySessionSummary>[]).add(session);
+  }
+  final sortedMondays = groupsByWeek.keys.toList()..sort((a, b) => b.compareTo(a));
+  return [
+    for (final monday in sortedMondays) ...[
+      () {
+        final weekSessions = groupsByWeek[monday]!;
+        final sunday = monday.add(const Duration(days: 6));
+        final totalVolume = weekSessions.fold<double>(
+          0,
+          (sum, s) => sum + s.totalVolumeKg,
+        );
+        final totalSets = weekSessions.fold<int>(
+          0,
+          (sum, s) => sum + s.totalSets,
+        );
+        final count = weekSessions.length;
+        final countLabel = count == 1 ? '1 workout' : '$count workouts';
+        final volLabel = _formatCompactKg(totalVolume);
+        final monLabel = _formatShortMonthDay(monday);
+        final sunLabel = _formatShortMonthDay(sunday);
+        return HistorySessionGroup(
+          key:
+              'week_${monday.year}_${monday.month.toString().padLeft(2, '0')}_${monday.day.toString().padLeft(2, '0')}',
+          title: '$monLabel – $sunLabel',
+          subtitle: '$countLabel · $totalSets sets · $volLabel kg',
+          startDate: monday,
+          endDate: sunday,
+          sessions: weekSessions,
+          totalVolumeKg: totalVolume,
+          totalSets: totalSets,
+        );
+      }(),
+    ],
+  ];
+}
+
+List<HistorySessionGroup> _buildMonthGroups(
+  List<HistorySessionSummary> sessions,
+) {
+  final groupsByMonth = <DateTime, List<HistorySessionSummary>>{};
+  for (final session in sessions) {
+    final d = _day(session.date);
+    final monthStart = DateTime(d.year, d.month, 1);
+    groupsByMonth
+        .putIfAbsent(monthStart, () => <HistorySessionSummary>[])
+        .add(session);
+  }
+  final sortedMonths = groupsByMonth.keys.toList()..sort((a, b) => b.compareTo(a));
+  return [
+    for (final monthStart in sortedMonths) ...[
+      () {
+        final monthSessions = groupsByMonth[monthStart]!;
+        final nextMonth = DateTime(monthStart.year, monthStart.month + 1, 1);
+        final monthEnd = nextMonth.subtract(const Duration(days: 1));
+        final totalVolume = monthSessions.fold<double>(
+          0,
+          (sum, s) => sum + s.totalVolumeKg,
+        );
+        final totalSets = monthSessions.fold<int>(
+          0,
+          (sum, s) => sum + s.totalSets,
+        );
+        final count = monthSessions.length;
+        final countLabel = count == 1 ? '1 workout' : '$count workouts';
+        final volLabel = _formatCompactKg(totalVolume);
+        return HistorySessionGroup(
+          key:
+              'month_${monthStart.year}_${monthStart.month.toString().padLeft(2, '0')}',
+          title: _formatMonthYear(monthStart),
+          subtitle: '$countLabel · $totalSets sets · $volLabel kg',
+          startDate: monthStart,
+          endDate: monthEnd,
+          sessions: monthSessions,
+          totalVolumeKg: totalVolume,
+          totalSets: totalSets,
+        );
+      }(),
+    ],
+  ];
+}
+
+String _formatShortMonthDay(DateTime date) {
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${months[date.month - 1]} ${date.day}';
+}
+
+String _formatMonthYear(DateTime date) {
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  return '${months[date.month - 1]} ${date.year}';
+}
+
+String _formatCompactKg(double value) {
+  if (value >= 1000) {
+    return '${(value / 1000).toStringAsFixed(1)}k';
+  }
+  return value.toStringAsFixed(0);
 }
 
 DateTime? _latestDate(

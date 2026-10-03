@@ -2,20 +2,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../providers/history_providers.dart';
+import 'package:intl/intl.dart';
+
+import '../../../../theme/kinetic_noir.dart';
 import '../../../routines/domain/entities/workout_log_entry.dart';
 import '../../../routines/domain/entities/workout_session.dart';
-import 'package:intl/intl.dart';
+import '../providers/history_providers.dart';
 
 class ExerciseLogsScreen extends ConsumerWidget {
   final int exerciseId;
   final String exerciseName;
 
   const ExerciseLogsScreen({
-    Key? key,
+    super.key,
     required this.exerciseId,
     required this.exerciseName,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -23,15 +25,67 @@ class ExerciseLogsScreen extends ConsumerWidget {
     final asyncSessions = ref.watch(workoutSessionsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(exerciseName)),
+      backgroundColor: KineticNoirPalette.background,
+      appBar: AppBar(
+        backgroundColor: KineticNoirPalette.background,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          color: KineticNoirPalette.primary,
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          exerciseName,
+          style: KineticNoirTypography.headline(
+            size: 20,
+            weight: FontWeight.w700,
+            color: KineticNoirPalette.primary,
+          ),
+        ),
+      ),
       body: asyncLogs.when(
         data: (logs) => asyncSessions.when(
-          data: (sessions) => _Chart(data: _summaries(logs, sessions)),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, __) => Center(child: Text('Error: $e')),
+          data: (sessions) {
+            final summaries = _summaries(logs, sessions);
+            if (summaries.isEmpty) {
+              return Center(
+                child: Text(
+                  'No logs recorded yet for this exercise.',
+                  style: KineticNoirTypography.body(
+                    size: 14,
+                    weight: FontWeight.w600,
+                    color: KineticNoirPalette.onSurfaceVariant,
+                  ),
+                ),
+              );
+            }
+            return _Chart(data: summaries);
+          },
+          loading: () => const Center(
+            child: CircularProgressIndicator(color: KineticNoirPalette.primary),
+          ),
+          error: (e, __) => Center(
+            child: Text(
+              'Error: $e',
+              style: KineticNoirTypography.body(
+                size: 14,
+                color: KineticNoirPalette.error,
+              ),
+            ),
+          ),
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, __) => Center(child: Text('Error: $e')),
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: KineticNoirPalette.primary),
+        ),
+        error: (e, __) => Center(
+          child: Text(
+            'Error: $e',
+            style: KineticNoirTypography.body(
+              size: 14,
+              color: KineticNoirPalette.error,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -81,14 +135,13 @@ class _WeekSummary {
 class _Chart extends StatefulWidget {
   final List<_WeekSummary> data;
 
-  const _Chart({Key? key, required this.data}) : super(key: key);
+  const _Chart({required this.data});
 
   @override
   State<_Chart> createState() => _ChartState();
 }
 
 class _ChartState extends State<_Chart> {
-
   double _interval(double max) {
     if (max <= 0) return 1;
     return (max / 5).ceilToDouble();
@@ -119,35 +172,78 @@ class _ChartState extends State<_Chart> {
         final stepWeight = _interval(maxWeight);
         final stepVolume = _interval(maxVolume) / scale;
 
-        final maxY = maxWeight;
+        final maxY = maxWeight <= 0 ? 100.0 : maxWeight * 1.1;
 
         final chart = LineChart(
           LineChartData(
             minX: 0,
-            maxX: (widget.data.length - 1).toDouble(),
+            maxX: widget.data.length > 1
+                ? (widget.data.length - 1).toDouble()
+                : 1.0,
             minY: 0,
             maxY: maxY,
+            gridData: FlGridData(
+              show: true,
+              drawVerticalLine: false,
+              getDrawingHorizontalLine: (value) => FlLine(
+                color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+                strokeWidth: 1,
+              ),
+            ),
             titlesData: FlTitlesData(
               leftTitles: AxisTitles(
-                axisNameWidget: const Text('Peso (kg)'),
+                axisNameWidget: Text(
+                  'Weight (kg)',
+                  style: KineticNoirTypography.body(
+                    size: 10,
+                    weight: FontWeight.w700,
+                    color: KineticNoirPalette.primary,
+                  ),
+                ),
                 sideTitles: SideTitles(
                   showTitles: true,
-                  interval: stepWeight,
-                  getTitlesWidget: (v, _) => Text(v.toInt().toString()),
-                  reservedSize: 40,
+                  interval: stepWeight > 0 ? stepWeight : 20,
+                  getTitlesWidget: (v, _) => Text(
+                    v.toInt().toString(),
+                    style: KineticNoirTypography.body(
+                      size: 10,
+                      color: KineticNoirPalette.onSurfaceVariant,
+                    ),
+                  ),
+                  reservedSize: 36,
                 ),
               ),
               rightTitles: AxisTitles(
-                axisNameWidget: const Text('Volumen (kg·reps)'),
+                axisNameWidget: Text(
+                  'Volume (kg·reps)',
+                  style: KineticNoirTypography.body(
+                    size: 10,
+                    weight: FontWeight.w700,
+                    color: const Color(0xFF64FFDA),
+                  ),
+                ),
                 sideTitles: SideTitles(
                   showTitles: true,
-                  interval: stepVolume,
-                  getTitlesWidget: (v, _) => Text((v * scale).toInt().toString()),
-                  reservedSize: 48,
+                  interval: stepVolume > 0 ? stepVolume : 50,
+                  getTitlesWidget: (v, _) => Text(
+                    (v * scale).toInt().toString(),
+                    style: KineticNoirTypography.body(
+                      size: 10,
+                      color: KineticNoirPalette.onSurfaceVariant,
+                    ),
+                  ),
+                  reservedSize: 44,
                 ),
               ),
               bottomTitles: AxisTitles(
-                axisNameWidget: const Text('Semana'),
+                axisNameWidget: Text(
+                  'Week',
+                  style: KineticNoirTypography.body(
+                    size: 10,
+                    weight: FontWeight.w700,
+                    color: KineticNoirPalette.onSurfaceVariant,
+                  ),
+                ),
                 sideTitles: SideTitles(
                   showTitles: true,
                   interval: 1,
@@ -158,19 +254,32 @@ class _ChartState extends State<_Chart> {
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(labels[i]),
-                        Text('R:${w.top.reps} RIR:${w.top.rir}',
-                            style: const TextStyle(fontSize: 10)),
+                        Text(
+                          labels[i],
+                          style: KineticNoirTypography.body(
+                            size: 10,
+                            weight: FontWeight.w700,
+                            color: KineticNoirPalette.onSurface,
+                          ),
+                        ),
+                        Text(
+                          'R:${w.top.reps} RIR:${w.top.rir}',
+                          style: KineticNoirTypography.body(
+                            size: 9,
+                            color: KineticNoirPalette.onSurfaceVariant,
+                          ),
+                        ),
                       ],
                     );
                   },
                 ),
               ),
-              topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
             ),
             lineTouchData: LineTouchData(
               touchTooltipData: LineTouchTooltipData(
-                tooltipBgColor: Colors.black87,
                 getTooltipItems: (touched) => touched.map((t) {
                   final w = widget.data[t.spotIndex];
                   final reps = w.top.reps;
@@ -181,8 +290,8 @@ class _ChartState extends State<_Chart> {
                   final vol = w.volume.toInt();
                   final wt = w.top.weight.toInt();
                   return LineTooltipItem(
-                    'P:$wt • V:$vol\nR: $reps • RIR $rir\nFatiga: $fatigue • $dur min\nMood: $mood',
-                    const TextStyle(color: Colors.white),
+                    'P:$wt kg • V:$vol\nR: $reps • RIR $rir\nFatigue: $fatigue • $dur min\nMood: $mood',
+                    const TextStyle(color: Colors.white, fontSize: 12),
                   );
                 }).toList(),
               ),
@@ -192,19 +301,19 @@ class _ChartState extends State<_Chart> {
                 spots: weightSpots,
                 isCurved: false,
                 barWidth: 3,
-                dotData: FlDotData(show: true),
-                color: Colors.blue,
+                dotData: const FlDotData(show: true),
+                color: KineticNoirPalette.primary,
               ),
               LineChartBarData(
                 spots: volumeSpots,
                 isCurved: false,
                 barWidth: 3,
                 dashArray: const [5, 5],
-                dotData: FlDotData(show: false),
-                color: Colors.green,
+                dotData: const FlDotData(show: false),
+                color: const Color(0xFF64FFDA),
               ),
             ],
-            extraLinesData: ExtraLinesData(horizontalLines: []),
+            extraLinesData: const ExtraLinesData(horizontalLines: []),
           ),
         );
 
@@ -217,13 +326,13 @@ class _ChartState extends State<_Chart> {
           child: Column(
             children: [
               chartWidget,
-              const SizedBox(height: 8),
-              Row(
+              const SizedBox(height: 12),
+              const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  _Legend(color: Colors.blue, text: 'Peso'),
-                  SizedBox(width: 16),
-                  _Legend(color: Colors.green, text: 'Volumen'),
+                children: [
+                  _Legend(color: KineticNoirPalette.primary, text: 'Weight'),
+                  SizedBox(width: 20),
+                  _Legend(color: Color(0xFF64FFDA), text: 'Volume'),
                 ],
               ),
             ],
@@ -238,18 +347,30 @@ class _Legend extends StatelessWidget {
   final Color color;
   final String text;
 
-  const _Legend({Key? key, required this.color, required this.text})
-      : super(key: key);
+  const _Legend({required this.color, required this.text});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(width: 12, height: 12, color: color),
-        const SizedBox(width: 4),
-        Text(text),
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: KineticNoirTypography.body(
+            size: 12,
+            weight: FontWeight.w700,
+            color: KineticNoirPalette.onSurface,
+          ),
+        ),
       ],
     );
   }
 }
-

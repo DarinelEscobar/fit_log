@@ -7,20 +7,23 @@ final class HistoryFilter {
   const HistoryFilter({
     required this.period,
     this.planId,
+    this.exerciseId,
   });
 
   final HistoryPeriod period;
   final int? planId;
+  final int? exerciseId;
 
   @override
   bool operator ==(Object other) {
     return other is HistoryFilter &&
         other.period == period &&
-        other.planId == planId;
+        other.planId == planId &&
+        other.exerciseId == exerciseId;
   }
 
   @override
-  int get hashCode => Object.hash(period, planId);
+  int get hashCode => Object.hash(period, planId, exerciseId);
 }
 
 @immutable
@@ -65,13 +68,42 @@ extension HistoryPeriodX on HistoryPeriod {
   }
 }
 
+enum HistoryGroupType { none, week, month }
+
+@immutable
+final class HistorySessionGroup {
+  const HistorySessionGroup({
+    required this.key,
+    required this.title,
+    required this.subtitle,
+    required this.startDate,
+    required this.endDate,
+    required this.sessions,
+    required this.totalVolumeKg,
+    required this.totalSets,
+  });
+
+  final String key;
+  final String title;
+  final String subtitle;
+  final DateTime startDate;
+  final DateTime endDate;
+  final List<HistorySessionSummary> sessions;
+  final double totalVolumeKg;
+  final int totalSets;
+
+  int get sessionCount => sessions.length;
+}
+
 @immutable
 final class HistoryOverviewData {
   const HistoryOverviewData({
     required this.filter,
     required this.range,
     required this.planOptions,
+    required this.exerciseOptions,
     required this.sessions,
+    required this.groups,
     required this.totalVolumeKg,
     required this.totalSets,
     required this.trainingDays,
@@ -81,7 +113,9 @@ final class HistoryOverviewData {
   final HistoryFilter filter;
   final HistoryDateRange range;
   final List<HistoryPlanOption> planOptions;
+  final List<HistoryExerciseOption> exerciseOptions;
   final List<HistorySessionSummary> sessions;
+  final List<HistorySessionGroup> groups;
   final double totalVolumeKg;
   final int totalSets;
   final int trainingDays;
@@ -98,6 +132,17 @@ final class HistoryPlanOption {
   });
 
   final int planId;
+  final String name;
+}
+
+@immutable
+final class HistoryExerciseOption {
+  const HistoryExerciseOption({
+    required this.exerciseId,
+    required this.name,
+  });
+
+  final int exerciseId;
   final String name;
 }
 

@@ -18,12 +18,37 @@ class HistoryScreen extends ConsumerStatefulWidget {
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   HistoryPeriod _selectedPeriod = HistoryPeriod.fourWeeks;
   int? _selectedPlanId;
+  int? _selectedExerciseId;
+
+  final Set<String> _expandedGroupKeys = {};
+  HistoryPeriod? _lastPeriod;
+  bool _initializedGroups = false;
+
+  void _onPeriodChanged(HistoryPeriod period) {
+    if (period == _selectedPeriod) return;
+    setState(() {
+      _selectedPeriod = period;
+      _expandedGroupKeys.clear();
+      _initializedGroups = false;
+    });
+  }
+
+  void _toggleGroup(String groupKey) {
+    setState(() {
+      if (_expandedGroupKeys.contains(groupKey)) {
+        _expandedGroupKeys.remove(groupKey);
+      } else {
+        _expandedGroupKeys.add(groupKey);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final filter = HistoryFilter(
       period: _selectedPeriod,
       planId: _selectedPlanId,
+      exerciseId: _selectedExerciseId,
     );
     final historyAsync = ref.watch(historyOverviewProvider(filter));
 
@@ -57,101 +82,194 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       body: historyAsync.when(
         loading: () => const _LoadingState(),
         error: (error, _) => _ErrorState(message: '$error'),
-        data: (data) => SafeArea(
-          bottom: false,
-          child: CustomScrollView(
-            cacheExtent: 800,
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
-                sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _PeriodSelector(
-                        selected: _selectedPeriod,
-                        onChanged: (period) {
-                          if (period == _selectedPeriod) {
-                            return;
-                          }
-                          setState(() => _selectedPeriod = period);
-                        },
-                      ),
-                      if (data.planOptions.isNotEmpty) ...[
-                        const SizedBox(height: 14),
-                        _PlanFilter(
-                          options: data.planOptions,
-                          selectedPlanId: _selectedPlanId,
-                          onChanged: (planId) {
-                            setState(() => _selectedPlanId = planId);
-                          },
-                        ),
-                      ],
-                      const SizedBox(height: 22),
-                      Text(
-                        'SESSION REVIEW',
-                        style: KineticNoirTypography.body(
-                          size: 12,
-                          weight: FontWeight.w800,
-                          color: KineticNoirPalette.onSurfaceVariant,
-                          letterSpacing: 2.2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _rangeLabel(data.range),
-                        style: KineticNoirTypography.body(
-                          size: 13,
-                          weight: FontWeight.w600,
-                          color: KineticNoirPalette.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
-                ),
-              ),
-              if (data.hasSessions) ...[
+        data: (data) {
+          if (_lastPeriod != _selectedPeriod) {
+            _lastPeriod = _selectedPeriod;
+            _expandedGroupKeys.clear();
+            if (data.groups.isNotEmpty) {
+              _expandedGroupKeys.add(data.groups.first.key);
+            }
+            _initializedGroups = true;
+          } else if (!_initializedGroups && data.groups.isNotEmpty) {
+            _initializedGroups = true;
+            _expandedGroupKeys.add(data.groups.first.key);
+          }
+
+          final isGrouped = _selectedPeriod != HistoryPeriod.oneWeek &&
+              data.groups.isNotEmpty;
+
+          return SafeArea(
+            bottom: false,
+            child: CustomScrollView(
+              cacheExtent: 800,
+              slivers: [
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
                   sliver: SliverToBoxAdapter(
-                    child: KineticEntrance(child: _OverviewGrid(data: data)),
-                  ),
-                ),
-                const SliverPadding(
-                  padding: EdgeInsets.only(top: 18),
-                  sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final session = data.sessions[index];
-                        return Padding(
-                          padding: EdgeInsets.only(
-                            bottom: index == data.sessions.length - 1 ? 0 : 14,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _PeriodSelector(
+                          selected: _selectedPeriod,
+                          onChanged: _onPeriodChanged,
+                        ),
+                        if (data.planOptions.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          _PlanFilter(
+                            options: data.planOptions,
+                            selectedPlanId: _selectedPlanId,
+                            onChanged: (planId) {
+                              setState(() {
+                                _selectedPlanId = planId;
+                                _expandedGroupKeys.clear();
+                                _initializedGroups = false;
+                              });
+                            },
                           ),
-                          child: _HistorySessionCard(
-                            session: session,
-                            onTap: () => _openSessionDetail(session),
+                        ],
+                        if (data.exerciseOptions.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _ExerciseFilter(
+                            options: data.exerciseOptions,
+                            selectedExerciseId: _selectedExerciseId,
+                            onChanged: (exerciseId) {
+                              setState(() {
+                                _selectedExerciseId = exerciseId;
+                                _expandedGroupKeys.clear();
+                                _initializedGroups = false;
+                              });
+                            },
                           ),
-                        );
-                      },
-                      childCount: data.sessions.length,
+                        ],
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Text(
+                              'SESSION REVIEW',
+                              style: KineticNoirTypography.body(
+                                size: 12,
+                                weight: FontWeight.w800,
+                                color: KineticNoirPalette.onSurfaceVariant,
+                                letterSpacing: 2.2,
+                              ),
+                            ),
+                            if (_selectedPlanId != null ||
+                                _selectedExerciseId != null) ...[
+                              const Spacer(),
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  minimumSize: const Size(48, 36),
+                                  foregroundColor: KineticNoirPalette.primary,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedPlanId = null;
+                                    _selectedExerciseId = null;
+                                    _expandedGroupKeys.clear();
+                                    _initializedGroups = false;
+                                  });
+                                },
+                                child: Text(
+                                  'CLEAR FILTERS',
+                                  style: KineticNoirTypography.body(
+                                    size: 11,
+                                    weight: FontWeight.w800,
+                                    color: KineticNoirPalette.primary,
+                                    letterSpacing: 1.0,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _rangeLabel(data.range),
+                          style: KineticNoirTypography.body(
+                            size: 13,
+                            weight: FontWeight.w600,
+                            color: KineticNoirPalette.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                     ),
                   ),
                 ),
-              ] else
-                const SliverPadding(
-                  padding: EdgeInsets.fromLTRB(24, 0, 24, 120),
-                  sliver: SliverToBoxAdapter(
-                    child: _EmptyState(),
+                if (data.hasSessions) ...[
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    sliver: SliverToBoxAdapter(
+                      child: KineticEntrance(child: _OverviewGrid(data: data)),
+                    ),
                   ),
-                ),
-            ],
-          ),
-        ),
+                  const SliverPadding(
+                    padding: EdgeInsets.only(top: 18),
+                    sliver: SliverToBoxAdapter(child: SizedBox.shrink()),
+                  ),
+                  if (isGrouped)
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final group = data.groups[index];
+                            final isExpanded =
+                                _expandedGroupKeys.contains(group.key);
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                bottom:
+                                    index == data.groups.length - 1 ? 0 : 14,
+                              ),
+                              child: _HistoryGroupSection(
+                                group: group,
+                                isExpanded: isExpanded,
+                                onToggle: () => _toggleGroup(group.key),
+                                onSelectSession: _openSessionDetail,
+                              ),
+                            );
+                          },
+                          childCount: data.groups.length,
+                        ),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final session = data.sessions[index];
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                bottom:
+                                    index == data.sessions.length - 1 ? 0 : 14,
+                              ),
+                              child: _HistorySessionCard(
+                                session: session,
+                                onTap: () => _openSessionDetail(session),
+                              ),
+                            );
+                          },
+                          childCount: data.sessions.length,
+                        ),
+                      ),
+                    ),
+                ] else
+                  const SliverPadding(
+                    padding: EdgeInsets.fromLTRB(24, 0, 24, 120),
+                    sliver: SliverToBoxAdapter(
+                      child: _EmptyState(),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -190,6 +308,7 @@ class _PeriodSelector extends StatelessWidget {
           for (final period in HistoryPeriod.values)
             Expanded(
               child: _FilterChipButton(
+                key: Key('history-period-${period.name}'),
                 label: period.label,
                 selected: selected == period,
                 onTap: () => onChanged(period),
@@ -214,33 +333,108 @@ class _PlanFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _PillButton(
-            label: 'All',
-            selected: selectedPlanId == null,
-            onTap: () => onChanged(null),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'ROUTINE',
+          style: KineticNoirTypography.body(
+            size: 10,
+            weight: FontWeight.w800,
+            color: KineticNoirPalette.onSurfaceVariant,
+            letterSpacing: 1.4,
           ),
-          const SizedBox(width: 8),
-          for (final option in options) ...[
-            _PillButton(
-              label: option.name,
-              selected: selectedPlanId == option.planId,
-              onTap: () => onChanged(option.planId),
-            ),
-            const SizedBox(width: 8),
-          ],
-        ],
-      ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 48,
+          child: ListView(
+            key: const Key('history-plan-filter-list'),
+            scrollDirection: Axis.horizontal,
+            children: [
+              _PillButton(
+                key: const Key('history-plan-filter-all'),
+                label: 'All Routines',
+                selected: selectedPlanId == null,
+                onTap: () => onChanged(null),
+              ),
+              const SizedBox(width: 8),
+              for (final option in options) ...[
+                _PillButton(
+                  key: Key('history-plan-filter-${option.planId}'),
+                  label: option.name,
+                  selected: selectedPlanId == option.planId,
+                  onTap: () => onChanged(option.planId),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExerciseFilter extends StatelessWidget {
+  const _ExerciseFilter({
+    required this.options,
+    required this.selectedExerciseId,
+    required this.onChanged,
+  });
+
+  final List<HistoryExerciseOption> options;
+  final int? selectedExerciseId;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'EXERCISE',
+          style: KineticNoirTypography.body(
+            size: 10,
+            weight: FontWeight.w800,
+            color: KineticNoirPalette.onSurfaceVariant,
+            letterSpacing: 1.4,
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 48,
+          child: ListView(
+            key: const Key('history-exercise-filter-list'),
+            scrollDirection: Axis.horizontal,
+            children: [
+              _PillButton(
+                key: const Key('history-exercise-filter-all'),
+                label: 'All Exercises',
+                selected: selectedExerciseId == null,
+                onTap: () => onChanged(null),
+              ),
+              const SizedBox(width: 8),
+              for (final option in options) ...[
+                _PillButton(
+                  key: Key('history-exercise-filter-${option.exerciseId}'),
+                  label: option.name,
+                  selected: selectedExerciseId == option.exerciseId,
+                  onTap: () => onChanged(option.exerciseId),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _FilterChipButton extends StatelessWidget {
   const _FilterChipButton({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,
@@ -259,6 +453,8 @@ class _FilterChipButton extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
+          constraints: const BoxConstraints(minHeight: 44),
+          alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: selected
@@ -286,6 +482,7 @@ class _FilterChipButton extends StatelessWidget {
 
 class _PillButton extends StatelessWidget {
   const _PillButton({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,
@@ -424,35 +621,167 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+class _HistoryGroupSection extends StatelessWidget {
+  const _HistoryGroupSection({
+    required this.group,
+    required this.isExpanded,
+    required this.onToggle,
+    required this.onSelectSession,
+  });
+
+  final HistorySessionGroup group;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final ValueChanged<HistorySessionSummary> onSelectSession;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: Key('history-group-${group.key}'),
+      decoration: BoxDecoration(
+        color: KineticNoirPalette.surfaceLow,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.14),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: Key('history-group-toggle-${group.key}'),
+              borderRadius: BorderRadius.circular(22),
+              onTap: onToggle,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            group.title,
+                            style: KineticNoirTypography.headline(
+                              size: 17,
+                              weight: FontWeight.w700,
+                              color: KineticNoirPalette.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            group.subtitle,
+                            style: KineticNoirTypography.body(
+                              size: 12,
+                              weight: FontWeight.w600,
+                              color: KineticNoirPalette.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            KineticNoirPalette.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${group.sessionCount}',
+                        style: KineticNoirTypography.body(
+                          size: 11,
+                          weight: FontWeight.w800,
+                          color: KineticNoirPalette.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    AnimatedRotation(
+                      turns: isExpanded ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeInOutCubic,
+                      child: const Icon(
+                        Icons.expand_more_rounded,
+                        color: KineticNoirPalette.onSurfaceVariant,
+                        size: 24,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (isExpanded) ...[
+            Divider(
+              height: 1,
+              thickness: 1,
+              color:
+                  KineticNoirPalette.outlineVariant.withValues(alpha: 0.10),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              child: Column(
+                children: [
+                  for (int i = 0; i < group.sessions.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 10),
+                    _HistorySessionCard(
+                      session: group.sessions[i],
+                      onTap: () => onSelectSession(group.sessions[i]),
+                      isNested: true,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _HistorySessionCard extends StatelessWidget {
   const _HistorySessionCard({
     required this.session,
     required this.onTap,
+    this.isNested = false,
   });
 
   final HistorySessionSummary session;
   final VoidCallback onTap;
+  final bool isNested;
 
   @override
   Widget build(BuildContext context) {
+    final bgColor = isNested
+        ? KineticNoirPalette.surface
+        : KineticNoirPalette.surfaceLow;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         key: Key('history-session-${session.planId}-${_keyDate(session.date)}'),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Ink(
           decoration: BoxDecoration(
-            color: KineticNoirPalette.surfaceLow,
-            borderRadius: BorderRadius.circular(22),
+            color: bgColor,
+            borderRadius: BorderRadius.circular(20),
             border: Border(
               left: BorderSide(
-                color: KineticNoirPalette.primary.withValues(alpha: 0.45),
-                width: 3,
+                color: KineticNoirPalette.primary.withValues(alpha: 0.55),
+                width: 3.5,
               ),
             ),
           ),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -460,7 +789,7 @@ class _HistorySessionCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      DateFormat('EEE, MMM d').format(session.date),
+                      DateFormat('EEE, MMM d').format(session.date).toUpperCase(),
                       style: KineticNoirTypography.body(
                         size: 11,
                         weight: FontWeight.w800,
@@ -469,47 +798,59 @@ class _HistorySessionCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (session.durationMinutes > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Text(
+                        '${session.durationMinutes} min',
+                        style: KineticNoirTypography.body(
+                          size: 12,
+                          weight: FontWeight.w700,
+                          color: KineticNoirPalette.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
                   const Icon(
                     Icons.chevron_right_rounded,
                     color: KineticNoirPalette.onSurfaceVariant,
+                    size: 20,
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 session.planName,
                 style: KineticNoirTypography.headline(
-                  size: 20,
+                  size: 19,
                   weight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
                   _MetaPill(label: '${session.totalSets} sets'),
                   _MetaPill(
-                      label: '${_formatCompactKg(session.totalVolumeKg)} kg'),
-                  if (session.durationMinutes > 0)
-                    _MetaPill(label: '${session.durationMinutes} min'),
+                    label: '${_formatCompactKg(session.totalVolumeKg)} kg',
+                  ),
                   if (session.energy.isNotEmpty)
-                    _MetaPill(label: 'Energy ${session.energy}/10'),
+                    _MetaPill(label: '⚡ ${session.energy}/10'),
                   if (session.mood.isNotEmpty)
-                    _MetaPill(label: 'Mood ${session.mood}/5'),
+                    _MetaPill(label: '😊 ${session.mood}/5'),
                 ],
               ),
               if (session.notes.trim().isNotEmpty) ...[
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Text(
                   session.notes.trim(),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: KineticNoirTypography.body(
-                    size: 13,
+                    size: 12,
                     weight: FontWeight.w600,
                     color: KineticNoirPalette.onSurfaceVariant,
-                    height: 1.45,
+                    height: 1.4,
                   ),
                 ),
               ],
@@ -529,7 +870,7 @@ class _MetaPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: KineticNoirPalette.surfaceBright.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(999),

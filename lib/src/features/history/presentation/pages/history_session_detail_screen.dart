@@ -269,6 +269,7 @@ class _ExerciseReviewCard extends StatelessWidget {
                 foregroundColor: KineticNoirPalette.primary,
                 backgroundColor:
                     KineticNoirPalette.primary.withValues(alpha: 0.08),
+                minimumSize: const Size(48, 48),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 10,
