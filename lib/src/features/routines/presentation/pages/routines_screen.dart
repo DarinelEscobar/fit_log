@@ -75,10 +75,11 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
                   sliver: SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _TopBar(onOpenManage: _openManageSheet),
+                    child: KineticEntrance(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _TopBar(onOpenManage: _openManageSheet),
                         const SizedBox(height: 16),
                         Text(
                           'My Routines',
@@ -99,16 +100,20 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                         const SizedBox(height: 22),
                         Row(
                           children: [
-                            Text(
-                              'ACTIVE ROUTINES',
-                              style: KineticNoirTypography.body(
-                                size: 12,
-                                weight: FontWeight.w800,
-                                color: KineticNoirPalette.onSurfaceVariant,
-                                letterSpacing: 2.2,
+                            Expanded(
+                              child: Text(
+                                'ACTIVE ROUTINES',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: KineticNoirTypography.body(
+                                  size: 12,
+                                  weight: FontWeight.w800,
+                                  color: KineticNoirPalette.onSurfaceVariant,
+                                  letterSpacing: 2.2,
+                                ),
                               ),
                             ),
-                            const Spacer(),
+                            const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -135,6 +140,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                       ],
                     ),
                   ),
+                ),
                 ),
                 if (activePlans.isEmpty)
                   const SliverPadding(

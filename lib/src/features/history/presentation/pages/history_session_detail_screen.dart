@@ -116,76 +116,78 @@ class _SessionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: KineticNoirPalette.surfaceLow,
-        borderRadius: BorderRadius.circular(24),
-        border: Border(
-          left: BorderSide(
-            color: KineticNoirPalette.primary.withValues(alpha: 0.5),
-            width: 3,
+    return KineticEntrance(
+      child: Container(
+        decoration: BoxDecoration(
+          color: KineticNoirPalette.surfaceLow,
+          borderRadius: BorderRadius.circular(24),
+          border: Border(
+            left: BorderSide(
+              color: KineticNoirPalette.primary.withValues(alpha: 0.5),
+              width: 3,
+            ),
           ),
         ),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            DateFormat('EEEE, MMM d, yyyy').format(session.date).toUpperCase(),
-            style: KineticNoirTypography.body(
-              size: 11,
-              weight: FontWeight.w800,
-              color: KineticNoirPalette.primary,
-              letterSpacing: 1.4,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            session.planName,
-            style: KineticNoirTypography.headline(
-              size: 34,
-              weight: FontWeight.w700,
-              height: 0.95,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _MetaPill(label: '${session.totalSets} sets'),
-              _MetaPill(label: '${session.totalReps} reps'),
-              _MetaPill(label: '${_formatKg(session.totalVolumeKg)} kg'),
-              if (session.durationMinutes > 0)
-                _MetaPill(label: '${session.durationMinutes} min'),
-              if (session.energy.isNotEmpty)
-                _MetaPill(label: 'Energy ${session.energy}/10'),
-              if (session.mood.isNotEmpty)
-                _MetaPill(label: 'Mood ${session.mood}/5'),
-            ],
-          ),
-          if (session.notes.trim().isNotEmpty) ...[
-            const SizedBox(height: 18),
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: KineticNoirPalette.surface,
-                borderRadius: BorderRadius.circular(18),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              DateFormat('EEEE, MMM d, yyyy').format(session.date).toUpperCase(),
+              style: KineticNoirTypography.body(
+                size: 11,
+                weight: FontWeight.w800,
+                color: KineticNoirPalette.primary,
+                letterSpacing: 1.4,
               ),
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                session.notes.trim(),
-                style: KineticNoirTypography.body(
-                  size: 14,
-                  weight: FontWeight.w600,
-                  color: KineticNoirPalette.onSurfaceVariant,
-                  height: 1.5,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              session.planName,
+              style: KineticNoirTypography.headline(
+                size: 26,
+                weight: FontWeight.w700,
+                height: 1.15,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _MetaPill(label: '${session.totalSets} sets'),
+                _MetaPill(label: '${session.totalReps} reps'),
+                _MetaPill(label: '${_formatKg(session.totalVolumeKg)} kg'),
+                if (session.durationMinutes > 0)
+                  _MetaPill(label: '${session.durationMinutes} min'),
+                if (session.energy.isNotEmpty)
+                  _MetaPill(label: 'Energy ${session.energy}/10'),
+                if (session.mood.isNotEmpty)
+                  _MetaPill(label: 'Mood ${session.mood}/5'),
+              ],
+            ),
+            if (session.notes.trim().isNotEmpty) ...[
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: KineticNoirPalette.surface,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  session.notes.trim(),
+                  style: KineticNoirTypography.body(
+                    size: 14,
+                    weight: FontWeight.w600,
+                    color: KineticNoirPalette.onSurfaceVariant,
+                    height: 1.5,
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

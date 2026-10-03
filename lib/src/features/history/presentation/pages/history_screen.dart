@@ -115,7 +115,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   sliver: SliverToBoxAdapter(
-                    child: _OverviewGrid(data: data),
+                    child: KineticEntrance(child: _OverviewGrid(data: data)),
                   ),
                 ),
                 const SliverPadding(

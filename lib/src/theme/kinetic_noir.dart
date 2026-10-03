@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -97,3 +98,95 @@ BoxDecoration get kineticFloatingNavDecoration => BoxDecoration(
         ),
       ],
     );
+
+
+/// Discrete, one-time screen or section entrance respecting reduced motion.
+/// Does not replay on parent widget rebuilds or periodic timer updates.
+class KineticEntrance extends StatefulWidget {
+  const KineticEntrance({
+    required this.child,
+    this.delayMs = 0,
+    this.durationMs = KineticMotion.revealMs,
+    this.offset = const Offset(0, 0.04),
+    super.key,
+  });
+
+  final Widget child;
+  final int delayMs;
+  final int durationMs;
+  final Offset offset;
+
+  @override
+  State<KineticEntrance> createState() => _KineticEntranceState();
+}
+
+class _KineticEntranceState extends State<KineticEntrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<Offset> _slideAnimation;
+  Timer? _delayTimer;
+  bool _started = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: widget.durationMs),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: KineticMotion.enterCurve,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: widget.offset,
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: KineticMotion.enterCurve,
+      ),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.value = 1.0;
+    } else if (widget.delayMs > 0) {
+      _delayTimer = Timer(Duration(milliseconds: widget.delayMs), () {
+        if (mounted) {
+          _controller.forward();
+        }
+      });
+    } else {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _delayTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) {
+      return widget.child;
+    }
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: widget.child,
+      ),
+    );
+  }
+}

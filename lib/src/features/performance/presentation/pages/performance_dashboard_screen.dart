@@ -182,7 +182,9 @@ class _PerformanceDashboardScreenState
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       sliver: SliverToBoxAdapter(
-                        child: _PerformanceHero(summary: summary),
+                        child: KineticEntrance(
+                          child: _PerformanceHero(summary: summary),
+                        ),
                       ),
                     ),
                     const SliverPadding(
