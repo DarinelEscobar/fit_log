@@ -139,7 +139,7 @@ Use fictional QA data only via `lib/main_demo.dart`; ship `lib/main.dart`.
 
 ---
 
-## Release 1.1.6+8 Candidate — Current Screens and Reliability Corrections
+## Release 1.1.6+8 Candidate (Superseded) — Current Screens and Reliability Corrections
 
 ### Delivered experience
 - Active workout prioritizes the current exercise, prescribed reps, RIR, tempo, and set count; one set is expanded at a time while completed and upcoming sets remain compact.
@@ -160,8 +160,19 @@ Use fictional QA data only via `lib/main_demo.dart`; ship `lib/main.dart`.
 - `flutter build apk --release --no-pub -t lib/main.dart`: passed. APK: `build/app/outputs/flutter-apk/app-release.apk`, **65,353,178 bytes**, SHA-256 `BD22E5A772036B13F0D998FBDA990D6BCCF5BF4F2DD48D7272DCCA0E372A92A3`.
 - APK verification: package `com.yourcompany.fit_log`, version `1.1.6`, version code `8`, release/non-debuggable, no `INTERNET` permission, no bundled `.db`, `.sqlite`, `.xlsx` or `.xls` files. APK Signature Scheme v2 verified with the established signing certificate SHA-256 `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`.
 - In-place upgrade: installed the signed `1.1.5+7` APK (SHA-256 `4EAEEA2C5282A677A535CD7F7B84D08E11B658160B10BEB5FD9980421C99EC1A`) on the isolated API 34 emulator, created a synthetic `Upgrade QA` routine, then used `adb install -r` with `1.1.6+8`. Android reported `Success`; cold launch retained the routine and reported version code 8. No uninstall or app-data clear was used.
-- GitHub Actions run and public GitHub APK release asset: pending M2 publication.
+- Publication attempt: GitHub Actions run [37221689409](https://github.com/DarinelEscobar/fit_log/actions/runs/37221689409) for tag `v1.1.6` failed during tests before signing, build, or upload. It reported 138 passing and 8 failing `DataScreen` tests because the test-only asset mock checked a Windows Flutter SDK font path that does not exist on the Ubuntu runner; the app's tracked fonts were present. No `1.1.6` APK was published. The tag is retained and is not rewritten.
 - Zero SQLite / user data files bundled in assets (verified via `aapt list`).
+
+## Release 1.1.7+9 Candidate — Cross-Platform Release Test Fix
+
+- `v1.1.6+8` was already tagged and its workflow failed before artifact creation. The follow-up patch uses the next version code and tag (`1.1.7+9`, `v1.1.7`) rather than changing a published tag.
+- `test/data_screen_unified_flow_test.dart` now serves Google Fonts test assets from tracked `assets/fonts/` files, without relying on an operating-system-specific Flutter SDK path.
+- Focused validation: `flutter test test/data_screen_unified_flow_test.dart` passed all 8 tests.
+- Full validation: `flutter test` passed all 146 tests. `flutter analyze --no-pub --no-fatal-infos` exited 0 with the 12 existing informational findings and no errors or warnings.
+- Release build: `flutter build apk --release --no-pub -t lib/main.dart` passed. Local APK: `build/app/outputs/flutter-apk/app-release.apk`, 65,353,182 bytes, SHA-256 `A3860051FB228CA5F3C01494039EF9F84C73DF05F5C72D0089EFB06E5F085CEA`.
+- APK inspection: package `com.yourcompany.fit_log`, version `1.1.7`, version code `9`, no `INTERNET` permission, no debuggable flag, and no bundled database or spreadsheet entries. APK signature verified using the established certificate SHA-256 `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`.
+- In-place upgrade: installed `1.1.7+9` over `1.1.6+8` on isolated `emulator-5554` using `adb install -r`; Android reported `Success`, and the existing synthetic `Upgrade QA` routine remained visible after launch. No uninstall or app-data clear was used.
+- GitHub workflow publication: pending the new `v1.1.7` tag and Actions run.
 
 ### 5. Visual QA & Interactive Review Catalog (`emulator-5554`, Profile Mode)
 Artifacts captured in `build/redesign-review/performance/`:

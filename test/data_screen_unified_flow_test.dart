@@ -130,16 +130,24 @@ void main() {
   setUpAll(() {
     GoogleFonts.config.allowRuntimeFetching = false;
     google_fonts_base.assetManifest = _TestAssetManifest();
-    final fontFile = File(
-      r'C:\src\flutter\bin\cache\artifacts\material_fonts\roboto-bold.ttf',
-    );
-    if (fontFile.existsSync()) {
-      final fontBytes = fontFile.readAsBytesSync();
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMessageHandler('flutter/assets', (ByteData? message) async {
-        return ByteData.view(fontBytes.buffer);
-      });
-    }
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMessageHandler('flutter/assets', (ByteData? message) async {
+      final assetKey = const StringCodec().decodeMessage(message);
+      if (assetKey == null) return null;
+
+      final filePath = assetKey.startsWith('google_fonts/')
+          ? p.join('assets', 'fonts', p.basename(assetKey))
+          : assetKey;
+      final assetFile = File(filePath);
+      if (!assetFile.existsSync()) return null;
+
+      final bytes = await assetFile.readAsBytes();
+      return ByteData.view(
+        bytes.buffer,
+        bytes.offsetInBytes,
+        bytes.lengthInBytes,
+      );
+    });
   });
 
   setUp(() {

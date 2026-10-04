@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.7+9] - 2026-10-04
+
+### Fixes
+- **Release CI**: Load Google Fonts from tracked project assets in the DataScreen test fixture so the release workflow passes consistently on Linux and Windows.
+
 ## [1.1.6+8] - 2026-10-04
 
 ### Features
