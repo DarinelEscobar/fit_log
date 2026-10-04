@@ -1,4 +1,4 @@
-# Refresh FitLog documentation, integrate the redesign, and publish 1.1.8
+# Refresh FitLog documentation, integrate the redesign, and publish 1.1.9
 
 This ExecPlan is a living document. Keep `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` synchronized with reality during execution.
 
@@ -10,14 +10,14 @@ last_updated: 2026-10-04
 
 ## Purpose / Big Picture
 
-Prepare a reviewable FitLog 1.1.8 release from the committed `feat/fitlog-ui-redesign` worktree. Update README screenshots to show the current app, document the delivered UI and data-safety behavior, build and validate the update APK, integrate the release fixes into the repository's actual default branch (`origin/master`), and publish the APK through the repository's existing GitHub Release workflow. Preserve the already-published `v1.1.6` and `v1.1.7` tags: the first failed tests and the second failed Gradle startup, neither produced an APK. A reviewer must be able to install the signed APK over an older version without clearing data and download `fit_log-v1.1.8.apk` from GitHub.
+Prepare a reviewable FitLog 1.1.9 release from the committed `feat/fitlog-ui-redesign` worktree. Update README screenshots to show the current app, document the delivered UI and data-safety behavior, build and validate the update APK, integrate the release fixes into the repository's actual default branch (`origin/master`), and publish the APK through the repository's existing GitHub Release workflow. Preserve the already-published `v1.1.6`, `v1.1.7`, and `v1.1.8` tags: each workflow failed before producing an APK, for separate CI portability/toolchain reasons. A reviewer must be able to install the signed APK over an older version without clearing data and download `fit_log-v1.1.9.apk` from GitHub.
 
 ## Scope
 
 - Document the implemented compact routine/session UI, History and Performance screens, unified backup flow, safe same-day session identity, non-destructive restore, and save/import protections.
 - Replace stale README screen captures using only fictional demo data in a dedicated emulator. Add current History and warm-up images and link all representative product screens in README.
-- Prepare version `1.1.8+10` and release notes, validate the release APK, integrate the feature branch into `origin/master`, and publish tag `v1.1.8` so `.github/workflows/release.yml` builds and uploads the signed APK.
-- Keep the release-test font mock portable and remove the developer-specific `org.gradle.java.home` from tracked Android Gradle configuration so Linux CI uses the JDK selected by `JAVA_HOME`.
+- Prepare version `1.1.9+11` and release notes, validate the release APK, integrate the feature branch into `origin/master`, and publish tag `v1.1.9` so `.github/workflows/release.yml` builds and uploads the signed APK.
+- Keep the release-test font mock portable, use the configured JDK, align Gradle/AGP/Kotlin with the pinned Flutter CI version, and keep the build toolchain reproducible.
 
 ## Non-goals
 
@@ -27,19 +27,19 @@ Prepare a reviewable FitLog 1.1.8 release from the committed `feat/fitlog-ui-red
 
 ## Context and Orientation
 
-- Repository/worktree: `<local path omitted>`, branch `feat/fitlog-ui-redesign`. The UI/docs history and v1.1.6 candidate are committed at `1471083`; `v1.1.7` test fix is committed at `0212bc4`. Both are on `origin/master` and have immutable tags. The build-config fix and 1.1.8 release notes are the current follow-up.
+- Repository/worktree: `<local path omitted>`, branch `feat/fitlog-ui-redesign`. The UI/docs history and release candidates through 1.1.8+10 are on `origin/master` with immutable tags. The 1.1.9 toolchain compatibility update is the current follow-up.
 - The protected local `master` checkout is two commits behind its tracking ref and has user-owned dirty files that overlap feature paths. Preserve that checkout; perform branch integration in this clean feature worktree or another clean Git checkout.
 - Current README links ten mobile screenshots under `docs/images/screens/`; eleven image files exist, including the unlinked legacy `home-dashboard.png`. The ten linked images have been refreshed from the current UI; the data-management capture shows the additive import flow. README describes the current screens and navigation.
-- The reviewed UI release was built as `1.1.6+8`; tag `v1.1.6` workflow `37221689409` failed tests before signing/build/upload. Tag `v1.1.7` workflow `37222794804` passed all 146 tests and secret checks, then failed Gradle startup because `android/gradle.properties` hard-coded a Windows JDK path. Preserve both tags/runs; the next release must use version `1.1.8+10` and tag `v1.1.8`. `docs/data-stability-review.md` records prior recovery/compatibility evidence; retain historical reports and dates.
+- The reviewed UI release was built as `1.1.6+8`; workflow `37221689409` failed tests before signing/build/upload. Workflow `37222794804` passed tests and secret checks, then failed on a Windows JDK path. Workflow `37223608770` passed tests and secret checks, then failed because Gradle 8.7 was too old for Flutter 3.47.6. Preserve all three tags/runs; the next release is `1.1.9+11` / `v1.1.9`. `docs/data-stability-review.md` records prior recovery/compatibility evidence; retain historical reports and dates.
 - `.github/workflows/release.yml` triggers on `v*` tags, runs `flutter test`, checks four Android signing secrets, builds a signed release APK, and publishes `fit_log-${GITHUB_REF_NAME}.apk` to a GitHub Release. Remote `origin` is `git@github.com:DarinelEscobar/fit_log.git`; GitHub metadata confirms `master` is the public default branch. The 1.1.6 candidate is already fast-forwarded to `origin/master`; its tag workflow failed before signing/build/upload. `gh` CLI is absent from PATH.
-- The `v1.1.6` tag points to `1471083`; the `v1.1.7` tag points to `0212bc4`. Their workflows failed before uploading an APK. Check that `v1.1.8` remains unused before publication.
+- Tags `v1.1.6`, `v1.1.7`, and `v1.1.8` point to their preserved release commits; their workflows failed before uploading an APK. Check that `v1.1.9` remains unused before publication.
 - `lib/main_demo.dart` seeds fictional workout data only into an empty store and then delegates to `lib/main.dart`. Use a new, dedicated QA emulator/storage location for captures. The normal release entrypoint is `lib/main.dart` and must not ship seeded training data.
 - Existing canonical docs are `README.md`, `CHANGELOG.md`, `docs/ui-polish-review.md`, and `docs/data-stability-review.md`. Repository inspection found no canonical ERD; this release does not change the schema or data model, so no ERD is needed.
 
 ## Interfaces and Contracts
 
-- Keep Android package ID `com.yourcompany.fit_log`; set Flutter package version to `1.1.8+10` (version name 1.1.8, code 10) so installation updates earlier versions in place.
-- Preserve the release workflow contract: tag `v1.1.8` starts `.github/workflows/release.yml`, which runs the full Flutter suite and publishes `fit_log-v1.1.8.apk` after a successful signed build.
+- Keep Android package ID `com.yourcompany.fit_log`; set Flutter package version to `1.1.9+11` (version name 1.1.9, code 11) so installation updates earlier versions in place.
+- Preserve the release workflow contract: tag `v1.1.9` starts `.github/workflows/release.yml`, which runs the full Flutter suite and publishes `fit_log-v1.1.9.apk` after a successful signed build. Pin Flutter 3.47.6 and use Gradle 8.14.5, AGP 8.11.1, and Kotlin Gradle Plugin 2.2.21.
 - Keep screenshots inside `docs/images/screens/` and link them by repository-relative Markdown paths from README. Screens show the real app UI populated only with the synthetic fixture from `main_demo.dart`; do not expose unredacted user data.
 - Preserve earlier release records and the existing backup compatibility statements; current 1.1.5 behavior is detailed in `docs/data-stability-review.md`.
 
@@ -104,7 +104,7 @@ Update `README.md` and the image artifacts under `docs/images/screens/`. Reuse t
 
 Mark M0 complete only after the images have been captured from the current app, visually checked, every README image link resolves and decodes, and `git diff --check` passes. Record the exact image paths and which views were observed.
 
-### M1 - Prepare and validate FitLog 1.1.8+10
+### M1 - Prepare and validate FitLog 1.1.9+11
 
 ```yaml
 id: M1
@@ -114,6 +114,9 @@ parallelizable: false
 owned_paths:
   - pubspec.yaml
   - android/gradle.properties
+  - android/settings.gradle
+  - android/gradle/wrapper/gradle-wrapper.properties
+  - .github/workflows/release.yml
   - CHANGELOG.md
   - docs/ui-polish-review.md
   - test/data_screen_unified_flow_test.dart
@@ -123,12 +126,12 @@ runtime_resources:
 
 #### Implementation
 
-Set `pubspec.yaml` to `1.1.8+10`. Keep the 1.1.6 and 1.1.7 failed publication attempts accurately documented; add the 1.1.8 release notes. Retain the portable test fixture that serves fonts from tracked `assets/fonts/`. Remove the `org.gradle.java.home` property from tracked `android/gradle.properties` so each environment uses its configured JDK; do not add a replacement machine path. Build the signed normal release from `lib/main.dart`.
+Set `pubspec.yaml` to `1.1.9+11`. Keep failed publication attempts for 1.1.6, 1.1.7, and 1.1.8 accurately documented; add the 1.1.9 release notes. Retain the portable test fixture that serves fonts from tracked `assets/fonts/`. Remove the `org.gradle.java.home` property from tracked `android/gradle.properties` so each environment uses its configured JDK; do not add a replacement machine path. Pin GitHub Actions to Flutter 3.47.6, set the Gradle wrapper to 8.14.5, AGP to 8.11.1, and Kotlin Gradle Plugin to 2.2.21. Build the signed normal release from `lib/main.dart`.
 
 #### Tests
 
 - Run the focused failing-flow test and the same complete Flutter test command that the existing release workflow will run.
-- Verify a clean release APK can update the existing 1.1.7 app without uninstalling; inspect its package, version name/code, release signature, and assets for embedded workout data. Earlier local QA already verified both preceding in-place transitions.
+- Verify a clean release APK can update the existing 1.1.8 app without uninstalling; inspect its package, version name/code, release signature, and assets for embedded workout data. Earlier local QA verified the 1.1.7 to 1.1.8 in-place transition.
 - Launch the release APK in the clean demo QA emulator and confirm the principal screenshot views render after the version bump.
 
 #### Local validation
@@ -141,22 +144,22 @@ flutter build apk --release --no-pub -t lib/main.dart
 git diff --check
 ```
 
-The portable fixture's focused tests and full workflow test suite must pass. Gradle must use the environment's configured JDK without the hard-coded Windows path. Static analysis may report the twelve pre-existing informational findings recorded for untouched files in `docs/data-stability-review.md`; it must report no new warnings or errors. Verify package `com.yourcompany.fit_log`, version `1.1.8`, version code `10`, non-debuggable release and the established certificate. Keep the keystore and `android/key.properties` private and unstaged.
+The portable fixture's focused tests and full workflow test suite must pass. Gradle must use the environment's configured JDK without the hard-coded Windows path, and the pinned toolchain must build on CI. Static analysis may report the twelve pre-existing informational findings recorded for untouched files in `docs/data-stability-review.md`; it must report no new warnings or errors. Verify package `com.yourcompany.fit_log`, version `1.1.9`, version code `11`, non-debuggable release and the established certificate. Keep the keystore and `android/key.properties` private and unstaged.
 
 #### Documentation
 
-Update `CHANGELOG.md` and append the 1.1.8 candidate/validation record to `docs/ui-polish-review.md`, including both prior workflow failures and their fixes. README and screenshots are delivered by M0. `docs/data-stability-review.md` remains the canonical detail for backup/data guarantees. No schema/ERD update applies.
+Update `CHANGELOG.md` and append the 1.1.9 candidate/validation record to `docs/ui-polish-review.md`, including the three prior workflow failures and the compatible toolchain. README and screenshots are delivered by M0. `docs/data-stability-review.md` remains the canonical detail for backup/data guarantees. No schema/ERD update applies.
 
 #### Acceptance criteria
 
-- Version name/code are 1.1.8/10; the package ID and signing certificate preserve update compatibility.
+- Version name/code are 1.1.9/11; the package ID and signing certificate preserve update compatibility.
 - The focused tests and full `flutter test` pass; analysis and normal signed release build pass; release contains no seeded workout database or spreadsheet data.
-- An in-place install over 1.1.7 retains the synthetic QA routine and the updated app opens to its routines screen.
+- An in-place install over 1.1.8 retains the synthetic QA routine and the updated app opens to its routines screen.
 - Changelog accurately summarizes shipped features and limitations; UI review report records verifiable build/test evidence without rewriting prior reports.
 
 #### Completion gate
 
-Mark M1 complete only after every listed command succeeds, Gradle builds with the configured JDK, the APK identity/signature/embedded-data checks are observed, an in-place 1.1.7 update and the updated routines screen are confirmed in the isolated emulator, and changed docs accurately match the built candidate. Record APK SHA-256 and local artifact path.
+Mark M1 complete only after every listed command succeeds, Gradle builds with the configured JDK, the APK identity/signature/embedded-data checks are observed, an in-place 1.1.8 update and the updated routines screen are confirmed in the isolated emulator, and changed docs accurately match the built candidate. Record APK SHA-256 and local artifact path.
 
 ### M2 - Integrate the candidate and publish the GitHub APK
 
@@ -167,7 +170,7 @@ depends_on: [M1]
 parallelizable: false
 owned_paths:
   - Git ref refs/heads/master
-  - Git ref refs/tags/v1.1.8
+  - Git ref refs/tags/v1.1.9
   - GitHub Actions release workflow and release asset
 runtime_resources:
   - origin Git repository and authenticated GitHub Release workflow; no local user data or untracked signing secrets
@@ -175,15 +178,15 @@ runtime_resources:
 
 #### Implementation
 
-Fetch `origin` immediately before publication and verify its default branch remains `master`, `origin/master` is an ancestor of the release candidate, tag `v1.1.8` is unused, and the protected primary checkout is still left alone. The feature history and both previous candidates are already on `origin/master`; commit the Gradle portability fix and release notes using exact task paths and fast-forward `origin/master`. Preserve `v1.1.6` and `v1.1.7` and their failed workflows; push annotated tag `v1.1.8` at the exact validated release commit to activate `.github/workflows/release.yml`. Follow the existing workflow; do not rotate secrets or create a parallel release mechanism.
+Fetch `origin` immediately before publication and verify its default branch remains `master`, `origin/master` is an ancestor of the release candidate, tag `v1.1.9` is unused, and the protected primary checkout is still left alone. The feature history and previous candidates are already on `origin/master`; commit the compatible toolchain and release notes using exact task paths and fast-forward `origin/master`. Preserve tags `v1.1.6`, `v1.1.7`, and `v1.1.8` and their failed workflows; push annotated tag `v1.1.9` at the exact validated release commit to activate `.github/workflows/release.yml`. Follow the existing workflow; do not rotate secrets or create a parallel release mechanism.
 
 If master branch protection rejects the direct fast-forward, publish the reviewed feature branch and use the repository's normal PR merge path. The request explicitly authorizes integrating the worktree into the default branch and launching the release; use that authorization for the PR merge after required checks pass.
 
 #### Tests
 
 - Confirm the remote commit on `master` contains the validated docs, screenshots, release code/version, and feature history.
-- Confirm GitHub Actions ran the `Release APK` workflow for `v1.1.8`, all tests, signing, and build passed, and release asset `fit_log-v1.1.8.apk` is publicly listed and downloadable.
-- Check the GitHub release APK reports version 1.1.8+10, the expected package ID, and the established certificate; record its SHA-256.
+- Confirm GitHub Actions ran the `Release APK` workflow for `v1.1.9`, all tests, signing, and build passed, and release asset `fit_log-v1.1.9.apk` is publicly listed and downloadable.
+- Check the GitHub release APK reports version 1.1.9+11, the expected package ID, and the established certificate; record its SHA-256.
 
 #### Local validation
 
@@ -191,19 +194,19 @@ If master branch protection rejects the direct fast-forward, publish the reviewe
 git status --short --branch
 git fetch origin
 git merge-base --is-ancestor origin/master HEAD
-git ls-remote --tags --refs origin refs/tags/v1.1.8
+git ls-remote --tags --refs origin refs/tags/v1.1.9
 ```
 
-Before pushing, confirm the primary checkout's original user changes remain untouched and run the release suite/build again if the integrated tree differs from M1's tested commit. After publication verify `origin/master` and `v1.1.8` point to the intended commits and inspect the completed workflow and release. Never force-push. A workflow secret or remote policy failure is not success; diagnose it and record a concrete blocker if owner action is genuinely required.
+Before pushing, confirm the primary checkout's original user changes remain untouched and run the release suite/build again if the integrated tree differs from M1's tested commit. After publication verify `origin/master` and `v1.1.9` point to the intended commits and inspect the completed workflow and release. Never force-push. A workflow secret or remote policy failure is not success; diagnose it and record a concrete blocker if owner action is genuinely required.
 
 #### Documentation
 
-Finalize release artifact SHA-256, GitHub release URL, workflow result, screenshot inventory, and delivery outcome in the 1.1.8 section of `docs/ui-polish-review.md`; make README screenshots reflect those captured screens. Finish the ExecPlan with changed paths and release evidence. Reuse the existing CHANGELOG, UI release report, README and data-stability report. No ERD applies.
+Finalize release artifact SHA-256, GitHub release URL, workflow result, screenshot inventory, and delivery outcome in the 1.1.9 section of `docs/ui-polish-review.md`; make README screenshots reflect those captured screens. Finish the ExecPlan with changed paths and release evidence. Reuse the existing CHANGELOG, UI release report, README and data-stability report. No ERD applies.
 
 #### Acceptance criteria
 
 - All reviewed feature commits are integrated into `origin/master` without force-push, unreviewed changes, or modifying the protected primary checkout's user files.
-- The `v1.1.8` GitHub Release exists and contains the workflow-built, correctly signed `fit_log-v1.1.8.apk`.
+- The `v1.1.9` GitHub Release exists and contains the workflow-built, correctly signed `fit_log-v1.1.9.apk`.
 - Documentation and README show the released version, the implemented features and real app screenshots; reported artifact hashes correspond to verified files.
 
 #### Completion gate
@@ -212,18 +215,21 @@ Mark M2 complete only after the default branch contains the validated candidate 
 
 ## Integrated Validation and Acceptance
 
-Run `flutter test`, `flutter analyze --no-pub --no-fatal-infos`, `flutter build apk --release --no-pub -t lib/main.dart`, and `git diff --check` on the final integrated candidate. Inspect every README screenshot link and representative screen capture. Confirm same-signature in-place installation, no embedded user/demo datasets in the normal release APK, branch ancestry, successful v1.1.8 tag workflow, published GitHub release and APK identity. Confirm the remote default branch and feature commits are fully integrated and the protected primary checkout has its original user changes unchanged.
+Run `flutter test`, `flutter analyze --no-pub --no-fatal-infos`, `flutter build apk --release --no-pub -t lib/main.dart`, and `git diff --check` on the final integrated candidate. Inspect every README screenshot link and representative screen capture. Confirm same-signature in-place installation, no embedded user/demo datasets in the normal release APK, branch ancestry, successful v1.1.9 tag workflow, published GitHub release and APK identity. Confirm the remote default branch and feature commits are fully integrated and the protected primary checkout has its original user changes unchanged.
 
 ## Risks, Idempotence, and Recovery
 
 - Risk: release workflow checks signing secrets only after tag push. Re-run validation and ensure the local signed APK is intact before creating the version tag; inspect workflow output. Missing owner-controlled secrets block publishing and must not be papered over with an unsigned or differently signed APK.
 - Risk: master branch protection or upstream advances before merge. Fetch and inspect new commits first; merge upstream into the feature branch and rerun affected release gates, or use the authorized PR path. Never force-update master or replace user changes in the primary checkout.
 - Risk: screenshots could disclose personal training information. Use only a fresh, isolated `main_demo.dart` store; review each capture before staging.
-- Re-run behavior: screenshot capture may be repeated in the isolated emulator; version/tag publication is not idempotent once a release tag exists. Preserve the failed v1.1.6 and v1.1.7 runs and use the unused higher v1.1.8 patch release; never rewrite an existing release tag.
+- Re-run behavior: screenshot capture may be repeated in the isolated emulator; version/tag publication is not idempotent once a release tag exists. Preserve the failed v1.1.6, v1.1.7, and v1.1.8 runs and use the unused higher v1.1.9 patch release; never rewrite an existing release tag.
 - Recovery: before publication, revert only reviewed task paths in the feature worktree. After a tag-triggered workflow starts, preserve its run and asset, diagnose in place, and correct only a higher patch/version with an unused tag if release immutability requires it.
 
 ## Progress
 
+- [2026-10-04] The `v1.1.8` workflow run `37223608770` passed all 146 tests and signing-secret checks, then failed at APK build because Flutter 3.47.6 requires Gradle 8.14 or newer while the wrapper was 8.7. No APK was uploaded. M1 reopened for the compatible Android toolchain and the monotonic `1.1.9+11` release.
+- [2026-10-04] Updated the candidate to Flutter 3.47.6, Gradle 8.14.5, AGP 8.11.1, Kotlin Gradle Plugin 2.2.21, and version 1.1.9+11. Compatibility checked against official Android, Kotlin, and flutter-action documentation; local tests, analysis, build, and update install remain pending.
+- [2026-10-04] M1 completed: `flutter pub get`, full `flutter test` (146/146), analysis (12 pre-existing infos only), and signed release build passed locally on Flutter 3.38.9. The APK is 65,338,917 bytes with SHA-256 `4D48001C0604F268E642E9EC7C8B80A91485FEF13C87A46C8026E5A4B937E892`; identity, permissions, signature, and absence of bundled data were verified. `adb install -r` updated 1.1.8 to version code 11 on `emulator-5554` and retained `Upgrade QA`. M2 is now in progress for remote integration and publishing `v1.1.9`.
 - [2026-10-04 17:07Z] ExecPlan created from repository inspection. Explicit authorization to execute, commit task changes, integrate the worktree into the default branch, and launch the GitHub APK was given in the user request.
 - [2026-10-04 17:12Z] M0 started after validating all three pending milestones, their dependency graph, clean feature worktree, protected dirty-checkout baseline, and local non-mutating push checks. First action: capture the current app using fresh synthetic demo data.
 - [2026-10-04 17:27Z] M0 completed: refreshed all eight README-linked legacy captures and added current History and warm-up captures. Reviewed the screenshots visually; ten README image links resolve and all eleven PNGs decode at full size; `git diff --check` passed. Started M1 version and release validation.
@@ -232,7 +238,7 @@ Run `flutter test`, `flutter analyze --no-pub --no-fatal-infos`, `flutter build 
 - [2026-10-04] The first tag workflow finished with 138 passing and 8 failing tests; all failures were `DataScreen` font asset lookups caused by a Windows-only Flutter SDK path in the test fixture. The release had not reached signing/build/upload. M1 was reopened for a portable fixture fix and new patch version.
 - [2026-10-04] Replaced the platform-specific mock with project-tracked font loading. Focused DataScreen tests passed 8/8; full suite passed 146/146; analysis exited 0 with 12 informational findings and no warnings/errors. Release build and in-place update validation for 1.1.7+9 remain.
 - [2026-10-04 18:04Z] The `v1.1.7` workflow passed all 146 tests and validated signing secrets, then failed at `Build release APK`: tracked `android/gradle.properties` pinned `org.gradle.java.home` to `C:\Program Files\Eclipse Adoptium\jdk-17.0.17.10-hotspot`, which is invalid on Ubuntu. No release asset was created. M1 reopened for a portable Gradle configuration and version `1.1.8+10`.
-- [2026-10-04 18:04Z] M1 completed for `1.1.8+10`: removed the hard-coded JDK path, reran dependency resolution, the focused 8/8 test, full 146/146 tests, analyzer (12 pre-existing infos, no warnings/errors), and release build. APK SHA-256 is `FCAA7D8417D3840CA5C2FCBAE2123D5743B83D0D0F368DFF7AA5170CD8814D2C`; package/version/code, v2 signature, certificate, permissions, and absence of bundled databases were checked. `adb install -r` upgraded `1.1.7+9` to code 10 while retaining the synthetic routine. M2 is open for publishing `v1.1.8` and verifying GitHub's APK.
+- [2026-10-04 18:04Z] M1 completed for `1.1.8+10`: removed the hard-coded JDK path, reran dependency resolution, the focused 8/8 test, full 146/146 tests, analyzer (12 pre-existing infos, no warnings/errors), and release build. APK SHA-256 is `FCAA7D8417D3840CA5C2FCBAE2123D5743B83D0D0F368DFF7AA5170CD8814D2C`; package/version/code, v2 signature, certificate, permissions, and absence of bundled databases were checked. `adb install -r` upgraded `1.1.7+9` to code 10 while retaining the synthetic routine. M2 was then open for publishing `v1.1.8`.
 
 ## Surprises & Discoveries
 
@@ -248,6 +254,7 @@ Run `flutter test`, `flutter analyze --no-pub --no-fatal-infos`, `flutter build 
 - Observation: workflow `37221689409` failed only eight DataScreen tests because its mock searched for `C:\src\flutter\...\roboto-bold.ttf`, absent on Ubuntu; the repository has all required font files in `assets/fonts/`. The failure preceded signing/build/upload. Evidence: job `111493144744` log and portable test fixture.
 - Observation: the 1.1.7 signed APK retains the established signer and updates 1.1.6 in place without clearing the QA routine. Evidence: `apksigner verify --print-certs`, `adb install -r` success, package manager version code 9, and the post-install routines screenshot.
 - Observation: the configured JDK path was committed in `android/gradle.properties`, so the release workflow ignored its valid JDK 17 `JAVA_HOME` and could not initialize Gradle on Ubuntu. Removing this optional override lets Gradle use the platform's configured runtime.
+- Observation: Flutter 3.47.6 requires Gradle 8.14+. AGP 8.11 requires Gradle 8.13+ and JDK 17; Kotlin Gradle Plugin 2.2.20–2.2.21 supports Gradle through 8.14 and AGP through 8.11.1. The selected Gradle 8.14.5 / AGP 8.11.1 / KGP 2.2.21 combination fits these documented ranges.
 
 ## Decision Log
 
@@ -269,10 +276,13 @@ Run `flutter test`, `flutter analyze --no-pub --no-fatal-infos`, `flutter build 
 - Decision: preserve tag `v1.1.6` and publish the test fix as `1.1.7+9` / `v1.1.7`.
   Rationale: `v1.1.6` already existed on the remote and its run failed before producing an APK; rewriting a published release tag would make history and release state ambiguous. This follow-up tag also failed before an APK was created, so preserve it too and continue to `1.1.8+10` / `v1.1.8`.
   Date: 2026-10-04
+- Decision: preserve failed tag `v1.1.8` and move the candidate to `1.1.9+11`; pin Flutter CI to 3.47.6 and align Gradle/AGP/Kotlin instead of rolling back Flutter.
+  Rationale: Flutter 3.47.6 is the observed runner toolchain, while official compatibility tables support Gradle 8.14.5, AGP 8.11.1, and Kotlin Gradle Plugin 2.2.21 together. Existing release tags are immutable and none of the prior workflows uploaded an APK.
+  Date: 2026-10-04
 
 ## Outcomes & Retrospective
 
-Feature/docs integration is on `origin/master`; workflows for tags `v1.1.6` and `v1.1.7` failed before artifact creation, for separate portability reasons now documented. The fixes and full local validation for signed `1.1.8+10` are complete, including an in-place data-preserving install. The new `v1.1.8` tag workflow and GitHub asset verification remain.
+Feature/docs integration and prior release attempts are on `origin/master`. Tag workflows `v1.1.6`, `v1.1.7`, and `v1.1.8` failed before artifact creation, for separate font-path, JDK-path, and Gradle-version reasons. Candidate `1.1.9+11` now pins and aligns the CI toolchain; local validation, integration, tag workflow, and GitHub APK verification remain.
 
 ## Revision Log
 
@@ -284,3 +294,4 @@ Feature/docs integration is on `origin/master`; workflows for tags `v1.1.6` and 
 - [2026-10-04] M1 revalidated with the `1.1.7+9` signed APK and the synthetic-data-preserving in-place upgrade. M2 now publishes the new tag to the already-up-to-date `origin/master`.
 - [2026-10-04] Revision: remote `v1.1.7` passed the test stage but failed Gradle startup due to a tracked Windows JDK path. Preserved the tag, removed the machine-specific override, and advanced the release candidate to `1.1.8+10` / `v1.1.8`.
 - [2026-10-04] M1 completed for `1.1.8+10` after local Gradle build and data-preserving in-place update verification; M2 will publish the next unused tag.
+- [2026-10-04] Revision: tag `v1.1.8` failed at Android APK build because Flutter 3.47.6 requires Gradle 8.14+; retain the tag, align the Android toolchain, pin Flutter, and reopen M1 for `1.1.9+11` / `v1.1.9`.

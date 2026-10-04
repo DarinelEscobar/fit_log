@@ -174,7 +174,7 @@ Use fictional QA data only via `lib/main_demo.dart`; ship `lib/main.dart`.
 - In-place upgrade: installed `1.1.7+9` over `1.1.6+8` on isolated `emulator-5554` using `adb install -r`; Android reported `Success`, and the existing synthetic `Upgrade QA` routine remained visible after launch. No uninstall or app-data clear was used.
 - GitHub Actions run [37222794804](https://github.com/DarinelEscobar/fit_log/actions/runs/37222794804): all 146 tests and signing-secret checks passed, but the Android release build failed because tracked `android/gradle.properties` set `org.gradle.java.home` to a Windows-only JDK path. No APK was uploaded. The existing `v1.1.7` tag is retained.
 
-## Release 1.1.8+10 Candidate — Portable Android Build Configuration
+## Release 1.1.8+10 Candidate (Superseded) — Portable Android Build Configuration
 
 - Both earlier tag attempts are preserved: `v1.1.6` failed eight DataScreen tests due to a Windows-only Flutter SDK font lookup; `v1.1.7` passed tests but failed Gradle startup due to a hard-coded Windows JDK path.
 - The release candidate removes `org.gradle.java.home` from tracked `android/gradle.properties`, allowing the CI runner's configured `JAVA_HOME` (JDK 17) to select Gradle's runtime. The DataScreen font mock continues to load tracked app assets.
@@ -182,7 +182,16 @@ Use fictional QA data only via `lib/main_demo.dart`; ship `lib/main.dart`.
 - Release build: `flutter build apk --release --no-pub -t lib/main.dart` passed after removing the JDK override. Local APK: `build/app/outputs/flutter-apk/app-release.apk`, 65,353,182 bytes, SHA-256 `FCAA7D8417D3840CA5C2FCBAE2123D5743B83D0D0F368DFF7AA5170CD8814D2C`.
 - APK inspection: package `com.yourcompany.fit_log`, version `1.1.8`, code `10`, minimum SDK 24, no `INTERNET` permission or debuggable flag, and no bundled SQLite/database or spreadsheet entries. APK Signature Scheme v2 is valid with the established certificate SHA-256 `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`.
 - In-place upgrade: installed `1.1.8+10` over `1.1.7+9` on isolated `emulator-5554` using `adb install -r`; Android reported `Success`, and the existing synthetic `Upgrade QA` routine remained on the Routines screen. No uninstall or app-data clear was used.
-- GitHub workflow publication: pending the new `v1.1.8` tag and Actions run.
+- GitHub Actions run [37223608770](https://github.com/DarinelEscobar/fit_log/actions/runs/37223608770): all 146 tests and signing-secret checks passed, but the APK build stopped because Flutter 3.47.6 requires Gradle 8.14 or newer and the project wrapper was 8.7. No APK was uploaded; the `v1.1.8` tag remains preserved.
+
+## Release 1.1.9+11 Candidate — Reproducible GitHub Android Toolchain
+
+- The release workflow pins Flutter to `3.47.6`; `android/gradle/wrapper/gradle-wrapper.properties` uses Gradle `8.14.5`, and `android/settings.gradle` uses Android Gradle Plugin `8.11.1` with Kotlin Gradle Plugin `2.2.21`. Android's compatibility table lists Gradle 8.13 as the minimum for AGP 8.11 and JDK 17; Kotlin's compatibility table supports Gradle 8.14 and AGP 8.11.1.
+- The candidate retains the prior cross-platform font fixture and removes the machine-specific JDK override, so CI uses its selected JDK 17.
+- Local validation with Flutter `3.38.9`: `flutter pub get` passed, `flutter test` passed **146/146**, and `flutter analyze --no-pub --no-fatal-infos` exited 0 with 12 existing informational findings and no warnings/errors. The signed release build completed with Gradle 8.14.5; CI is pinned to Flutter 3.47.6.
+- APK: `build/app/outputs/flutter-apk/app-release.apk`, **65,338,917 bytes**, SHA-256 `4D48001C0604F268E642E9EC7C8B80A91485FEF13C87A46C8026E5A4B937E892`. Inspection confirms package `com.yourcompany.fit_log`, version `1.1.9`, code `11`, min SDK 24, no INTERNET permission, non-debuggable release, no bundled database/spreadsheet data, and valid v2 signature with the established certificate SHA-256 `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`.
+- In-place upgrade: installed over version `1.1.8` on isolated `emulator-5554` using `adb install -r`; Android reported `Success`, and the synthetic `Upgrade QA` routine remained visible after launch. No uninstall or app-data clear was used.
+- GitHub publication for `v1.1.9`: pending the tag-triggered workflow and remote APK verification.
 
 ### 5. Visual QA & Interactive Review Catalog (`emulator-5554`, Profile Mode)
 Artifacts captured in `build/redesign-review/performance/`:

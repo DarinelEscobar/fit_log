@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.9+11] - 2026-10-04
+
+### Fixes
+- **Release CI**: Pin the GitHub build to Flutter 3.47.6 and upgrade Gradle, Android Gradle Plugin, and Kotlin Gradle Plugin to compatible versions so the signed APK workflow can build reproducibly.
+
 ## [1.1.8+10] - 2026-10-04
 
 ### Fixes
