@@ -136,6 +136,31 @@ Use fictional QA data only via `lib/main_demo.dart`; ship `lib/main.dart`.
 - Signing Scheme: APK Signature Scheme v2 (`true`)
 - Signer Certificate SHA-256: `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`
 - Signer DN: `CN=Fit Log, OU=Mobile, O=Fit Log, L=CDMX, ST=CDMX, C=MX`
+
+---
+
+## Release 1.1.6+8 Candidate — Current Screens and Reliability Corrections
+
+### Delivered experience
+- Active workout prioritizes the current exercise, prescribed reps, RIR, tempo, and set count; one set is expanded at a time while completed and upcoming sets remain compact.
+- Routine browsing/editor, warm-up preview, session review, History, Performance, exercise progress, modals, and transitions follow the existing Kinetic Noir design system.
+- History groups sessions by week with summary totals and filters. Performance and exercise progress present training volume and lift trends for their selected scope.
+- Export and share use one verified ZIP flow. Incremental, full, custom-range and spreadsheet imports validate and merge missing records while preserving current app data.
+- Same-day workout identities, changed-day export signatures, duplicate-exercise safeguards, serialized restore, and atomic workout save/retry protect workout history and current drafts.
+
+### Current screen captures
+- Source: dedicated `FitLog_Screenshots_QA_20261004` Android API 34 emulator running `lib/main_demo.dart`; fixture data is fictional and local to that emulator.
+- The README links ten current screenshots: Routines Library, History Overview, Performance Dashboard, Data Management, Exercise List, Routine Editor, Warm-up Preview, Active Workout Session, Finish Session Summary, and Exercise Progress Detail.
+- All ten linked screenshots were visually inspected at 1080×2400. README image links resolve; all eleven PNG files in `docs/images/screens/` decode. The unlinked legacy `home-dashboard.png` remains unchanged because the current app has no separate Home route.
+
+### Release candidate validation
+- Candidate package version: `1.1.6+8` (`com.yourcompany.fit_log`).
+- `flutter pub get`: passed. `flutter test`: **146 tests passed**, matching the release workflow command.
+- `flutter analyze --no-pub --no-fatal-infos`: exit 0; no errors or warnings. Twelve informational findings remain, matching the prior documented baseline.
+- `flutter build apk --release --no-pub -t lib/main.dart`: passed. APK: `build/app/outputs/flutter-apk/app-release.apk`, **65,353,178 bytes**, SHA-256 `BD22E5A772036B13F0D998FBDA990D6BCCF5BF4F2DD48D7272DCCA0E372A92A3`.
+- APK verification: package `com.yourcompany.fit_log`, version `1.1.6`, version code `8`, release/non-debuggable, no `INTERNET` permission, no bundled `.db`, `.sqlite`, `.xlsx` or `.xls` files. APK Signature Scheme v2 verified with the established signing certificate SHA-256 `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`.
+- In-place upgrade: installed the signed `1.1.5+7` APK (SHA-256 `4EAEEA2C5282A677A535CD7F7B84D08E11B658160B10BEB5FD9980421C99EC1A`) on the isolated API 34 emulator, created a synthetic `Upgrade QA` routine, then used `adb install -r` with `1.1.6+8`. Android reported `Success`; cold launch retained the routine and reported version code 8. No uninstall or app-data clear was used.
+- GitHub Actions run and public GitHub APK release asset: pending M2 publication.
 - Zero SQLite / user data files bundled in assets (verified via `aapt list`).
 
 ### 5. Visual QA & Interactive Review Catalog (`emulator-5554`, Profile Mode)

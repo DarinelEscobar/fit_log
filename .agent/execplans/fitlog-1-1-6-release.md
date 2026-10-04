@@ -107,7 +107,7 @@ Mark M0 complete only after the images have been captured from the current app, 
 
 ```yaml
 id: M1
-status: in_progress
+status: completed
 depends_on: [M0]
 parallelizable: false
 owned_paths:
@@ -158,7 +158,7 @@ Mark M1 complete only after every listed command succeeds, the APK identity/sign
 
 ```yaml
 id: M2
-status: pending
+status: in_progress
 depends_on: [M1]
 parallelizable: false
 owned_paths:
@@ -223,6 +223,7 @@ Run `flutter test`, `flutter analyze --no-pub --no-fatal-infos`, `flutter build 
 - [2026-10-04 17:07Z] ExecPlan created from repository inspection. Explicit authorization to execute, commit task changes, integrate the worktree into the default branch, and launch the GitHub APK was given in the user request.
 - [2026-10-04 17:12Z] M0 started after validating all three pending milestones, their dependency graph, clean feature worktree, protected dirty-checkout baseline, and local non-mutating push checks. First action: capture the current app using fresh synthetic demo data.
 - [2026-10-04 17:27Z] M0 completed: refreshed all eight README-linked legacy captures and added current History and warm-up captures. Reviewed the screenshots visually; ten README image links resolve and all eleven PNGs decode at full size; `git diff --check` passed. Started M1 version and release validation.
+- [2026-10-04 17:35Z] M1 completed: set 1.1.6+8, recorded release notes, ran `flutter pub get`, all 146 `flutter test` tests, analyzer with zero errors/warnings (12 existing infos), and built/verified the signed release APK. A `1.1.5+7` install upgraded with `adb install -r` to version code 8 without clearing the synthetic routine created in the old app. M2 remote integration and GitHub publication are now in progress.
 
 ## Surprises & Discoveries
 
@@ -233,6 +234,8 @@ Run `flutter test`, `flutter analyze --no-pub --no-fatal-infos`, `flutter build 
 - Observation: the GitHub release UI can be triggered by the configured annotated tag; local non-mutating push dry-runs to `master` and `v1.1.6` succeeded, and remote tags show no `v1.1.6` yet.
 - Observation: current navigation has three tabs (Routines, History, Performance) and no separate Home route; the legacy `home-dashboard.png` is not linked from README. Evidence: `lib/src/navigation/main_scaffold.dart` and the current emulator UI.
 - Observation: current emulator captures show a single `Export & Share Backup` action with system sharing and an additive `Import Backup` action; active session keeps the exercise name, prescribed reps, RIR, and tempo visible while completed/upcoming sets compact. Evidence: current `data-management.png` and `active-workout-session.png` captures from the dedicated synthetic-data emulator.
+- Observation: the signed `1.1.6+8` APK updates the actual signed `1.1.5+7` artifact in place on the isolated API 34 emulator, and its synthetic `Upgrade QA` routine remains after a cold launch. Evidence: `adb install -r` reported `Success`; package version code queried as 8; routine visible in the Routines tree.
+- Observation: final release candidate APK is signed with the established certificate, has no `INTERNET` permission, and contains no database or spreadsheet fixture entries. Evidence: `apksigner verify --print-certs`, `aapt dump permissions`, and APK ZIP entry inspection.
 
 ## Decision Log
 
@@ -248,6 +251,9 @@ Run `flutter test`, `flutter analyze --no-pub --no-fatal-infos`, `flutter build 
 - Decision: keep the unlinked legacy `home-dashboard.png` file untouched while replacing all README-linked captures and adding current History and warm-up screenshots.
   Rationale: there is no separate Home route in the current app; the file is unused by README and does not represent current navigation.
   Date: 2026-10-04
+- Decision: verify the update using the existing signed 1.1.5+7 APK and a synthetic routine created in-app before `adb install -r`.
+  Rationale: this tests the same package/signing/update path and proves app data remains after installation without touching personal data or clearing storage.
+  Date: 2026-10-04
 
 ## Outcomes & Retrospective
 
@@ -258,3 +264,4 @@ Pending execution. No release integration or GitHub publication has completed ye
 - [2026-10-04] Initial plan created from current branch, release workflow, screenshots, and repository state.
 - [2026-10-04] M0 clarified that current navigation has no Home tab; captures document the existing root Routines tab instead.
 - [2026-10-04] M0 completed with ten current README screenshot links; M1 release versioning and validation started.
+- [2026-10-04] M1 completed with 146 passing tests, clean static analysis apart from twelve existing infos, a signed version 1.1.6+8 APK, and a successful data-preserving in-place update test. M2 is underway.
