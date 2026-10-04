@@ -58,6 +58,7 @@ void main() {
       (tester) async {
     var currentTime = DateTime.now().add(const Duration(minutes: 5));
     final repo = _TestWorkoutPlanRepository();
+    final storage = _TestWorkoutStorageService();
     final insetValueNotifier = ValueNotifier<EdgeInsets>(EdgeInsets.zero);
 
     await tester.binding.setSurfaceSize(const Size(430, 1000));
@@ -67,20 +68,19 @@ void main() {
       ProviderScope(
         overrides: [
           workoutPlanRepositoryProvider.overrideWithValue(repo),
-          workoutStorageServiceProvider.overrideWithValue(
-            _TestWorkoutStorageService(),
-          ),
+          workoutStorageServiceProvider.overrideWithValue(storage),
         ],
         child: MaterialApp(
           home: ValueListenableBuilder<EdgeInsets>(
             valueListenable: insetValueNotifier,
-            builder: (context, insets, _) => MediaQuery(
+            child: StartRoutineScreen(
+              plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
+              now: () => currentTime,
+            ),
+            builder: (context, insets, child) => MediaQuery(
               data: const MediaQueryData(size: Size(430, 1000))
                   .copyWith(viewInsets: insets),
-              child: StartRoutineScreen(
-                plan: WorkoutPlan(id: 1, name: 'Upper A', frequency: 'Mon / Thu'),
-                now: () => currentTime,
-              ),
+              child: child!,
             ),
           ),
         ),
@@ -94,7 +94,10 @@ void main() {
     expect(find.text('Barbell Bench Press'), findsOneWidget);
     expect(find.textContaining('00:00'), findsOneWidget);
 
-    // Get initial state of the card
+    // Get initial state and widget instance of the card
+    final cardWidgetBefore = tester.widget<ActiveSessionExerciseCard>(
+      find.byType(ActiveSessionExerciseCard).first,
+    );
     final cardStateBefore = tester.state<ActiveSessionExerciseCardState>(
       find.byType(ActiveSessionExerciseCard).first,
     );
@@ -134,26 +137,37 @@ void main() {
     expect(buttonRect.bottom, lessThanOrEqualTo(1000 - 320));
     expect(buttonRect.bottom, greaterThan(1000 - 320 - 56));
 
-    // Verify the card was NOT destroyed or recreated during inset update
+    // Verify the card widget was NOT rebuilt or recreated during inset update
+    final cardWidgetDuringKeyboard = tester.widget<ActiveSessionExerciseCard>(
+      find.byType(ActiveSessionExerciseCard).first,
+    );
+    expect(identical(cardWidgetBefore, cardWidgetDuringKeyboard), isTrue);
     final cardStateDuringKeyboard = tester.state<ActiveSessionExerciseCardState>(
       find.byType(ActiveSessionExerciseCard).first,
     );
     expect(identical(cardStateBefore, cardStateDuringKeyboard), isTrue);
 
     // 5. TICK: Advance time by 5 seconds (simulating 1-second ticks)
+    final storageCallsBeforeTicks = storage.fetchWorkoutLogsCalls;
     currentTime = currentTime.add(const Duration(seconds: 5));
     await tester.pump(const Duration(seconds: 5));
 
     // Verify session timer updated to 00:05 in the AppBar
     expect(find.textContaining('00:05'), findsOneWidget);
 
-    // Verify card state and input values remain completely stable and intact
+    // Verify card widget was NOT rebuilt or recreated during ticks
+    final cardWidgetAfterTicks = tester.widget<ActiveSessionExerciseCard>(
+      find.byType(ActiveSessionExerciseCard).first,
+    );
+    expect(identical(cardWidgetBefore, cardWidgetAfterTicks), isTrue);
     final cardStateAfterTicks = tester.state<ActiveSessionExerciseCardState>(
       find.byType(ActiveSessionExerciseCard).first,
     );
     expect(identical(cardStateBefore, cardStateAfterTicks), isTrue);
     final kgFieldAfterTicks = tester.widget<TextField>(kgFieldFinder);
     expect(kgFieldAfterTicks.controller?.text, '85');
+    // Verify progress provider was not re-queried during ticks
+    expect(storage.fetchWorkoutLogsCalls, storageCallsBeforeTicks);
 
     // 6. LOG SET: Tap register set to complete set 1
     await tester.tap(find.byKey(const Key('active-session-register-set')));
@@ -219,6 +233,8 @@ class _TestVibrationPlatform extends VibrationPlatform {
 }
 
 class _TestWorkoutStorageService extends WorkoutStorageService {
+  int fetchWorkoutLogsCalls = 0;
+
   @override
   Future<List<WorkoutLogEntry>> fetchWorkoutLogs({
     int? exerciseId,
@@ -226,8 +242,10 @@ class _TestWorkoutStorageService extends WorkoutStorageService {
     List<int>? planIds,
     DateTime? startDate,
     DateTime? endDate,
-  }) async =>
-      const [];
+  }) async {
+    fetchWorkoutLogsCalls++;
+    return const [];
+  }
 }
 
 class _TestWorkoutPlanRepository implements WorkoutPlanRepository {
