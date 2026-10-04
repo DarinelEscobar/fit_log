@@ -95,35 +95,32 @@ Use fictional QA data only via `lib/main_demo.dart`; ship `lib/main.dart`.
 ## Release 1.1.4+6 Latency Optimization & Final Delivery Report
 
 ### 1. Active Routine Latency Optimization & Architectural Fixes
-- `ef5d840` **Active Routine Latency Elimination & Ticker Isolation**:
+- `ef5d840` **Active Routine Rendering Optimization & Ticker Isolation**:
   1. **Root-Level `viewInsets` Decoupling**: Extracted `_ActiveSessionBottomBar` so that `MediaQuery.viewInsetsOf(context).bottom` only rebuilds the bottom floating bar (`LOG SET` action + navigation chevrons) instead of re-rendering the entire 1,800-line screen and all exercise cards during native IME animation frames.
   2. **Session Timer Ticker Isolation**: Replaced broad `setState(() => _now = now)` on 1-second `Timer.periodic` with a specialized `ValueNotifier<DateTime> _clockNotifier`. Only the compact AppBar subtitle and active rest timer pill subscribe to ticks, eliminating tree-wide re-rendering every second.
   3. **Referential Callback Stability**: Passed referentially stable `widget.now` closure tear-offs (`DateTime Function() now`) to `ActiveSessionExerciseCard` rather than passing fluctuating `DateTime` objects, preventing spurious `didUpdateWidget` invocations on background cards.
   4. **Focused Numeric Input Scroll Padding**: Configured `scrollPadding: const EdgeInsets.only(top: 52, bottom: 20)` on `_NumberInput` inside `ActiveSessionExerciseCard`, ensuring input fields avoid collision with the pinned execution header (`Barbell Bench Press`, `TEMPO 3-1-1`, `REPS 10`) when the soft numeric keyboard opens.
 - `8a6153f` **Widget Identity & Stable Provider Invalidation Test**:
-  - Enforced rigorous widget instance assertions (`identical(cardWidgetBefore, cardWidgetDuringKeyboard)` and `identical(cardWidgetBefore, cardWidgetAfterTicks)`) verifying that neither keyboard insets nor session timer ticks recreate or rebuild exercise cards.
-  - Verified `storage.fetchWorkoutLogsCalls` counter remains completely stable during ticks, confirming progress providers are never invalidated by idle timers.
+  - Assertions on widget and State identity verify that the parent preserves exercise-card instances during the tested inset change and clock ticks. This does not count every internal Flutter rebuild or layout pass.
+  - The `storage.fetchWorkoutLogsCalls` counter stays unchanged during the tested ticks, verifying no additional progress-storage fetches in that scenario.
+- `b0bfcc9` **Main Views**: Lazy slivers, cached derived chart/filter data, reused sorting and day keys reduce repeated work in Home, History and Performance. Hidden tabs pause their tickers; regression tests cover source-data refresh, date boundaries, filters and tab switching.
 - `7729d37` **Release Version Bump**: Bumped project specification to `1.1.4+6`.
 
 ### 2. Automated Verification Post-Corrections
-- `flutter analyze --no-pub` across modified feature paths and tests: **0 issues** (ran in 4.4s).
+- Relevant `flutter analyze --no-pub` runs across modified feature paths and tests: **0 issues**.
 - `flutter test --no-pub test/active_routine_latency_regression_test.dart`: **1/1 passing (100% GREEN)**:
-  - Input focus immediate on numeric KG field.
-  - Debounced draft persistence (300ms) preserves modified weights, reps, and RIR in storage draft.
-  - Insets update to 320dp moves `LOG SET` button above soft keyboard without rebuilding exercise cards (`identical: true`).
-  - 5s session ticks advance time in AppBar without re-rendering card widgets (`identical: true`) and without querying workout progress storage.
-  - Set logging completes set, starts rest timer, and preserves state without keyboard focus drop or draft loss.
+  - KG input acquires focus after the test tap and pump; touch latency was not timed.
+  - Debounced draft persistence preserves the tested weight and reps values.
+  - An inset change to 320dp keeps `LOG SET` above the simulated keyboard and preserves the exercise-card widget and State instances.
+  - Advancing the clock by 5s updates the AppBar while preserving card instances and the progress-storage fetch count.
+  - Logging completes the set and retains its draft values. The existing focused suite also covers rest timers and navigation; logging deliberately dismisses the keyboard.
 - Peer test hub verification: **77/77 tests passing** on baseline HEAD `b0bfcc9`.
 
-### 3. Profile Mode & Comparative Performance Analysis
+### 3. Profile QA and Source Comparison
 - **Execution Target**: `emulator-5554` (AVD `FitLog_UI_Redesign_20261001`), Android 16 (API 36), physical size `1080x2400`, density `420`, font scale `1.0`, animator duration scale `1.0`.
 - **Mode**: Flutter Profile mode (`flutter run --profile -t lib/main_demo.dart`), compiled with native AOT engine.
-- **Baseline (`a2f91e7`) vs Delivery (`1.1.4+6`) Rebuild Behavior**:
-  - *Baseline*: `start_routine_screen.dart` evaluated `MediaQuery.of(context).viewInsets.bottom` at root and called `setState(() => _now = now)` on every 1,000ms periodic timer tick. Consequently, every animation frame of keyboard opening (~15-30 frames over ~250ms) and every clock tick rebuilt the entire routine screen, re-instantiating all `ActiveSessionExerciseCard` widgets and re-triggering provider subscriptions.
-  - *Delivery (`1.1.4+6`)*: Isolated bottom bar insets to `_ActiveSessionBottomBar`, isolated timer ticks to `_clockNotifier`. Zero rebuilds of exercise cards or input controllers during IME sliding and 1-second ticks (`identical(cardWidget, ...) == true`).
-- **Android `dumpsys gfxinfo` Frame Statistics (Profile Mode)**:
-  - Keyboard opening animation: 21 frames rendered, 50th percentile frame time `25ms`, 90th percentile `28ms`, zero slow bitmap uploads.
-  - Rest timer 15s ticking: Only 1 RenderNode invalidated per second for the timer pill; zero exercise card rebuilds, zero dropped frames.
+- **Source comparison (`a2f91e7` to delivery)**: The old screen subscribed to the full root MediaQuery and called root `setState` on each periodic tick. The delivered screen scopes insets to its bottom bar and ordinary clock updates to clock listeners. The current regression test verifies stable card instances and progress-storage fetch counts in its covered scenario.
+- **Measurement limits**: The baseline was inspected in source; a matched baseline-versus-delivery profile timing benchmark was not completed. Android `dumpsys gfxinfo` was queried during the current profile QA sequence, which included navigation and keyboard interaction. Those Android window statistics do not isolate keyboard latency, count Flutter card rebuilds or establish Dart UI/raster frame timings. No speedup percentage, exact RenderNode count per tick or zero-dropped-frame result is established.
 
 ### 4. Release Artifact Verification
 - Binary source build: `build/app/outputs/flutter-apk/app-release.apk`
@@ -147,11 +144,11 @@ Artifacts captured in `build/redesign-review/performance/`:
 - `02-profile-routine-detail.png`: Upper Body routine overview with exercises and "START WORKOUT" action.
 - `03-profile-active-routine.png`: Warm-up screen with "SKIP WARM-UP" action.
 - `04-profile-active-workout-main.png`: Active routine screen showing pinned header (`Barbell Bench Press`, `REPS 10`, `TEMPO 3-1-1`, `SET 1 / 3`, `RIR 2`), active Set 1 inputs (`75`, `10`, `2`), and bottom `LOG SET` button.
-- `05-profile-keyboard-open.png`: Numeric keyboard open with focused KG field; `LOG SET` positioned immediately above keyboard without layout collision or double inset jump; pinned header fully visible.
-- `06-profile-inputs-updated.png`: Weights and reps updated to 85 kg and 1 RIR with active draft persistence.
+- `05-profile-keyboard-open.png`: Numeric keyboard open with focused KG field, reachable `LOG SET` and visible pinned header. A still capture does not measure transition latency.
+- `06-profile-inputs-updated.png`: Edited inputs in the current QA session; exact draft weight/reps preservation is verified separately by the widget regression test.
 - `07-profile-set1-logged-rest-timer.png`: Set 1 logged with checkmark; active set advanced to Set 2; floating rest timer pill active (`Rest 00:54 - Barbell Bench Press`).
 - `08-profile-rest-ticking-15s.png`: Rest timer ticking down to 00:28; session duration updated to 02:46; Set 2 card inputs completely undisturbed.
-- `09-profile-scrolled-exercise2.png`: Smooth scroll down to exercise 2 ("Barbell Row") and exercise 3 ("Standing Overhead Press").
+- `09-profile-scrolled-exercise2.png`: Scrolled to exercise 2 ("Barbell Row") and exercise 3 ("Standing Overhead Press").
 - `10-profile-barbell-row-expanded.png`: Barbell Row card selected.
 - `11-profile-barbell-row-active.png`: Pinned header adaptively updated to Barbell Row; Set 1 active with preserved draft state.
 - `12-profile-finish-summary.png`: Finish review screen showing 4 MIN duration, 85 KG volume, 1/9 sets completed, and energy/mood touch targets.
@@ -165,7 +162,8 @@ Artifacts captured in `build/redesign-review/performance/`:
 - `20-profile-performance-font1.8.png`: Accessibility verification under 1.8x system font scale with zero overflow.
 
 ### 6. Known Boundaries and Verification Limits
-- **AVD vs Physical Hardware**: Profile testing was conducted on `emulator-5554` running x86_64 Android 16. While frame counts and RenderNode invalidations were precisely verified using Android's native `dumpsys gfxinfo`, physical touch latency and hardware thermal throttling were not measured on a physical phone.
+- **AVD vs Physical Hardware**: Current-build profile QA ran on the x86_64 Android 16 emulator. Physical-phone touch latency, thermal behavior and a matched before/after Flutter frame-time benchmark remain unmeasured. Card-instance and storage-fetch stability are established by the focused widget test, rather than Android window statistics.
+- **Visual scope**: This performance pass captured the default emulator viewport and Performance at 1.8x text. The small-phone, large-text active-workout/IME and reduced-motion captures in the 1.1.3 report are historical checks, not newly repeated device checks for 1.1.4.
 - **Offline & Cold Fonts**: The application uses Google Fonts. Visual QA verified rendering on the emulator with network connection; cold-cache font fallback without network was not separately tested.
 - **Device Settings Restored**: All display and animation settings on `emulator-5554` were verified restored to their original values (`font_scale 1.0`, `1080x2400 @ 420dpi`, `animator_duration_scale 1.0`).
 
