@@ -43,51 +43,63 @@ The app uses a dark Kinetic-Noir visual system: violet accents, Space Grotesk he
 
 - `Data Management`: export/import backups opened from the Routines `Manage` menu
 
-## Implemented Screens
+## Current App Screens
 
-The screenshots below document the earlier visual baseline. Run the current app to inspect the compact layouts and interactions described here.
+These screenshots were captured from the current app on an Android emulator using the fictional `main_demo.dart` fixture. They show the implemented screens without device mockups.
 
 ### Routines Library
 
-This screen is the main planning hub and the app entry point. Users can inspect active routines, reactivate inactive ones, create plans, enter a specific routine, and open backup tools from `Manage`.
+This screen is the main planning hub and the app entry point. Users can inspect active routines, reactivate inactive ones, create plans, open a routine, and reach backup tools from `Manage`.
 
 ![Routines Library](docs/images/screens/routines-library.png)
 
+### History Overview
+
+History groups saved workouts by week and summarizes training days, volume, sets, and session duration. Routine and exercise filters narrow the displayed records.
+
+![History Overview](docs/images/screens/history-overview.png)
+
+### Performance Dashboard
+
+Analytics summarize workouts from active routines over a selectable time window. Volume trend, training-day coverage, muscle focus, and exercise progress help review the current block.
+
+![Performance Dashboard](docs/images/screens/performance-dashboard.png)
+
 ### Data Management
 
-The data screen handles export, share, and import flows. It is intentionally isolated from the main tabs so users can perform backup operations without mixing them into the training flow.
+`Export & Share Backup` creates a verified ZIP and opens the system share sheet. `Import Backup` merges missing records while preserving current routines and history.
 
 ![Data Management](docs/images/screens/data-management.png)
 
 ### Exercise List
 
-This is the pre-workout view for a selected routine. It shows the programmed exercises, supports filtering, and provides a direct `Progress` action for each exercise before the session starts.
+This is the pre-workout view for a selected routine. It shows programmed exercises, supports filtering, and provides direct access to each exercise's progress.
 
 ![Exercise List](docs/images/screens/exercise-list.png)
 
 ### Routine Editor
 
-The editor is a form-driven workflow for changing routine metadata and programmed exercise details without dropping into JSON or raw data editing.
+The editor updates routine details, warm-up steps, and programmed exercises in one form-driven workflow.
 
 ![Routine Editor](docs/images/screens/routine-editor.png)
 
+### Warm-up Preview
+
+Review the timed preparation steps, choose the ready countdown, and start or skip the warm-up before strength work.
+
+![Warm-up Preview](docs/images/screens/warm-up-preview.png)
+
 ### Active Workout Session
 
-The active session keeps the current exercise name, RIR and tempo visible while scrolling. Logging a set collapses it into a compact summary and opens the next pending set. Completed and upcoming sets can be selected for editing; correcting a completed set does not restart its rest timer. The rest countdown appears after logging, while planned rest remains in plan details. The fixed `LOG SET` action and previous/next exercise controls remain reachable when the keyboard opens. Set count controls, notes, draft recovery and session persistence retain their existing behavior.
+The active session keeps the exercise name and prescribed reps, RIR, and tempo visible. One set stays expanded for logging; completed and upcoming sets compact into rows. Completed and upcoming sets can be selected for editing, and correcting a completed set does not restart its rest timer. The rest countdown appears after logging, while planned rest remains in plan details. The fixed `LOG SET` action and previous/next exercise controls remain reachable when the keyboard opens. Set count controls, notes, draft recovery and session persistence retain their existing behavior.
 
 ![Active Workout Session](docs/images/screens/active-workout-session.png)
 
 ### Finish Session Summary
 
-The finish screen is a dedicated full-screen review of the session draft before persisting the workout logs and session summary.
+Review duration, volume, completed sets, energy, mood, and optional notes before saving the session. `Discard` asks for confirmation before removing the draft.
 
 ![Finish Session Summary](docs/images/screens/finish-session-summary.png)
-
-### Performance Dashboard
-
-The dashboard aggregates training data for the currently active routines in the selected window. It shows volume, day coverage, muscle focus, and recent PR-style signals.
-
-![Performance Dashboard](docs/images/screens/performance-dashboard.png)
 
 ### Exercise Progress Detail
 
@@ -205,7 +217,7 @@ The app features a unified **Export & Share Backup** flow alongside a non-destru
   - **Full Backup**: Packages the complete SQLite database archive along with all historical spreadsheets.
   - **Custom Range**: Allows selecting explicit inclusive start and end dates with real-time validation and preview.
 - **ZIP Archive Format**: Names include exported bounds (e.g. `fitlog_backup_2026-09-07_to_2026-09-13.zip` or `fitlog_backup_full_2026-10-02.zip`).
-- **Import Behavior**: Full, incremental, and spreadsheet backups add missing records in one SQLite transaction. Current routines, setup presets, profile settings and edited sets take precedence. The live database is never replaced. Imports validate before merging and block other data actions until complete; Home, History, Performance and routine-detail caches are then refreshed. Legacy day-only records retain their original granularity and cannot reconstruct previously lost sessions.
+- **Import Behavior**: Full, incremental, and spreadsheet backups add missing records in one SQLite transaction. Current routines, setup presets, profile settings and edited sets take precedence. The live database is never replaced. Imports validate before merging and block other data actions until complete; Routines, History, Performance and routine-detail caches are then refreshed. Legacy day-only records retain their original granularity and cannot reconstruct previously lost sessions.
 - **Local Ownership**: Preserves offline ownership of training data. Successful export ranges and per-day record signatures are tracked in SQLite metadata. New backups include `workout_session_key` alongside the legacy spreadsheet headers; SQLite schema version 4 preserves distinct same-day workouts. See [data stability verification](docs/data-stability-review.md).
 
 ## Validation
