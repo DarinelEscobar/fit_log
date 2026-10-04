@@ -54,6 +54,8 @@ abstract class WorkoutPlanRepository {
   //Start session
   Future<void> saveWorkoutLogs(List<WorkoutLogEntry> logs);
   Future<void> saveWorkoutSession(WorkoutSession session);
+  Future<void> finishWorkout(
+      List<WorkoutLogEntry> logs, WorkoutSession session);
   Future<ActiveWorkoutSessionDraft?> getActiveSessionDraft();
   Future<void> saveActiveSessionDraft(ActiveWorkoutSessionDraft draft);
   Future<void> clearActiveSessionDraft();

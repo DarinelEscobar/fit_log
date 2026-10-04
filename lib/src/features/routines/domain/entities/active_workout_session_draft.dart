@@ -195,6 +195,7 @@ class ActiveWorkoutSessionDraft {
   static Map<String, Object?> _logToJson(WorkoutLogEntry log) {
     return {
       'date': log.date.toIso8601String(),
+      'sessionId': log.sessionId,
       'planId': log.planId,
       'exerciseId': log.exerciseId,
       'setNumber': log.setNumber,
@@ -214,6 +215,7 @@ class ActiveWorkoutSessionDraft {
       return null;
     }
     return WorkoutLogEntry(
+      sessionId: _asNullableString(json['sessionId']),
       date: date,
       planId: planId,
       exerciseId: exerciseId,

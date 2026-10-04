@@ -149,6 +149,7 @@ final class HistoryExerciseOption {
 @immutable
 final class HistorySessionSummary {
   const HistorySessionSummary({
+    this.sessionId,
     required this.planId,
     required this.planName,
     required this.date,
@@ -162,6 +163,8 @@ final class HistorySessionSummary {
     required this.exercises,
   });
 
+  final String? sessionId;
+  String get identity => sessionId ?? "$planId:${date.toIso8601String()}";
   final int planId;
   final String planName;
   final DateTime date;

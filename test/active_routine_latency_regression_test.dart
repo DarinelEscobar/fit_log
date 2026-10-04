@@ -142,7 +142,8 @@ void main() {
       find.byType(ActiveSessionExerciseCard).first,
     );
     expect(identical(cardWidgetBefore, cardWidgetDuringKeyboard), isTrue);
-    final cardStateDuringKeyboard = tester.state<ActiveSessionExerciseCardState>(
+    final cardStateDuringKeyboard =
+        tester.state<ActiveSessionExerciseCardState>(
       find.byType(ActiveSessionExerciseCard).first,
     );
     expect(identical(cardStateBefore, cardStateDuringKeyboard), isTrue);
@@ -250,7 +251,8 @@ class _TestWorkoutStorageService extends WorkoutStorageService {
 
 class _TestWorkoutPlanRepository implements WorkoutPlanRepository {
   ActiveWorkoutSessionDraft? activeSessionDraft;
-  final Map<int, ActiveSessionExerciseSetupPreset> activeSessionSetupPresets = {};
+  final Map<int, ActiveSessionExerciseSetupPreset> activeSessionSetupPresets =
+      {};
 
   final List<Exercise> _exercises = [
     Exercise(
@@ -350,6 +352,14 @@ class _TestWorkoutPlanRepository implements WorkoutPlanRepository {
     ActiveSessionExerciseSetupPreset preset,
   ) async {
     activeSessionSetupPresets[preset.exerciseId] = preset;
+  }
+
+  @override
+  Future<void> finishWorkout(
+      List<WorkoutLogEntry> logs, WorkoutSession session) async {
+    await saveWorkoutLogs(logs);
+    await saveWorkoutSession(session);
+    await clearActiveSessionDraft();
   }
 
   @override

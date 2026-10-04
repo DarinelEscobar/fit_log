@@ -61,6 +61,108 @@ void main() {
         .setMockMethodCallHandler(_notificationsChannel, null);
   });
 
+  testWidgets(
+      'swap to an existing exercise keeps logs and valid card identities',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutine(tester, repo: repo);
+    await _completeFirstSet(tester);
+    final dynamic state = tester.state(find.byType(StartRoutineScreen));
+    final Future<void> swapping = state.swapExercise(0);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Weighted Pull-ups').last);
+    await tester.pumpAndSettle();
+    await swapping;
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(tester.takeException(), isNull);
+    expect(repo.activeSessionDraft!.logs.where((log) => log.completed),
+        hasLength(1));
+    expect(
+        repo.activeSessionDraft!.details
+            .map((d) => d.exerciseId)
+            .toSet()
+            .length,
+        repo.activeSessionDraft!.details.length);
+  });
+
+  testWidgets(
+      'same exercise swap requires explicit reset and cancel keeps its logged sets',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutine(tester, repo: repo);
+    await _completeFirstSet(tester);
+    final dynamic state = tester.state(find.byType(StartRoutineScreen));
+    Future<void> swapping = state.swapExercise(0);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Barbell Bench Press').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Reset this exercise?'), findsOneWidget);
+    await tester.tap(find.text('Keep sets'));
+    await tester.pumpAndSettle();
+    await swapping;
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(repo.activeSessionDraft!.logs.where((log) => log.completed),
+        hasLength(1));
+    swapping = state.swapExercise(0);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Barbell Bench Press').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reset sets'));
+    await tester.pumpAndSettle();
+    await swapping;
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(
+        repo.activeSessionDraft!.logs.where((log) => log.completed), isEmpty);
+  });
+
+  testWidgets('replacing an exercise can explicitly discard its completed sets',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository();
+    await _pumpStartRoutine(tester, repo: repo);
+    await _completeFirstSet(tester);
+    final dynamic state = tester.state(find.byType(StartRoutineScreen));
+    final Future<void> swapping = state.swapExercise(0);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Romanian Deadlift').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Replace this exercise?'), findsOneWidget);
+    await tester.tap(find.text('Replace & discard sets'));
+    await tester.pumpAndSettle();
+    await swapping;
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(repo.activeSessionDraft!.details.first.exerciseId, 3);
+    expect(repo.activeSessionDraft!.logs.where((log) => log.exerciseId == 1),
+        isEmpty);
+  });
+
+  testWidgets('failed session save keeps sets and allows retry',
+      (tester) async {
+    final repo = _FakeWorkoutPlanRepository()..failFinish = true;
+    await _pumpStartRoutine(tester, repo: repo);
+    await _completeFirstSet(tester);
+    await tester.tap(find.byKey(const Key('active-session-finish')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('finish-energy-8')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('finish-mood-4')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('finish-save-button')));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(StartRoutineScreen), findsOneWidget);
+    expect(find.textContaining('Session could not be saved'), findsOneWidget);
+    expect(repo.savedLogs, isEmpty);
+    expect(repo.activeSessionDraft!.logs.where((log) => log.completed),
+        hasLength(1));
+    repo.failFinish = false;
+    await tester.tap(find.byKey(const Key('active-session-finish')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('finish-save-button')));
+    await tester.pumpAndSettle();
+    expect(repo.savedSessions, hasLength(1));
+    expect(repo.activeSessionDraft, isNull);
+  });
+
   testWidgets('routines library is the default entry view', (tester) async {
     await _pumpApp(tester);
 
@@ -2401,6 +2503,7 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
   final List<String> createdExerciseNames = [];
   final List<WorkoutLogEntry> savedLogs = [];
   final List<WorkoutSession> savedSessions = [];
+  bool failFinish = false;
   final Map<int, ActiveSessionExerciseSetupPreset> activeSessionSetupPresets =
       {};
   ActiveWorkoutSessionDraft? activeSessionDraft;
@@ -2552,6 +2655,15 @@ class _FakeWorkoutPlanRepository implements WorkoutPlanRepository {
     ActiveSessionExerciseSetupPreset preset,
   ) async {
     activeSessionSetupPresets[preset.exerciseId] = preset;
+  }
+
+  @override
+  Future<void> finishWorkout(
+      List<WorkoutLogEntry> logs, WorkoutSession session) async {
+    if (failFinish) throw StateError('Simulated disk error');
+    await saveWorkoutLogs(logs);
+    await saveWorkoutSession(session);
+    await clearActiveSessionDraft();
   }
 
   @override

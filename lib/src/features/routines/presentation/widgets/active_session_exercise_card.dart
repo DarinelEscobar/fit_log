@@ -243,8 +243,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     }
 
     final targetSetNumber = _editingSetNumber ?? _nextPendingSetNumber ?? 1;
-    final targetIndex =
-        (targetSetNumber - 1).clamp(0, _setRowKeys.length - 1);
+    final targetIndex = (targetSetNumber - 1).clamp(0, _setRowKeys.length - 1);
     final targetContext = _setRowKeys[targetIndex].currentContext;
     if (targetContext == null) {
       return;
@@ -283,13 +282,13 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     if (rowTop < topContextBuffer) {
       // Clipped or scrolled under pinned header: scroll up to reveal row and headers
       final delta = topContextBuffer - rowTop;
-      targetPixels = (scrollPosition.pixels - delta)
-          .clamp(scrollPosition.minScrollExtent, scrollPosition.maxScrollExtent);
+      targetPixels = (scrollPosition.pixels - delta).clamp(
+          scrollPosition.minScrollExtent, scrollPosition.maxScrollExtent);
     } else if (rowBottom > viewportHeight - bottomBuffer) {
       // Scrolled beyond bottom footer: scroll down to reveal row above footer
       final delta = rowBottom - (viewportHeight - bottomBuffer);
-      targetPixels = (scrollPosition.pixels + delta)
-          .clamp(scrollPosition.minScrollExtent, scrollPosition.maxScrollExtent);
+      targetPixels = (scrollPosition.pixels + delta).clamp(
+          scrollPosition.minScrollExtent, scrollPosition.maxScrollExtent);
     }
 
     if (targetPixels != null &&
@@ -643,11 +642,29 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     );
   }
 
-  void _removeSet() {
+  Future<void> _removeSet() async {
     if (_visibleSets <= 1) {
       return;
     }
 
+    if (_isSetCompleted(_visibleSets)) {
+      final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+                title: const Text('Remove logged set?'),
+                content: const Text(
+                    'This removes the last completed set from this workout.'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Keep set')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Remove set'))
+                ],
+              ));
+      if (!mounted || confirmed != true) return;
+    }
     final removedSet = _visibleSets;
     _autoAdvanceTimer?.cancel();
     setState(() {
@@ -895,7 +912,9 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
                             final target = index + 1;
                             if (MediaQuery.disableAnimationsOf(context)) {
                               WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted) unawaited(ensurePrimarySetVisible());
+                                if (mounted) {
+                                  unawaited(ensurePrimarySetVisible());
+                                }
                               });
                             } else {
                               _awaitingSettledSetNumber = target;
@@ -1087,6 +1106,11 @@ class _SetRow extends StatelessWidget {
                 style: KineticNoirTypography.body(
                     size: 12, color: KineticNoirPalette.onSurfaceVariant),
               )),
+              if (isCompleted)
+                Text('EDIT',
+                    style: KineticNoirTypography.body(
+                        size: 10, color: KineticNoirPalette.primary)),
+              const SizedBox(width: 4),
               const Icon(Icons.edit_outlined,
                   size: 16, color: KineticNoirPalette.onSurfaceVariant),
             ]),

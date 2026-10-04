@@ -22,7 +22,7 @@ class WorkoutStorageService {
       : _databaseFactory = dbFactory ?? databaseFactory;
 
   static const String _databaseName = 'fit_log.db';
-  static const int _databaseVersion = 3;
+  static const int _databaseVersion = 4;
   static const String _routineRuntimeSeededKey = 'routine_runtime_seeded';
   static const String _routineRuntimeSeededAtKey = 'routine_runtime_seeded_at';
   static const List<String> _requiredDatabaseTables = [
@@ -38,6 +38,7 @@ class WorkoutStorageService {
 
   Database? _database;
   Future<void>? _routineWarmUpFuture;
+  Future<Database>? _openingDatabase;
 
   Future<void> close() async {
     final db = _database;
@@ -518,6 +519,7 @@ class WorkoutStorageService {
             'reps': log.reps,
             'weight': log.weight,
             'rir': log.rir,
+            'session_id': log.storageSessionId,
           },
           conflictAlgorithm: ConflictAlgorithm.ignore);
     }
@@ -529,8 +531,8 @@ class WorkoutStorageService {
     final existing = await db.query(
       'workout_sessions',
       columns: ['id'],
-      where: 'date = ? AND plan_id = ?',
-      whereArgs: [_formatDate(session.date), session.planId],
+      where: 'session_id = ?',
+      whereArgs: [session.storageSessionId],
       limit: 1,
     );
     if (existing.isNotEmpty) {
@@ -546,8 +548,55 @@ class WorkoutStorageService {
           'duration_minutes': session.durationMinutes,
           'mood': session.mood,
           'notes': session.notes,
+          'session_id': session.storageSessionId,
         },
         conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
+  /// Commit the history and removal of its recovery draft together.
+  Future<void> finishWorkout(
+      List<WorkoutLogEntry> logs, WorkoutSession session) async {
+    if (logs.isEmpty ||
+        logs.any((log) =>
+            log.planId != session.planId ||
+            log.reps <= 0 ||
+            !log.weight.isFinite ||
+            log.weight < 0)) {
+      throw const FormatException('Check the completed sets before saving.');
+    }
+    final db = await _getDatabase();
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (final log in logs) {
+        batch.insert(
+            'workout_logs',
+            {
+              'session_id': session.storageSessionId,
+              'date': _formatDate(session.date),
+              'plan_id': log.planId,
+              'exercise_id': log.exerciseId,
+              'set_number': log.setNumber,
+              'reps': log.reps,
+              'weight': log.weight,
+              'rir': log.rir,
+            },
+            conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
+      batch.insert(
+          'workout_sessions',
+          {
+            'session_id': session.storageSessionId,
+            'date': _formatDate(session.date),
+            'plan_id': session.planId,
+            'fatigue_level': session.fatigueLevel,
+            'duration_minutes': session.durationMinutes,
+            'mood': session.mood,
+            'notes': session.notes,
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore);
+      batch.delete('active_workout_session_drafts', where: 'id = 1');
+      await batch.commit(noResult: true);
+    });
   }
 
   Future<ActiveWorkoutSessionDraft?> fetchActiveSessionDraft() async {
@@ -629,6 +678,7 @@ class WorkoutStorageService {
     return rows
         .map(
           (row) => WorkoutSession(
+            sessionId: _stringValue(row['session_id']),
             planId: _intValue(row['plan_id']),
             date:
                 DateTime.tryParse(_stringValue(row['date'])) ?? DateTime.now(),
@@ -701,6 +751,7 @@ class WorkoutStorageService {
     return rows
         .map(
           (row) => WorkoutLogEntry(
+            sessionId: _stringValue(row['session_id']),
             date:
                 DateTime.tryParse(_stringValue(row['date'])) ?? DateTime.now(),
             planId: _intValue(row['plan_id']),
@@ -750,6 +801,174 @@ class WorkoutStorageService {
       }
       await batch.commit(noResult: true);
       await _repairDataIntegrity(txn, recoverMissingParents: true);
+    });
+  }
+
+  /// Read and validate the entire staged backup before writing anything live.
+  /// The live database is never replaced or closed by an import.
+  Future<void> mergeBackup(Directory spreadsheets, {File? database}) async {
+    final payload = await compute(_parseBackupSheets, spreadsheets.path);
+    if (database != null) {
+      final source = await _databaseFactory.openDatabase(database.path,
+          options: OpenDatabaseOptions(readOnly: true, singleInstance: false));
+      try {
+        if (await source.getVersion() > _databaseVersion) {
+          throw const FormatException(
+              'This backup needs a newer FitLog version.');
+        }
+        for (final table in payload.keys.toList()) {
+          final exists = await source.rawQuery(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+              [table]);
+          if (exists.isNotEmpty) {
+            final rows = await source.query(table);
+            if (rows.isNotEmpty) {
+              payload[table] =
+                  rows.map((r) => Map<String, Object?>.from(r)).toList();
+            }
+          }
+        }
+      } finally {
+        await source.close();
+      }
+    }
+    final db = await _getDatabase();
+    await db.transaction((txn) async {
+      final planIds = <int, int>{};
+      final exerciseIds = <int, int>{};
+      final configuredPlans = (await txn.query('plan_exercises',
+              columns: ['plan_id'], distinct: true))
+          .map((row) => _intValue(row['plan_id']))
+          .toSet();
+      final configuredWarmups = (await txn.query('plan_warmup_steps',
+              columns: ['plan_id'], distinct: true))
+          .map((row) => _intValue(row['plan_id']))
+          .toSet();
+      // IDs may collide after a reinstall or between two devices. Resolve
+      // references together; never attach imported logs to an unrelated name.
+      for (final table in ['workout_plans', 'exercises']) {
+        final idColumn = table == 'exercises' ? 'exercise_id' : 'plan_id';
+        final remap = table == 'exercises' ? exerciseIds : planIds;
+        final local = (await txn.query(table))
+            .map((r) => Map<String, Object?>.from(r))
+            .toList();
+        var nextId = local.fold<int>(
+            0,
+            (maxId, row) => _intValue(row[idColumn]) > maxId
+                ? _intValue(row[idColumn])
+                : maxId);
+        for (final incoming in payload[table]!) {
+          final row = Map<String, Object?>.from(incoming)..remove('id');
+          final originalId = _intValue(row[idColumn]);
+          if (originalId <= 0 || _stringValue(row['name']).trim().isEmpty) {
+            throw FormatException('Invalid $table record in backup.');
+          }
+          final name = _stringValue(row['name']).trim().toLowerCase();
+          final named = local
+              .where(
+                  (r) => _stringValue(r['name']).trim().toLowerCase() == name)
+              .toList();
+          if (named.isNotEmpty) {
+            // Names are not unique. Prefer the exact identity so two routines
+            // called "Upper" do not collapse into the same history.
+            final matching = named.firstWhere(
+              (row) => _intValue(row[idColumn]) == originalId,
+              orElse: () => named.first,
+            );
+            remap[originalId] = _intValue(matching[idColumn]);
+            continue;
+          }
+          final collision =
+              local.any((r) => _intValue(r[idColumn]) == originalId);
+          final id = collision ? ++nextId : originalId;
+          if (id > nextId) nextId = id;
+          remap[originalId] = id;
+          row[idColumn] = id;
+          await txn.insert(table, row,
+              conflictAlgorithm: ConflictAlgorithm.ignore);
+          local.add(row);
+        }
+      }
+      final batch = txn.batch();
+      for (final table in [
+        'plan_exercises',
+        'plan_warmup_steps',
+        'workout_logs',
+        'workout_sessions',
+        'active_session_exercise_setup_presets'
+      ]) {
+        for (final incoming in payload[table]!) {
+          final row = Map<String, Object?>.from(incoming)..remove('id');
+          final originalPlan = _intValue(row['plan_id']);
+          if (row.containsKey('plan_id')) {
+            row['plan_id'] = planIds[originalPlan] ?? originalPlan;
+          }
+          if (row.containsKey('exercise_id')) {
+            final originalExercise = _intValue(row['exercise_id']);
+            row['exercise_id'] =
+                exerciseIds[originalExercise] ?? originalExercise;
+          }
+          if (table == 'plan_exercises' &&
+              configuredPlans.contains(row['plan_id'])) {
+            continue;
+          }
+          if (table == 'plan_warmup_steps' &&
+              configuredWarmups.contains(row['plan_id'])) {
+            continue;
+          }
+          if (table.startsWith('workout_')) {
+            final date = DateTime.tryParse(_stringValue(row['date']));
+            if (date == null ||
+                _intValue(row['plan_id']) <= 0 ||
+                (table == 'workout_logs' &&
+                    (_intValue(row['exercise_id']) <= 0 ||
+                        _intValue(row['set_number']) <= 0))) {
+              throw const FormatException('Invalid workout record in backup.');
+            }
+            var id = _stringValue(row['session_id']);
+            if (id.isEmpty || id.startsWith('legacy:')) {
+              id = 'legacy:${_formatDate(date)}:${row['plan_id']}';
+            } else if (originalPlan != row['plan_id']) {
+              id = '$id:plan:${row['plan_id']}';
+            }
+            row['session_id'] = id;
+            if (table == 'workout_logs' && !id.startsWith('legacy:')) {
+              final existing = await txn.query(table,
+                  columns: ['id'],
+                  where:
+                      'session_id = ? AND exercise_id = ? AND set_number = ?',
+                  whereArgs: [id, row['exercise_id'], row['set_number']],
+                  limit: 1);
+              if (existing.isNotEmpty) {
+                continue; // Current edits win over an older backup.
+              }
+            }
+          }
+          if (table == 'plan_warmup_steps') {
+            final existing = await txn.query(table,
+                where: 'plan_id = ? AND position = ?',
+                whereArgs: [row['plan_id'], row['position']],
+                limit: 1);
+            if (existing.isNotEmpty) continue;
+          }
+          batch.insert(table, row, conflictAlgorithm: ConflictAlgorithm.ignore);
+        }
+      }
+      await batch.commit(noResult: true);
+      await _repairDataIntegrity(txn, recoverMissingParents: true);
+      await _setMeta(txn, _routineRuntimeSeededKey, '1');
+      // A full snapshot may include an unfinished workout. Keep the current
+      // draft; restore a missing one only when its catalog IDs still match.
+      final idsMatch = [...planIds.entries, ...exerciseIds.entries]
+          .every((entry) => entry.key == entry.value);
+      if (idsMatch) {
+        for (final row in payload['active_workout_session_drafts']!) {
+          if (_isValidBackupDraft(_stringValue(row['payload']))) {
+            await txn.insert('active_workout_session_drafts', row,
+                conflictAlgorithm: ConflictAlgorithm.ignore);
+          }
+        }
+      }
     });
   }
 
@@ -955,23 +1174,8 @@ class WorkoutStorageService {
       return;
     }
 
-    await db.transaction((txn) async {
-      final batch = txn.batch();
-      for (final exercise in _kCommonExerciseSeedRows) {
-        batch.insert(
-          'exercises',
-          exercise,
-          conflictAlgorithm: ConflictAlgorithm.ignore,
-        );
-      }
-      await batch.commit(noResult: true);
-      await _setMeta(txn, _routineRuntimeSeededKey, '1');
-      await _setMeta(
-        txn,
-        _routineRuntimeSeededAtKey,
-        DateTime.now().toIso8601String(),
-      );
-    });
+    // Normal releases start empty. Fictional fixtures use main_demo.dart only.
+    await _setMeta(db, _routineRuntimeSeededKey, '1');
   }
 
   Future<Database> _getDatabase() async {
@@ -980,6 +1184,12 @@ class WorkoutStorageService {
       return current;
     }
 
+    return _openingDatabase ??= _openDatabase().whenComplete(() {
+      _openingDatabase = null;
+    });
+  }
+
+  Future<Database> _openDatabase() async {
     final dbPath = await _buildDatabasePath();
     final db = await _databaseFactory.openDatabase(
       dbPath,
@@ -997,13 +1207,18 @@ class WorkoutStorageService {
       ),
     );
 
-    await _migrateWorkoutHistoryFromExcelIfNeeded(db);
-    await _repairDataIntegrity(
-      db,
-      recoverMissingParents: await _hasRoutineRuntimeData(db),
-    );
-    _database = db;
-    return db;
+    try {
+      await _migrateWorkoutHistoryFromExcelIfNeeded(db);
+      await _repairDataIntegrity(
+        db,
+        recoverMissingParents: await _hasRoutineRuntimeData(db),
+      );
+      _database = db;
+      return db;
+    } catch (_) {
+      await db.close();
+      rethrow;
+    }
   }
 
   Future<String> _buildDatabasePath() async {
@@ -1114,17 +1329,38 @@ class WorkoutStorageService {
       )
     ''');
 
+    for (final table in ['workout_logs', 'workout_sessions']) {
+      final columns = await db.rawQuery('PRAGMA table_info($table)');
+      if (!columns.any((row) => row['name'] == 'session_id')) {
+        await db.execute(
+            "ALTER TABLE $table ADD COLUMN session_id TEXT NOT NULL DEFAULT ''");
+      }
+      await db.execute(
+          "UPDATE $table SET session_id = 'legacy:' || substr(date, 1, 10) || ':' || plan_id WHERE session_id = ''");
+    }
+    // Version 3 keyed sessions by day, silently dropping a second workout.
+    await db.execute('DROP INDEX IF EXISTS idx_workout_sessions_unique');
+    await db.execute('DROP INDEX IF EXISTS idx_workout_logs_unique');
     await _deduplicateWorkoutData(db);
 
     await db.execute('''
       CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_sessions_unique
-      ON workout_sessions(date, plan_id)
+      ON workout_sessions(session_id) WHERE session_id != ''
     ''');
 
     await db.execute('''
       CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_logs_unique
-      ON workout_logs(date, plan_id, exercise_id, set_number, reps, weight, rir)
+      ON workout_logs(session_id, exercise_id, set_number, reps, weight, rir) WHERE session_id != ''
     ''');
+    for (final table in ['workout_logs', 'workout_sessions']) {
+      await db.execute('''
+        CREATE TRIGGER IF NOT EXISTS ${table}_legacy_session
+        AFTER INSERT ON $table WHEN NEW.session_id = ''
+        BEGIN
+          UPDATE $table SET session_id = 'legacy:' || substr(NEW.date, 1, 10) || ':' || NEW.plan_id WHERE id = NEW.id;
+        END
+      ''');
+    }
 
     await db.execute('''
       CREATE UNIQUE INDEX IF NOT EXISTS idx_plan_exercises_unique
@@ -1193,7 +1429,7 @@ class WorkoutStorageService {
       WHERE id NOT IN (
         SELECT MIN(id)
         FROM workout_sessions
-        GROUP BY date, plan_id
+        GROUP BY session_id
       )
     ''');
 
@@ -1202,7 +1438,7 @@ class WorkoutStorageService {
       WHERE id NOT IN (
         SELECT MIN(id)
         FROM workout_logs
-        GROUP BY date, plan_id, exercise_id, set_number, reps, weight, rir
+        GROUP BY session_id, exercise_id, set_number, reps, weight, rir
       )
     ''');
 
@@ -1577,220 +1813,34 @@ class WorkoutStorageService {
   }
 }
 
-const List<Map<String, Object?>> _kCommonExerciseSeedRows = [
-  {
-    'exercise_id': 1,
-    'name': 'Barbell Back Squat',
-    'description': 'Drive through mid-foot and keep torso braced.',
-    'category': 'Compound',
-    'main_muscle_group': 'Legs',
-  },
-  {
-    'exercise_id': 2,
-    'name': 'Romanian Deadlift',
-    'description': 'Push hips back and keep a neutral spine.',
-    'category': 'Compound',
-    'main_muscle_group': 'Hamstrings',
-  },
-  {
-    'exercise_id': 3,
-    'name': 'Conventional Deadlift',
-    'description': 'Set lats tight and pull the floor away.',
-    'category': 'Compound',
-    'main_muscle_group': 'Back',
-  },
-  {
-    'exercise_id': 4,
-    'name': 'Barbell Bench Press',
-    'description': 'Retract shoulder blades and control bar path.',
-    'category': 'Compound',
-    'main_muscle_group': 'Chest',
-  },
-  {
-    'exercise_id': 5,
-    'name': 'Incline Dumbbell Press',
-    'description': 'Press up and in while keeping shoulder stable.',
-    'category': 'Compound',
-    'main_muscle_group': 'Chest',
-  },
-  {
-    'exercise_id': 6,
-    'name': 'Standing Overhead Press',
-    'description': 'Brace core and press in a vertical path.',
-    'category': 'Compound',
-    'main_muscle_group': 'Shoulders',
-  },
-  {
-    'exercise_id': 7,
-    'name': 'Pull-Up',
-    'description': 'Lead with chest and avoid swinging.',
-    'category': 'Compound',
-    'main_muscle_group': 'Back',
-  },
-  {
-    'exercise_id': 8,
-    'name': 'Lat Pulldown',
-    'description': 'Pull elbows down toward hips.',
-    'category': 'Compound',
-    'main_muscle_group': 'Back',
-  },
-  {
-    'exercise_id': 9,
-    'name': 'Barbell Row',
-    'description': 'Keep torso fixed and row to lower ribs.',
-    'category': 'Compound',
-    'main_muscle_group': 'Back',
-  },
-  {
-    'exercise_id': 10,
-    'name': 'Seated Cable Row',
-    'description': 'Squeeze shoulder blades at full contraction.',
-    'category': 'Compound',
-    'main_muscle_group': 'Back',
-  },
-  {
-    'exercise_id': 11,
-    'name': 'Leg Press',
-    'description': 'Control depth and keep knees tracking over toes.',
-    'category': 'Compound',
-    'main_muscle_group': 'Legs',
-  },
-  {
-    'exercise_id': 12,
-    'name': 'Walking Lunge',
-    'description': 'Take controlled steps and keep torso tall.',
-    'category': 'Compound',
-    'main_muscle_group': 'Legs',
-  },
-  {
-    'exercise_id': 13,
-    'name': 'Hip Thrust',
-    'description': 'Posteriorly tilt pelvis and lock out hips.',
-    'category': 'Compound',
-    'main_muscle_group': 'Glutes',
-  },
-  {
-    'exercise_id': 14,
-    'name': 'Leg Extension',
-    'description': 'Pause briefly at top without swinging.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Quadriceps',
-  },
-  {
-    'exercise_id': 15,
-    'name': 'Seated Leg Curl',
-    'description': 'Pull with hamstrings and control the eccentric.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Hamstrings',
-  },
-  {
-    'exercise_id': 16,
-    'name': 'Standing Calf Raise',
-    'description': 'Use full range and pause at stretch.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Calves',
-  },
-  {
-    'exercise_id': 17,
-    'name': 'Dumbbell Lateral Raise',
-    'description': 'Lift with elbows and avoid shrugging.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Shoulders',
-  },
-  {
-    'exercise_id': 18,
-    'name': 'Face Pull',
-    'description': 'Pull to eye level and externally rotate.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Shoulders',
-  },
-  {
-    'exercise_id': 19,
-    'name': 'Cable Fly',
-    'description': 'Keep slight elbow bend and squeeze chest.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Chest',
-  },
-  {
-    'exercise_id': 20,
-    'name': 'Push-Up',
-    'description': 'Maintain plank alignment through full range.',
-    'category': 'Compound',
-    'main_muscle_group': 'Chest',
-  },
-  {
-    'exercise_id': 21,
-    'name': 'Dips',
-    'description': 'Stay controlled and avoid shoulder collapse.',
-    'category': 'Compound',
-    'main_muscle_group': 'Triceps',
-  },
-  {
-    'exercise_id': 22,
-    'name': 'Triceps Pushdown',
-    'description': 'Keep elbows fixed and fully extend arms.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Triceps',
-  },
-  {
-    'exercise_id': 23,
-    'name': 'Overhead Triceps Extension',
-    'description': 'Keep elbows close and control stretch.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Triceps',
-  },
-  {
-    'exercise_id': 24,
-    'name': 'Barbell Curl',
-    'description': 'Curl without torso momentum.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Biceps',
-  },
-  {
-    'exercise_id': 25,
-    'name': 'Hammer Curl',
-    'description': 'Keep neutral grip and full elbow flexion.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Biceps',
-  },
-  {
-    'exercise_id': 26,
-    'name': 'Preacher Curl',
-    'description': 'Use strict tempo and avoid shoulder roll.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Biceps',
-  },
-  {
-    'exercise_id': 27,
-    'name': 'Cable Crunch',
-    'description': 'Flex spine intentionally and exhale at bottom.',
-    'category': 'Isolation',
-    'main_muscle_group': 'Core',
-  },
-  {
-    'exercise_id': 28,
-    'name': 'Hanging Leg Raise',
-    'description': 'Raise legs with controlled hip flexion.',
-    'category': 'Compound',
-    'main_muscle_group': 'Core',
-  },
-  {
-    'exercise_id': 29,
-    'name': 'Plank',
-    'description': 'Maintain a rigid trunk without sagging hips.',
-    'category': 'Isometric',
-    'main_muscle_group': 'Core',
-  },
-  {
-    'exercise_id': 30,
-    'name': 'Bulgarian Split Squat',
-    'description': 'Stay balanced and track front knee over toes.',
-    'category': 'Compound',
-    'main_muscle_group': 'Legs',
-  },
-];
-
 const String _routineSeedPlansKey = 'plans';
+Map<String, List<Map<String, Object?>>> _parseBackupSheets(
+    String directoryPath) {
+  final routine = _parseRoutineRuntimeSeed(directoryPath);
+  return {
+    'workout_plans': routine[_routineSeedPlansKey]!,
+    'exercises': routine[_routineSeedExercisesKey]!,
+    'plan_exercises': routine[_routineSeedPlanExercisesKey]!,
+    'plan_warmup_steps': routine[_routineSeedWarmUpStepsKey]!,
+    'workout_logs': _parseWorkoutLogSeed(directoryPath),
+    'workout_sessions': _parseWorkoutSessionSeed(directoryPath),
+    'active_session_exercise_setup_presets': [],
+    'active_workout_session_drafts': [],
+  };
+}
+
+String _importSessionId(
+    List<Data?> row, Map<String, int> headers, String date, int planId) {
+  final supplied =
+      _stringValue(_headerValue(row, headers, ['workout_session_key'])).trim();
+  if (supplied.isNotEmpty) return supplied;
+  final parsed = DateTime.tryParse(date);
+  if (parsed == null) {
+    throw const FormatException('Invalid workout date in backup.');
+  }
+  return workoutSessionId(parsed, planId);
+}
+
 const String _routineSeedExercisesKey = 'exercises';
 const String _routineSeedPlanExercisesKey = 'plan_exercises';
 const String _routineSeedWarmUpStepsKey = 'warm_up_steps';
@@ -2020,11 +2070,12 @@ List<Map<String, Object?>> _parseWorkoutLogSeed(String directoryPath) {
     path.join(directoryPath, filename),
     kTableSchemas[filename]!.sheetName,
   );
-  if (sheet == null || sheet.rows.isEmpty) {
+  final sheetRows = sheet?.rows;
+  if (sheetRows == null || sheetRows.isEmpty) {
     return const [];
   }
 
-  final headers = _headerIndexMap(sheet.rows.first);
+  final headers = _headerIndexMap(sheetRows.first);
   _requireHeaderGroups(filename, headers, const {
     'date': ['date'],
     'plan_id': ['plan_id'],
@@ -2036,8 +2087,8 @@ List<Map<String, Object?>> _parseWorkoutLogSeed(String directoryPath) {
   });
 
   final rows = <Map<String, Object?>>[];
-  for (var index = 1; index < sheet.rows.length; index++) {
-    final row = sheet.rows[index];
+  for (var index = 1; index < sheetRows.length; index++) {
+    final row = sheetRows[index];
     if (_isBlankExcelRow(row)) {
       continue;
     }
@@ -2072,6 +2123,7 @@ List<Map<String, Object?>> _parseWorkoutLogSeed(String directoryPath) {
 
     rows.add({
       'date': date,
+      'session_id': _importSessionId(row, headers, date, planId),
       'plan_id': planId,
       'exercise_id': exerciseId,
       'set_number': setNumber,
@@ -2089,11 +2141,12 @@ List<Map<String, Object?>> _parseWorkoutSessionSeed(String directoryPath) {
     path.join(directoryPath, filename),
     kTableSchemas[filename]!.sheetName,
   );
-  if (sheet == null || sheet.rows.isEmpty) {
+  final sheetRows = sheet?.rows;
+  if (sheetRows == null || sheetRows.isEmpty) {
     return const [];
   }
 
-  final headers = _headerIndexMap(sheet.rows.first);
+  final headers = _headerIndexMap(sheetRows.first);
   _requireHeaderGroups(filename, headers, const {
     'date': ['date'],
     'plan_id': ['plan_id'],
@@ -2104,8 +2157,8 @@ List<Map<String, Object?>> _parseWorkoutSessionSeed(String directoryPath) {
   });
 
   final rows = <Map<String, Object?>>[];
-  for (var index = 1; index < sheet.rows.length; index++) {
-    final row = sheet.rows[index];
+  for (var index = 1; index < sheetRows.length; index++) {
+    final row = sheetRows[index];
     if (_isBlankExcelRow(row)) {
       continue;
     }
@@ -2125,6 +2178,7 @@ List<Map<String, Object?>> _parseWorkoutSessionSeed(String directoryPath) {
 
     rows.add({
       'date': date,
+      'session_id': _importSessionId(row, headers, date, planId),
       'plan_id': planId,
       'fatigue_level': _stringValue(
         _headerValue(row, headers, ['fatigue_level']),
@@ -2459,4 +2513,16 @@ bool _looksLikePath(String value) {
       lower.endsWith('.webp') ||
       lower.endsWith('.gif') ||
       lower.endsWith('.bmp');
+}
+
+bool _isValidBackupDraft(String payload) {
+  try {
+    final decoded = jsonDecode(payload);
+    return decoded is Map &&
+        ActiveWorkoutSessionDraft.fromJson(
+                decoded.map((key, value) => MapEntry('$key', value))) !=
+            null;
+  } catch (_) {
+    return false;
+  }
 }

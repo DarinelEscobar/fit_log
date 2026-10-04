@@ -258,7 +258,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                               ),
                               child: _HistorySessionCard(
                                 key: ValueKey(
-                                  '${session.planId}_${session.date.millisecondsSinceEpoch}',
+                                  session.identity,
                                 ),
                                 session: session,
                                 onTap: () => _openSessionDetail(session),
@@ -268,19 +268,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           childCount: data.sessions.length,
                           findChildIndexCallback: (Key key) {
                             if (key is ValueKey<String>) {
-                              final parts = key.value.split('_');
-                              if (parts.length == 2) {
-                                final planId = int.tryParse(parts[0]);
-                                final millis = int.tryParse(parts[1]);
-                                if (planId != null && millis != null) {
-                                  final idx = data.sessions.indexWhere(
-                                    (s) =>
-                                        s.planId == planId &&
-                                        s.date.millisecondsSinceEpoch == millis,
-                                  );
-                                  return idx == -1 ? null : idx;
-                                }
-                              }
+                              final idx = data.sessions
+                                  .indexWhere((s) => s.identity == key.value);
+                              return idx == -1 ? null : idx;
                             }
                             return null;
                           },
@@ -803,8 +793,7 @@ class _HistoryGroupSection extends StatelessWidget {
             Divider(
               height: 1,
               thickness: 1,
-              color:
-                  KineticNoirPalette.outlineVariant.withValues(alpha: 0.10),
+              color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.10),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
@@ -814,7 +803,7 @@ class _HistoryGroupSection extends StatelessWidget {
                     if (i > 0) const SizedBox(height: 8),
                     _HistorySessionCard(
                       key: ValueKey(
-                        '${group.sessions[i].planId}_${group.sessions[i].date.millisecondsSinceEpoch}',
+                        group.sessions[i].identity,
                       ),
                       session: group.sessions[i],
                       onTap: () => onSelectSession(group.sessions[i]),
@@ -845,14 +834,14 @@ class _HistorySessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isNested
-        ? KineticNoirPalette.surface
-        : KineticNoirPalette.surfaceLow;
+    final bgColor =
+        isNested ? KineticNoirPalette.surface : KineticNoirPalette.surfaceLow;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        key: Key('history-session-${session.planId}-${_keyDate(session.date)}'),
+        key: Key(
+            'history-session-${session.planId}-${_keyDate(session.date)}${session.sessionId == null || session.sessionId!.startsWith('legacy:') ? '' : '-${session.sessionId}'}'),
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Ink(
@@ -874,7 +863,9 @@ class _HistorySessionCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      _sessionHeaderDateFormatter.format(session.date).toUpperCase(),
+                      _sessionHeaderDateFormatter
+                          .format(session.date)
+                          .toUpperCase(),
                       style: KineticNoirTypography.body(
                         size: 10,
                         weight: FontWeight.w800,

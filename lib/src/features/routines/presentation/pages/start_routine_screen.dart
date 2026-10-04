@@ -22,8 +22,6 @@ import '../../domain/entities/warm_up_session_state.dart';
 import '../../domain/entities/warm_up_step.dart';
 import '../../domain/usecases/active_session_draft_usecases.dart';
 import '../../domain/usecases/active_session_exercise_setup_preset_usecases.dart';
-import '../../domain/usecases/save_workout_logs_usecase.dart';
-import '../../domain/usecases/save_workout_session_usecase.dart';
 import '../../services/workout_session_helper.dart';
 import '../models/finish_session_summary_draft.dart';
 import '../providers/exercises_provider.dart';
@@ -65,6 +63,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   late final ValueNotifier<DateTime> _clockNotifier;
   late DateTime _now;
   Timer? _draftSaveTimer;
+  Future<void> _draftWrite = Future<void>.value();
+  bool _endingSession = false;
+  bool _savingSession = false;
   final TextEditingController _notesCtl = TextEditingController();
   final FocusNode _notesFocusNode = FocusNode();
 
@@ -140,7 +141,10 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     _notesCtl.text = draft.notes;
     _energy = draft.energy;
     _mood = draft.mood;
-    _sessionDetails = List<PlanExerciseDetail>.from(draft.details);
+    final restoredIds = <int>{};
+    _sessionDetails = draft.details
+        .where((detail) => restoredIds.add(detail.exerciseId))
+        .toList();
     _exerciseMap = {
       for (final exercise in draft.exercises) exercise.id: exercise,
     };
@@ -654,6 +658,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   }
 
   void _scheduleDraftPersist() {
+    if (_endingSession || !mounted) return;
     _draftSaveTimer?.cancel();
     _draftSaveTimer = Timer(const Duration(milliseconds: 300), () {
       unawaited(_persistDraftNow());
@@ -661,6 +666,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   }
 
   Future<void> _persistDraftNow() async {
+    if (_endingSession || !mounted) return;
     final details = _sessionDetails;
     final exerciseMap = _exerciseMap;
     if (details == null || details.isEmpty || exerciseMap == null) {
@@ -700,7 +706,13 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     );
 
     final repo = ref.read(workoutPlanRepositoryProvider);
-    await SaveActiveSessionDraftUseCase(repo)(draft);
+    _draftWrite = _draftWrite
+        .then((_) => SaveActiveSessionDraftUseCase(repo)(draft))
+        .catchError((Object error) {
+      _showSnackBar(
+          'Could not save recovery data. Keep this session open and retry.');
+    });
+    await _draftWrite;
   }
 
   void _ensureExerciseVisible(int exerciseId, {bool alignTop = false}) {
@@ -763,7 +775,9 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   }
 
   Future<void> _clearPersistedDraft() async {
+    _endingSession = true;
     _draftSaveTimer?.cancel();
+    await _draftWrite;
     final repo = ref.read(workoutPlanRepositoryProvider);
     await ClearActiveSessionDraftUseCase(repo)();
   }
@@ -893,6 +907,31 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
       return;
     }
 
+    final removedLogs = _sessionLogs.values
+        .where((log) =>
+            log.exerciseId == exerciseId &&
+            log.completed &&
+            log.setNumber > updatedDetail.sets)
+        .length;
+    if (removedLogs > 0) {
+      final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+                title: const Text('Remove logged sets?'),
+                content: Text(
+                    'Reducing the set count removes $removedLogs completed sets from this workout.'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Keep sets')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Remove sets'))
+                ],
+              ));
+      if (!mounted || confirmed != true) return;
+    }
+
     try {
       final repo = ref.read(workoutPlanRepositoryProvider);
       await SaveActiveSessionExerciseSetupPresetUseCase(repo)(
@@ -921,7 +960,11 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   }
 
   Future<void> swapExercise(int index) async {
-    if (_sessionDetails == null || _exerciseMap == null) {
+    if (_sessionDetails == null ||
+        _exerciseMap == null ||
+        _savingSession ||
+        index < 0 ||
+        index >= _sessionDetails!.length) {
       return;
     }
     final detail = _sessionDetails![index];
@@ -940,6 +983,38 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     );
     if (picked == null) {
       return;
+    }
+    if (!mounted) return;
+    if (picked.id != detail.exerciseId &&
+        _sessionDetails!.any((item) => item.exerciseId == picked.id)) {
+      _showSnackBar(
+          '${picked.name} is already in this workout. Choose a different exercise.');
+      return;
+    }
+    final hasCompletedSets = _sessionLogs.values
+        .any((log) => log.exerciseId == detail.exerciseId && log.completed);
+    if (picked.id == detail.exerciseId || hasCompletedSets) {
+      final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+                title: Text(picked.id == detail.exerciseId
+                    ? 'Reset this exercise?'
+                    : 'Replace this exercise?'),
+                content: Text(picked.id == detail.exerciseId
+                    ? 'To correct weight or reps, tap EDIT on the completed set. Resetting removes all sets logged for this exercise in this workout.'
+                    : 'Replacing ${detail.name} removes its sets from this workout. Your previously saved history is kept.'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Keep sets')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: Text(picked.id == detail.exerciseId
+                          ? 'Reset sets'
+                          : 'Replace & discard sets')),
+                ],
+              ));
+      if (!mounted || confirmed != true) return;
     }
     final hasSavedSetup = await _loadSetupPreset(picked.id) != null;
     if (!mounted) {
@@ -1062,6 +1137,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   }
 
   Future<void> _handleExitAttempt() async {
+    if (_savingSession || _endingSession) return;
     final exit = await showConfirmExitSheet(context);
     if (!mounted || !exit) {
       return;
@@ -1075,6 +1151,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
   }
 
   Future<void> _openFinishSummary() async {
+    if (_savingSession || _endingSession) return;
     if (_completedLogs.isEmpty) {
       _showSnackBar('Complete at least one set before finishing the session.');
       return;
@@ -1120,30 +1197,51 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         return;
       case FinishSessionSummaryAction.save:
         final repo = ref.read(workoutPlanRepositoryProvider);
+        setState(() {
+          _savingSession = true;
+          _endingSession = true;
+        });
         _draftSaveTimer?.cancel();
-        await _cancelAllSessionNotifications();
-        await SaveWorkoutLogsUseCase(repo)(_completedLogs);
-        await SaveWorkoutSessionUseCase(repo)(
-          WorkoutSession(
-            planId: widget.plan.id,
-            date: now,
-            fatigueLevel: result.energy!,
-            durationMinutes: duration.inMinutes,
-            mood: result.mood!,
-            notes: result.notes,
-          ),
-        );
-        await ClearActiveSessionDraftUseCase(repo)();
-        ref.invalidate(workoutLogsProvider);
-        ref.invalidate(workoutSessionsProvider);
-        ref.invalidate(performanceDashboardProvider);
-        ref.invalidate(exerciseProgressDetailProvider);
-        ref.invalidate(activeExerciseProgressProvider);
-        if (!mounted) {
-          return;
+        try {
+          await _draftWrite;
+          await repo.finishWorkout(
+              _completedLogs,
+              WorkoutSession(
+                planId: widget.plan.id,
+                date: _sessionStartedAt,
+                sessionId:
+                    'workout:${widget.plan.id}:${_sessionStartedAt.toIso8601String()}',
+                fatigueLevel: result.energy!,
+                durationMinutes: duration.inMinutes,
+                mood: result.mood!,
+                notes: result.notes,
+              ));
+          // Saving is authoritative. Notification cleanup must not report a
+          // failed save after the transaction has already committed.
+          try {
+            await _cancelAllSessionNotifications();
+          } catch (_) {}
+          if (!mounted) return;
+          ref.invalidate(workoutLogsProvider);
+          ref.invalidate(workoutSessionsProvider);
+          ref.invalidate(performanceDashboardProvider);
+          ref.invalidate(exerciseProgressDetailProvider);
+          ref.invalidate(activeExerciseProgressProvider);
+          _showSnackBar('Session saved.');
+          Navigator.of(context).pop();
+        } catch (error) {
+          if (!mounted) return;
+          setState(() {
+            _savingSession = false;
+            _endingSession = false;
+          });
+          _energy = result.energy;
+          _mood = result.mood;
+          _notesCtl.text = result.notes;
+          _scheduleDraftPersist();
+          _showSnackBar(
+              'Session could not be saved. Your sets are still here; try again.');
         }
-        _showSnackBar('Session saved.');
-        Navigator.of(context).pop();
     }
   }
 
@@ -1251,285 +1349,297 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
         }
         _handleExitAttempt();
       },
-      child: Scaffold(
-        backgroundColor: KineticNoirPalette.background,
-        appBar: AppBar(
+      child: Stack(children: [
+        Scaffold(
           backgroundColor: KineticNoirPalette.background,
-          surfaceTintColor: Colors.transparent,
-          toolbarHeight: MediaQuery.orientationOf(context) == Orientation.landscape
-              ? 48
-              : 64,
-          leading: IconButton(
-            key: const Key('active-session-close'),
-            icon: const Icon(Icons.close_rounded),
-            color: KineticNoirPalette.onSurface,
-            onPressed: _handleExitAttempt,
-          ),
-          titleSpacing: 0,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                showWarmUpChrome ? 'WARM-UP' : widget.plan.name,
-                key: const Key('active-session-title'),
-                style: KineticNoirTypography.headline(
-                  size: 20,
-                  weight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              showWarmUpChrome
-                  ? Text(
-                      'Prepare for your session',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: KineticNoirTypography.body(
-                          size: 11, color: KineticNoirPalette.onSurfaceVariant),
-                    )
-                  : ValueListenableBuilder<DateTime>(
-                      valueListenable: _clockNotifier,
-                      builder: (context, clockTime, _) {
-                        final sessionDuration = _sessionDurationAt(clockTime);
-                        return Text(
-                          '${WorkoutSessionHelper.formatDuration(sessionDuration)} · $_completedSetCount/$_totalSetCount sets · ${_volumeKg.toStringAsFixed(0)} kg',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: KineticNoirTypography.body(
-                              size: 11,
-                              color: KineticNoirPalette.onSurfaceVariant),
-                        );
-                      },
-                    ),
-            ],
-          ),
-          actions: [
-            if (!showWarmUpChrome)
-              TextButton(
-                key: const Key('active-session-finish'),
-                onPressed: _openFinishSummary,
-                child: Text(
-                  'FINISH',
-                  style: KineticNoirTypography.body(
-                    size: 13,
-                    weight: FontWeight.w800,
-                    color: KineticNoirPalette.primary,
-                    letterSpacing: 1.4,
+          appBar: AppBar(
+            backgroundColor: KineticNoirPalette.background,
+            surfaceTintColor: Colors.transparent,
+            toolbarHeight:
+                MediaQuery.orientationOf(context) == Orientation.landscape
+                    ? 48
+                    : 64,
+            leading: IconButton(
+              key: const Key('active-session-close'),
+              icon: const Icon(Icons.close_rounded),
+              color: KineticNoirPalette.onSurface,
+              onPressed: _handleExitAttempt,
+            ),
+            titleSpacing: 0,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  showWarmUpChrome ? 'WARM-UP' : widget.plan.name,
+                  key: const Key('active-session-title'),
+                  style: KineticNoirTypography.headline(
+                    size: 20,
+                    weight: FontWeight.w700,
                   ),
                 ),
-              ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        bottomNavigationBar: ValueListenableBuilder<bool>(
-          valueListenable: _warmUpVisible,
-          builder: (context, warmUpVisible, _) => showWarmUpChrome ||
-                  warmUpVisible
-              ? const SizedBox.shrink()
-              : _ActiveSessionBottomBar(
-                  clockNotifier: _clockNotifier,
-                  getRestTimerSummary: _activeRestTimerSummary,
-                  canNavigateUp: canNavigateUp,
-                  canNavigateDown: canNavigateDown,
-                  onNavigateUp: () => _moveExpandedExercise(-1),
-                  onNavigateDown: () => _moveExpandedExercise(1),
-                  onLogSet: activeExpandedExerciseId == null
-                      ? null
-                      : () => _logExpandedSet(
-                          activeExpandedExerciseId),
+                const SizedBox(height: 2),
+                showWarmUpChrome
+                    ? Text(
+                        'Prepare for your session',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: KineticNoirTypography.body(
+                            size: 11,
+                            color: KineticNoirPalette.onSurfaceVariant),
+                      )
+                    : ValueListenableBuilder<DateTime>(
+                        valueListenable: _clockNotifier,
+                        builder: (context, clockTime, _) {
+                          final sessionDuration = _sessionDurationAt(clockTime);
+                          return Text(
+                            '${WorkoutSessionHelper.formatDuration(sessionDuration)} · $_completedSetCount/$_totalSetCount sets · ${_volumeKg.toStringAsFixed(0)} kg',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: KineticNoirTypography.body(
+                                size: 11,
+                                color: KineticNoirPalette.onSurfaceVariant),
+                          );
+                        },
+                      ),
+              ],
+            ),
+            actions: [
+              if (!showWarmUpChrome)
+                TextButton(
+                  key: const Key('active-session-finish'),
+                  onPressed: _openFinishSummary,
+                  child: Text(
+                    'FINISH',
+                    style: KineticNoirTypography.body(
+                      size: 13,
+                      weight: FontWeight.w800,
+                      color: KineticNoirPalette.primary,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
                 ),
-        ),
-        body: asyncExercises.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(color: KineticNoirPalette.primary),
+              const SizedBox(width: 8),
+            ],
           ),
-          error: (error, _) => _AsyncErrorState(error: '$error'),
-          data: (exercises) => asyncDetails.when(
+          bottomNavigationBar: ValueListenableBuilder<bool>(
+            valueListenable: _warmUpVisible,
+            builder: (context, warmUpVisible, _) =>
+                showWarmUpChrome || warmUpVisible
+                    ? const SizedBox.shrink()
+                    : _ActiveSessionBottomBar(
+                        clockNotifier: _clockNotifier,
+                        getRestTimerSummary: _activeRestTimerSummary,
+                        canNavigateUp: canNavigateUp,
+                        canNavigateDown: canNavigateDown,
+                        onNavigateUp: () => _moveExpandedExercise(-1),
+                        onNavigateDown: () => _moveExpandedExercise(1),
+                        onLogSet: activeExpandedExerciseId == null
+                            ? null
+                            : () => _logExpandedSet(activeExpandedExerciseId),
+                      ),
+          ),
+          body: asyncExercises.when(
             loading: () => const Center(
               child:
                   CircularProgressIndicator(color: KineticNoirPalette.primary),
             ),
             error: (error, _) => _AsyncErrorState(error: '$error'),
-            data: (details) {
-              return asyncWarmUpSteps.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(
-                    color: KineticNoirPalette.primary,
+            data: (exercises) => asyncDetails.when(
+              loading: () => const Center(
+                child: CircularProgressIndicator(
+                    color: KineticNoirPalette.primary),
+              ),
+              error: (error, _) => _AsyncErrorState(error: '$error'),
+              data: (details) {
+                return asyncWarmUpSteps.when(
+                  loading: () => const Center(
+                    child: CircularProgressIndicator(
+                      color: KineticNoirPalette.primary,
+                    ),
                   ),
-                ),
-                error: (error, _) => _AsyncErrorState(error: '$error'),
-                data: (warmUpSteps) {
-                  _initializeSessionData(details, exercises);
-                  _initializeWarmUp(warmUpSteps);
+                  error: (error, _) => _AsyncErrorState(error: '$error'),
+                  data: (warmUpSteps) {
+                    _initializeSessionData(details, exercises);
+                    _initializeWarmUp(warmUpSteps);
 
-                  if (_showWarmUpPreview) {
-                    return WarmUpPreview(
-                      steps: _warmUpSteps!,
-                      getReadySeconds: _warmUpGetReadySeconds,
-                      onGetReadySecondsChanged: _setWarmUpGetReadySeconds,
-                      onStart: _startWarmUp,
-                      onSkip: _skipWarmUpPreview,
-                    );
-                  }
-
-                  if (_isWarmUpActive) {
-                    return ValueListenableBuilder<DateTime>(
-                      valueListenable: _clockNotifier,
-                      builder: (context, clockTime, _) => WarmUpFlow(
+                    if (_showWarmUpPreview) {
+                      return WarmUpPreview(
                         steps: _warmUpSteps!,
-                        state: _warmUpState!,
-                        now: clockTime,
-                        onPauseResume: _toggleWarmUpPause,
-                        onSkipStep: _skipWarmUpStep,
-                        onFinish: _finishWarmUp,
-                      ),
-                    );
-                  }
+                        getReadySeconds: _warmUpGetReadySeconds,
+                        onGetReadySecondsChanged: _setWarmUpGetReadySeconds,
+                        onStart: _startWarmUp,
+                        onSkip: _skipWarmUpPreview,
+                      );
+                    }
 
-                  final sessionDetails =
-                      _sessionDetails ?? const <PlanExerciseDetail>[];
-                  if (sessionDetails.isEmpty) {
-                    return const _EmptySessionState();
-                  }
-
-                  return Column(
-                    children: [
-                      if (activeExpandedExerciseId != null)
-                        _buildExerciseFocusHeader(
-                          sessionDetails
-                              .where((detail) =>
-                                  detail.exerciseId == activeExpandedExerciseId)
-                              .firstOrNull ??
-                          sessionDetails.first,
+                    if (_isWarmUpActive) {
+                      return ValueListenableBuilder<DateTime>(
+                        valueListenable: _clockNotifier,
+                        builder: (context, clockTime, _) => WarmUpFlow(
+                          steps: _warmUpSteps!,
+                          state: _warmUpState!,
+                          now: clockTime,
+                          onPauseResume: _toggleWarmUpPause,
+                          onSkipStep: _skipWarmUpStep,
+                          onFinish: _finishWarmUp,
                         ),
-                      Expanded(
-                        child: ListView(
-                          padding: const EdgeInsets.fromLTRB(
-                            16,
-                            8,
-                            16,
-                            scrollBottomPadding,
+                      );
+                    }
+
+                    final sessionDetails =
+                        _sessionDetails ?? const <PlanExerciseDetail>[];
+                    if (sessionDetails.isEmpty) {
+                      return const _EmptySessionState();
+                    }
+
+                    return Column(
+                      children: [
+                        if (activeExpandedExerciseId != null)
+                          _buildExerciseFocusHeader(
+                            sessionDetails
+                                    .where((detail) =>
+                                        detail.exerciseId ==
+                                        activeExpandedExerciseId)
+                                    .firstOrNull ??
+                                sessionDetails.first,
                           ),
-                          children: [
-                            if (_showNotesComposer) ...[
-                              ActiveSessionNotesCard(
-                                controller: _notesCtl,
-                                focusNode: _notesFocusNode,
-                                isVisible: _showNotesComposer,
-                                onToggleVisibility: () {
-                                  setState(() =>
-                                      _showNotesComposer = !_showNotesComposer);
-                                },
-                              ),
-                              const SizedBox(height: 10),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: _AddSessionExerciseButton(
-                                  onPressed: addExercise,
+                        Expanded(
+                          child: ListView(
+                            padding: const EdgeInsets.fromLTRB(
+                              16,
+                              8,
+                              16,
+                              scrollBottomPadding,
+                            ),
+                            children: [
+                              if (_showNotesComposer) ...[
+                                ActiveSessionNotesCard(
+                                  controller: _notesCtl,
+                                  focusNode: _notesFocusNode,
+                                  isVisible: _showNotesComposer,
+                                  onToggleVisibility: () {
+                                    setState(() => _showNotesComposer =
+                                        !_showNotesComposer);
+                                  },
                                 ),
-                              ),
-                            ] else
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 10,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  ActiveSessionNotesCard(
-                                    controller: _notesCtl,
-                                    focusNode: _notesFocusNode,
-                                    isVisible: _showNotesComposer,
-                                    onToggleVisibility: () {
-                                      setState(() => _showNotesComposer =
-                                          !_showNotesComposer);
-                                    },
-                                  ),
-                                  _AddSessionExerciseButton(
+                                const SizedBox(height: 10),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: _AddSessionExerciseButton(
                                     onPressed: addExercise,
                                   ),
-                                ],
-                              ),
-                            const SizedBox(height: 14),
-                            for (var index = 0;
-                                index < sessionDetails.length;
-                                index++)
-                              ActiveSessionExerciseCard(
-                                key: _cardKeys.putIfAbsent(
-                                  sessionDetails[index].exerciseId,
-                                  () => GlobalKey<
-                                      ActiveSessionExerciseCardState>(),
                                 ),
-                                detail: sessionDetails[index],
-                                exercise: _exerciseMap?[
-                                    sessionDetails[index].exerciseId],
-                                planId: widget.plan.id,
-                                exerciseNumber: index + 1,
-                                now: widget.now,
-                                expanded: _expandedExerciseId ==
+                              ] else
+                                Wrap(
+                                  spacing: 10,
+                                  runSpacing: 10,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    ActiveSessionNotesCard(
+                                      controller: _notesCtl,
+                                      focusNode: _notesFocusNode,
+                                      isVisible: _showNotesComposer,
+                                      onToggleVisibility: () {
+                                        setState(() => _showNotesComposer =
+                                            !_showNotesComposer);
+                                      },
+                                    ),
+                                    _AddSessionExerciseButton(
+                                      onPressed: addExercise,
+                                    ),
+                                  ],
+                                ),
+                              const SizedBox(height: 14),
+                              for (var index = 0;
+                                  index < sessionDetails.length;
+                                  index++)
+                                ActiveSessionExerciseCard(
+                                  key: _cardKeys.putIfAbsent(
                                     sessionDetails[index].exerciseId,
-                                logsMap: _sessionLogs,
-                                weightUnit: _weightUnitsByExercise[
-                                        sessionDetails[index].exerciseId] ??
-                                    WeightDisplayUnit.kg,
-                                initialRestEndsAt: _restEndsAtByExercise[
-                                    sessionDetails[index].exerciseId],
-                                onToggle: () {
-                                  final exerciseId =
-                                      sessionDetails[index].exerciseId;
-                                  setState(() {
-                                    _expandedExerciseId =
-                                        _expandedExerciseId == exerciseId
-                                            ? null
-                                            : exerciseId;
-                                    if (_expandedExerciseId != null) {
-                                      _lastFocusedExerciseId = exerciseId;
-                                    }
-                                    _scheduleDraftPersist();
-                                  });
-                                  if (_expandedExerciseId != null) {
-                                    WidgetsBinding.instance
-                                        .addPostFrameCallback((_) {
-                                      if (!mounted) return;
-                                      _ensureExerciseVisible(exerciseId);
+                                    () => GlobalKey<
+                                        ActiveSessionExerciseCardState>(),
+                                  ),
+                                  detail: sessionDetails[index],
+                                  exercise: _exerciseMap?[
+                                      sessionDetails[index].exerciseId],
+                                  planId: widget.plan.id,
+                                  exerciseNumber: index + 1,
+                                  now: widget.now,
+                                  expanded: _expandedExerciseId ==
+                                      sessionDetails[index].exerciseId,
+                                  logsMap: _sessionLogs,
+                                  weightUnit: _weightUnitsByExercise[
+                                          sessionDetails[index].exerciseId] ??
+                                      WeightDisplayUnit.kg,
+                                  initialRestEndsAt: _restEndsAtByExercise[
+                                      sessionDetails[index].exerciseId],
+                                  onToggle: () {
+                                    final exerciseId =
+                                        sessionDetails[index].exerciseId;
+                                    setState(() {
+                                      _expandedExerciseId =
+                                          _expandedExerciseId == exerciseId
+                                              ? null
+                                              : exerciseId;
+                                      if (_expandedExerciseId != null) {
+                                        _lastFocusedExerciseId = exerciseId;
+                                      }
+                                      _scheduleDraftPersist();
                                     });
-                                  }
-                                },
-                                onSetCountChanged: (count) => setState(() {
-                                  _setCountsByExercise[
-                                      sessionDetails[index].exerciseId] = count;
-                                  _scheduleDraftPersist();
-                                }),
-                                saveDraftLog: _saveDraftLog,
-                                completeLog: _completeLog,
-                                removeLog: _removeLog,
-                                onWeightUnitChanged: (unit) => setState(() {
-                                  _weightUnitsByExercise[
-                                      sessionDetails[index].exerciseId] = unit;
-                                  _scheduleDraftPersist();
-                                }),
-                                onRestEndsAtChanged: (restEndsAt) =>
-                                    _updateRestEndsAt(
-                                  sessionDetails[index].exerciseId,
-                                  restEndsAt,
+                                    if (_expandedExerciseId != null) {
+                                      WidgetsBinding.instance
+                                          .addPostFrameCallback((_) {
+                                        if (!mounted) return;
+                                        _ensureExerciseVisible(exerciseId);
+                                      });
+                                    }
+                                  },
+                                  onSetCountChanged: (count) => setState(() {
+                                    _setCountsByExercise[sessionDetails[index]
+                                        .exerciseId] = count;
+                                    _scheduleDraftPersist();
+                                  }),
+                                  saveDraftLog: _saveDraftLog,
+                                  completeLog: _completeLog,
+                                  removeLog: _removeLog,
+                                  onWeightUnitChanged: (unit) => setState(() {
+                                    _weightUnitsByExercise[sessionDetails[index]
+                                        .exerciseId] = unit;
+                                    _scheduleDraftPersist();
+                                  }),
+                                  onRestEndsAtChanged: (restEndsAt) =>
+                                      _updateRestEndsAt(
+                                    sessionDetails[index].exerciseId,
+                                    restEndsAt,
+                                  ),
+                                  onEditSetup: _setupEditableExerciseIds
+                                          .contains(
+                                    sessionDetails[index].exerciseId,
+                                  )
+                                      ? () => _editSessionExerciseSetup(
+                                            sessionDetails[index].exerciseId,
+                                          )
+                                      : null,
+                                  onSwap: () => swapExercise(index),
                                 ),
-                                onEditSetup: _setupEditableExerciseIds.contains(
-                                  sessionDetails[index].exerciseId,
-                                )
-                                    ? () => _editSessionExerciseSetup(
-                                          sessionDetails[index].exerciseId,
-                                        )
-                                    : null,
-                                onSwap: () => swapExercise(index),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ),
-      ),
+        if (_savingSession)
+          const Positioned.fill(
+              child: Stack(children: [
+            ModalBarrier(dismissible: false, color: Colors.black54),
+            Center(child: CircularProgressIndicator()),
+          ])),
+      ]),
     );
   }
 }

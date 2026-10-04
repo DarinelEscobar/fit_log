@@ -13,6 +13,7 @@ import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_deta
 import 'package:fit_log/src/features/routines/domain/entities/weight_display_unit.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_log_entry.dart';
 import 'package:fit_log/src/features/routines/domain/entities/workout_plan.dart';
+import 'package:fit_log/src/features/routines/domain/entities/workout_session.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -62,6 +63,194 @@ void main() {
     if (await tempRoot.exists()) {
       await tempRoot.delete(recursive: true);
     }
+  });
+
+  test(
+      'two identical workouts on the same day remain separate and retries are idempotent',
+      () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    addTearDown(service.close);
+    await _seedRoutine(service);
+    final morning = DateTime(2026, 9, 1, 8);
+    final evening = DateTime(2026, 9, 1, 18);
+    await service.finishWorkout([_finishedLog(morning)], _sessionFor(morning));
+    await service.finishWorkout([_finishedLog(evening)], _sessionFor(evening));
+    await service.finishWorkout([_finishedLog(evening)], _sessionFor(evening));
+    expect(await service.fetchAllLogs(), hasLength(2));
+    expect(await service.fetchAllSessions(), hasLength(2));
+    final repo = AppDataRepositoryImpl(storageService: service);
+    final backup = await repo.exportData(request: const ExportRequest.full());
+    await repo.importData(backup);
+    expect(await service.fetchAllSessions(), hasLength(2));
+  });
+
+  test('same-name routines and exercises keep exact IDs during restore',
+      () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    addTearDown(service.close);
+    await _seedRoutine(service);
+    await _seedRoutine(service);
+    final date = DateTime(2026, 9, 1, 8);
+    await service.finishWorkout([_finishedLog(date)], _sessionFor(date));
+    await service.finishWorkout(
+        [
+          WorkoutLogEntry(
+              date: date,
+              planId: 2,
+              exerciseId: 2,
+              setNumber: 1,
+              reps: 8,
+              weight: 30,
+              rir: 2)
+        ],
+        WorkoutSession(
+            date: date,
+            planId: 2,
+            fatigueLevel: '5',
+            durationMinutes: 45,
+            mood: '3',
+            notes: 'Second routine'));
+    final repository = AppDataRepositoryImpl(storageService: service);
+    final backup =
+        await repository.exportData(request: const ExportRequest.full());
+    await repository.importData(backup);
+    expect(await service.fetchAllLogs(), hasLength(2));
+    expect((await service.fetchAllLogs()).map((log) => log.planId).toSet(),
+        {1, 2});
+    expect((await service.fetchAllLogs()).map((log) => log.exerciseId).toSet(),
+        {1, 2});
+    expect(await service.fetchAllSessions(), hasLength(2));
+  });
+
+  test('failed final save rolls back sets and keeps the recovery draft',
+      () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    addTearDown(service.close);
+    await _seedRoutine(service);
+    final db = await databaseFactoryFfi.openDatabase(databasePath);
+    await db.insert('active_workout_session_drafts',
+        {'id': 1, 'updated_at': '2026-09-01', 'payload': '{}'});
+    await db.execute(
+        "CREATE TRIGGER reject_summary BEFORE INSERT ON workout_sessions BEGIN SELECT RAISE(ABORT, 'simulated failure'); END");
+    final date = DateTime(2026, 9, 1, 8);
+    await expectLater(
+        service.finishWorkout([_finishedLog(date)], _sessionFor(date)),
+        throwsA(isA<DatabaseException>()));
+    expect(await _countTable(db, 'workout_logs'), 0);
+    expect(await _countTable(db, 'workout_sessions'), 0);
+    expect(await _countTable(db, 'active_workout_session_drafts'), 1);
+    await db.execute('DROP TRIGGER reject_summary');
+    await service.finishWorkout([_finishedLog(date)], _sessionFor(date));
+    expect(await _countTable(db, 'workout_logs'), 1);
+    expect(await _countTable(db, 'workout_sessions'), 1);
+    expect(await _countTable(db, 'active_workout_session_drafts'), 0);
+  });
+
+  test(
+      'restoring an older full backup preserves newer history and routine definitions',
+      () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    addTearDown(service.close);
+    await _seedRoutine(service);
+    final repo = AppDataRepositoryImpl(storageService: service);
+    final first = DateTime(2026, 9, 1, 8);
+    await service.finishWorkout([_finishedLog(first)], _sessionFor(first));
+    final backup = await repo.exportData(request: const ExportRequest.full());
+    final second = DateTime(2026, 9, 1, 18);
+    await service.finishWorkout([_finishedLog(second)], _sessionFor(second));
+    await service.createWorkoutPlan('Newer routine', 'Weekly');
+    await service.createExercise('Newer exercise', '', 'Compound', 'Legs');
+    await service.addExerciseToPlan(
+        2,
+        PlanExerciseDetail(
+            exerciseId: 2,
+            name: 'Newer exercise',
+            description: '',
+            sets: 3,
+            reps: 8,
+            weight: 20,
+            restSeconds: 60,
+            rir: 2,
+            tempo: '3-1-1-0'));
+    await repo.importData(backup);
+    await repo.importData(backup);
+    expect(await service.fetchAllLogs(), hasLength(2));
+    expect(await service.fetchAllSessions(), hasLength(2));
+    expect((await service.fetchWorkoutPlans()).map((plan) => plan.name),
+        contains('Newer routine'));
+    expect(await service.fetchPlanExerciseDetails(2), hasLength(1));
+    await service.close();
+    await service.warmUpRoutineRuntimeCache();
+    expect(await service.fetchAllSessions(), hasLength(2));
+  });
+
+  test('automatic export includes new sets on an already exported day',
+      () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    addTearDown(service.close);
+    await _seedRoutine(service);
+    final repo = AppDataRepositoryImpl(storageService: service);
+    final first = DateTime(2026, 9, 1, 8);
+    await service.finishWorkout([_finishedLog(first)], _sessionFor(first));
+    await repo.exportData();
+    expect((await repo.getExportAvailability()).nextMissingRange, isNull);
+    final second = DateTime(2026, 9, 1, 18);
+    await service.finishWorkout([_finishedLog(second)], _sessionFor(second));
+    expect((await repo.getExportAvailability()).nextMissingRange!.startIso,
+        '2026-09-01');
+    final incremental = await repo.exportData();
+    final manifest = _readExportManifest(
+        ZipDecoder().decodeBytes(await incremental.readAsBytes()));
+    expect(manifest['workoutLogCount'], 2);
+    expect((await repo.getExportAvailability()).nextMissingRange, isNull);
+    await service.createWorkoutPlan('Keep this newer plan', 'Weekly');
+    await repo.importData(incremental);
+    expect((await service.fetchWorkoutPlans()).map((plan) => plan.name),
+        contains('Keep this newer plan'));
+    expect(await service.fetchAllLogs(), hasLength(2));
+  });
+
+  test(
+      'legacy 7040-row spreadsheet backup imports and reopens within the normal test deadline',
+      () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    addTearDown(service.close);
+    await _seedRoutine(service);
+    final book = Excel.createExcel();
+    book.rename(book.getDefaultSheet()!, 'WorkoutLog');
+    final sheet = book['WorkoutLog'];
+    sheet.appendRow([
+      'log_id',
+      'date',
+      'plan_id',
+      'exercise_id',
+      'set_number',
+      'reps_completed',
+      'weight_used',
+      'RIR'
+    ].map((h) => TextCellValue(h)).toList());
+    for (var i = 0; i < 7040; i++) {
+      sheet.appendRow([
+        IntCellValue(i + 1),
+        TextCellValue('2026-09-01'),
+        const IntCellValue(1),
+        const IntCellValue(1),
+        IntCellValue(i + 1),
+        const IntCellValue(8),
+        const DoubleCellValue(20),
+        const IntCellValue(2)
+      ]);
+    }
+    final bytes = book.save()!;
+    final archive = Archive()
+      ..addFile(ArchiveFile('workout_log.xlsx', bytes.length, bytes));
+    final backup = File(p.join(tempRoot.path, 'large_legacy_backup.zip'));
+    await backup.writeAsBytes(ZipEncoder().encode(archive)!);
+    await AppDataRepositoryImpl(storageService: service).importData(backup);
+    expect(await service.fetchAllLogs(), hasLength(7040));
+    await service.close();
+    await service.warmUpRoutineRuntimeCache();
+    expect(await service.fetchAllLogs(), hasLength(7040));
   });
 
   test(
@@ -199,8 +388,7 @@ void main() {
     );
   });
 
-  test('fresh install seeds only 30 exercises and leaves runtime tables empty',
-      () async {
+  test('fresh install leaves all routine and history tables empty', () async {
     final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
     await service.warmUpRoutineRuntimeCache();
     await service.close();
@@ -208,7 +396,7 @@ void main() {
     final db = await databaseFactoryFfi.openDatabase(databasePath);
     addTearDown(db.close);
 
-    expect(await _countTable(db, 'exercises'), 30);
+    expect(await _countTable(db, 'exercises'), 0);
     expect(await _countTable(db, 'workout_plans'), 0);
     expect(await _countTable(db, 'plan_exercises'), 0);
     expect(await _countTable(db, 'workout_logs'), 0);
@@ -230,7 +418,7 @@ void main() {
 
     final db = await databaseFactoryFfi.openDatabase(databasePath);
     addTearDown(db.close);
-    expect(await _countTable(db, 'exercises'), 30);
+    expect(await _countTable(db, 'exercises'), 0);
   });
 
   test('warmup does not rewrite existing user data', () async {
@@ -610,3 +798,24 @@ Future<int> _planExerciseOrphanCount(Database db) {
       OR exercises.exercise_id IS NULL
     ''');
 }
+
+Future<void> _seedRoutine(WorkoutStorageService service) async {
+  await service.createWorkoutPlan('Original routine', 'Weekly');
+  await service.createExercise('Original exercise', '', 'Compound', 'Chest');
+}
+
+WorkoutLogEntry _finishedLog(DateTime date) => WorkoutLogEntry(
+    date: date,
+    planId: 1,
+    exerciseId: 1,
+    setNumber: 1,
+    reps: 8,
+    weight: 20,
+    rir: 2);
+WorkoutSession _sessionFor(DateTime date) => WorkoutSession(
+    date: date,
+    planId: 1,
+    fatigueLevel: '5',
+    durationMinutes: 45,
+    mood: '3',
+    notes: 'Synthetic fixture');

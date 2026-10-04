@@ -9,13 +9,14 @@ import '../../../routines/presentation/providers/workout_plan_provider.dart';
 import '../models/history_models.dart';
 import 'history_providers.dart';
 
-final historyFilterOptionsProvider = Provider<({
-  List<HistoryPlanOption> planOptions,
-  List<HistoryExerciseOption> exerciseOptions,
-  DateTime anchorDate,
-  Map<int, WorkoutPlan> planMap,
-  Map<int, Exercise> exerciseMap,
-})>((ref) {
+final historyFilterOptionsProvider = Provider<
+    ({
+      List<HistoryPlanOption> planOptions,
+      List<HistoryExerciseOption> exerciseOptions,
+      DateTime anchorDate,
+      Map<int, WorkoutPlan> planMap,
+      Map<int, Exercise> exerciseMap,
+    })>((ref) {
   final plans = ref.watch(workoutPlanProvider).valueOrNull ?? const [];
   final sessions = ref.watch(workoutSessionsProvider).valueOrNull ?? const [];
   final logs = ref.watch(workoutLogsProvider).valueOrNull ?? const [];
@@ -154,11 +155,14 @@ HistoryOverviewData _buildHistoryOverview({
 
   final sessionsByKey = {
     for (final session in filteredSessions)
-      _HistorySessionKey(session.planId, _day(session.date)): session,
+      _HistorySessionKey(
+              session.planId, _day(session.date), session.storageSessionId):
+          session,
   };
   final logsByKey = <_HistorySessionKey, List<WorkoutLogEntry>>{};
   for (final log in filteredLogs) {
-    final key = _HistorySessionKey(log.planId, _day(log.date));
+    final key =
+        _HistorySessionKey(log.planId, _day(log.date), log.storageSessionId);
     logsByKey.putIfAbsent(key, () => <WorkoutLogEntry>[]).add(log);
   }
 
@@ -240,9 +244,12 @@ List<HistorySessionGroup> _buildWeekGroups(
   for (final session in sessions) {
     final d = _day(session.date);
     final monday = d.subtract(Duration(days: d.weekday - 1));
-    groupsByWeek.putIfAbsent(monday, () => <HistorySessionSummary>[]).add(session);
+    groupsByWeek
+        .putIfAbsent(monday, () => <HistorySessionSummary>[])
+        .add(session);
   }
-  final sortedMondays = groupsByWeek.keys.toList()..sort((a, b) => b.compareTo(a));
+  final sortedMondays = groupsByWeek.keys.toList()
+    ..sort((a, b) => b.compareTo(a));
   return [
     for (final monday in sortedMondays) ...[
       () {
@@ -288,7 +295,8 @@ List<HistorySessionGroup> _buildMonthGroups(
         .putIfAbsent(monthStart, () => <HistorySessionSummary>[])
         .add(session);
   }
-  final sortedMonths = groupsByMonth.keys.toList()..sort((a, b) => b.compareTo(a));
+  final sortedMonths = groupsByMonth.keys.toList()
+    ..sort((a, b) => b.compareTo(a));
   return [
     for (final monthStart in sortedMonths) ...[
       () {
@@ -324,16 +332,36 @@ List<HistorySessionGroup> _buildMonthGroups(
 
 String _formatShortMonthDay(DateTime date) {
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   return '${months[date.month - 1]} ${date.day}';
 }
 
 String _formatMonthYear(DateTime date) {
   const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
   return '${months[date.month - 1]} ${date.year}';
 }
@@ -392,6 +420,7 @@ HistorySessionSummary _buildSessionSummary({
   final totalReps = logs.fold<int>(0, (sum, log) => sum + log.reps);
 
   return HistorySessionSummary(
+    sessionId: key.sessionId,
     planId: key.planId,
     planName: planMap[key.planId]?.name ?? 'Plan ${key.planId}',
     date: key.date,
@@ -463,7 +492,9 @@ HistoryExerciseSummary _buildExerciseSummary(
 DateTime _day(DateTime value) => DateTime(value.year, value.month, value.day);
 
 final class _HistorySessionKey {
-  const _HistorySessionKey(this.planId, this.date);
+  const _HistorySessionKey(this.planId, this.date, this.sessionId);
+
+  final String sessionId;
 
   final int planId;
   final DateTime date;
@@ -472,9 +503,10 @@ final class _HistorySessionKey {
   bool operator ==(Object other) {
     return other is _HistorySessionKey &&
         other.planId == planId &&
-        other.date == date;
+        other.date == date &&
+        other.sessionId == sessionId;
   }
 
   @override
-  int get hashCode => Object.hash(planId, date);
+  int get hashCode => Object.hash(planId, date, sessionId);
 }

@@ -146,6 +146,11 @@ class WorkoutPlanRepositoryImpl implements WorkoutPlanRepository {
   }
 
   @override
+  Future<void> finishWorkout(
+          List<WorkoutLogEntry> logs, WorkoutSession session) =>
+      _storageService.finishWorkout(logs, session);
+
+  @override
   Future<ActiveWorkoutSessionDraft?> getActiveSessionDraft() {
     return _storageService.fetchActiveSessionDraft();
   }

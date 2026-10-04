@@ -23,6 +23,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
 
   static const String _databaseFilename = 'fit_log.db';
   static const String _manifestFilename = 'export_manifest.json';
+  static const String _exportSignaturesKey = 'successful_export_signatures_v2';
   static const String _exportHistoryKey = 'successful_export_date_ranges_v1';
   static const Set<String> _routineSpreadsheetFilenames = {
     'workout_plan.xlsx',
@@ -47,7 +48,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
     return ExportAvailability(
       firstDate: firstDate,
       lastDate: lastDate,
-      nextMissingRange: _findNextMissingRange(dates, ranges),
+      nextMissingRange: await _findChangedRange(logs, sessions),
       lastExportedDate: ranges.isEmpty
           ? null
           : ranges.map((range) => range.endDate).reduce(
@@ -101,11 +102,21 @@ class AppDataRepositoryImpl implements AppDataRepository {
       throw StateError('No workout data exists in the selected date range.');
     }
 
-    await _syncWorkoutExports(dir, logs: logs, sessions: sessions);
     final archive = Archive();
-    for (final filename in kTableSchemas.keys) {
-      final file = File(p.join(dir.path, filename));
-      await _addFileToArchive(archive, file, filename);
+    final historyExport =
+        await Directory.systemTemp.createTemp('fitlog_export_history_');
+    try {
+      await _syncWorkoutExports(historyExport, logs: logs, sessions: sessions);
+      for (final filename in kTableSchemas.keys) {
+        final source =
+            filename == 'workout_log.xlsx' || filename == 'workout_session.xlsx'
+                ? historyExport
+                : dir;
+        final file = File(p.join(source.path, filename));
+        await _addFileToArchive(archive, file, filename);
+      }
+    } finally {
+      await historyExport.delete(recursive: true);
     }
     final isCompleteBackup = request.mode == ExportRangeMode.full ||
         (request.mode == ExportRangeMode.automatic &&
@@ -142,6 +153,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
     final outFile = await _nextAvailableFile(dir, outputName);
     await outFile.writeAsBytes(data, flush: true);
     await _recordExportRange(selectedRange);
+    await _recordSignatures(logs, sessions);
 
     // Try to also copy the backup to external storage so the user can access it
     try {
@@ -193,7 +205,6 @@ class AppDataRepositoryImpl implements AppDataRepository {
       File? stagedDatabase;
       final stagedSpreadsheets = <String, File>{};
       var incrementalHistory = false;
-      ExportDateRange? importedRange;
 
       final bytes = await file.readAsBytes();
       final archive = ZipDecoder().decodeBytes(bytes);
@@ -211,7 +222,6 @@ class AppDataRepositoryImpl implements AppDataRepository {
           if (manifest is Map &&
               manifest['format'] == 'fitlog-range-export-v1') {
             incrementalHistory = manifest['historyMode'] == 'incremental';
-            importedRange = ExportDateRange.tryParse(manifest);
           }
           continue;
         }
@@ -252,9 +262,10 @@ class AppDataRepositoryImpl implements AppDataRepository {
       if (stagedDatabase != null) {
         await _storageService.validateDatabaseFile(stagedDatabase);
       }
-      for (final entry in stagedSpreadsheets.entries) {
-        _validateSpreadsheetFile(entry.value, entry.key);
-      }
+      await compute(_validateImportSheets, {
+        for (final entry in stagedSpreadsheets.entries)
+          entry.key: entry.value.path
+      });
 
       await _restoreStagedImport(
         documentsDirectory: dir,
@@ -263,9 +274,6 @@ class AppDataRepositoryImpl implements AppDataRepository {
         stagedSpreadsheets: stagedSpreadsheets,
         incrementalHistory: incrementalHistory,
       );
-      if (importedRange != null) {
-        await _recordExportRange(importedRange);
-      }
     } finally {
       if (await stagingDirectory.exists()) {
         await stagingDirectory.delete(recursive: true);
@@ -312,7 +320,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
     try {
       final stagedFile = File(p.join(stagingDirectory.path, filename));
       await stagedFile.writeAsBytes(await file.readAsBytes(), flush: true);
-      _validateSpreadsheetFile(stagedFile, filename);
+      await compute(_validateImportSheets, {filename: stagedFile.path});
 
       await _restoreStagedImport(
         documentsDirectory: directory,
@@ -333,119 +341,57 @@ class AppDataRepositoryImpl implements AppDataRepository {
     required Map<String, File> stagedSpreadsheets,
     bool incrementalHistory = false,
   }) async {
-    final rollbackDirectory = await Directory.systemTemp.createTemp(
-      'fitlog_import_rollback_',
-    );
-    final databaseDirectory = Directory(databaseDirectoryPath);
-    final activeDatabaseFile = File(
-      p.join(databaseDirectory.path, _databaseFilename),
-    );
-    File? databaseRollbackFile;
-    final spreadsheetRollbackFiles = <String, File?>{};
-
-    Future<void> restoreFile(File target, File? rollbackFile) async {
-      if (rollbackFile == null) {
-        if (await target.exists()) {
-          await target.delete();
-        }
-        return;
-      }
-      await target.parent.create(recursive: true);
-      await rollbackFile.copy(target.path);
-    }
-
+    final sourceDirectory = stagedSpreadsheets.isEmpty
+        ? await Directory.systemTemp.createTemp('fitlog_empty_sheets_')
+        : stagedSpreadsheets.values.first.parent;
+    final previousFiles = <String, List<int>?>{};
     try {
-      await databaseDirectory.create(recursive: true);
-      await documentsDirectory.create(recursive: true);
-
-      if (await activeDatabaseFile.exists()) {
-        databaseRollbackFile = await activeDatabaseFile.copy(
-          p.join(rollbackDirectory.path, _databaseFilename),
-        );
-      }
-
-      for (final filename in kTableSchemas.keys) {
-        final activeSpreadsheet = File(
-          p.join(documentsDirectory.path, filename),
-        );
-        if (await activeSpreadsheet.exists()) {
-          spreadsheetRollbackFiles[filename] = await activeSpreadsheet.copy(
-            p.join(rollbackDirectory.path, filename),
-          );
-        } else {
-          spreadsheetRollbackFiles[filename] = null;
+      final prepared = <String, List<int>>{};
+      for (final entry in stagedSpreadsheets.entries) {
+        if (_routineSpreadsheetFilenames.contains(entry.key) ||
+            entry.key == 'workout_log.xlsx' ||
+            entry.key == 'workout_session.xlsx') {
+          continue;
         }
+        final target = File(p.join(documentsDirectory.path, entry.key));
+        final bytes = await compute(_mergeAncillarySheet, {
+          'filename': entry.key,
+          'incoming': entry.value.path,
+          'local': target.path,
+        });
+        if (bytes != null) prepared[target.path] = bytes;
       }
-
-      await _storageService.close();
-
+      for (final entry in prepared.entries) {
+        final target = File(entry.key);
+        previousFiles[entry.key] =
+            await target.exists() ? await target.readAsBytes() : null;
+        final pending = File('${target.path}.pending');
+        await pending.writeAsBytes(entry.value, flush: true);
+        await pending.rename(target.path);
+      }
+      await _storageService.mergeBackup(sourceDirectory,
+          database: stagedDatabase);
+      // SQLite is authoritative. Failure to refresh compatibility sheets must
+      // not undo a successful history merge or replace the live database.
       try {
-        if (stagedDatabase != null) {
-          await stagedDatabase.copy(activeDatabaseFile.path);
-        }
-
-        for (final entry in stagedSpreadsheets.entries) {
-          await entry.value.copy(p.join(documentsDirectory.path, entry.key));
-        }
-
-        await _storageService.reopenIfNeeded();
-        await _applyImportedSpreadsheets(
-          stagedSpreadsheets.keys.toSet(),
-          restoredDatabase: stagedDatabase != null,
-          incrementalHistory: incrementalHistory,
-        );
-        await _storageService.repairDataIntegrity();
         await _regenerateSqliteExports(documentsDirectory);
-      } catch (error, stackTrace) {
-        await _storageService.close();
-        await restoreFile(activeDatabaseFile, databaseRollbackFile);
-        for (final entry in spreadsheetRollbackFiles.entries) {
-          await restoreFile(
-            File(p.join(documentsDirectory.path, entry.key)),
-            entry.value,
-          );
+      } catch (error) {
+        debugPrint(
+            'Imported data saved; spreadsheet refresh can retry: $error');
+      }
+    } catch (_) {
+      for (final entry in previousFiles.entries) {
+        final target = File(entry.key);
+        if (entry.value == null) {
+          if (await target.exists()) await target.delete();
+        } else {
+          await target.writeAsBytes(entry.value!, flush: true);
         }
-        await _storageService.reopenIfNeeded();
-        Error.throwWithStackTrace(error, stackTrace);
       }
+      rethrow;
     } finally {
-      if (await rollbackDirectory.exists()) {
-        await rollbackDirectory.delete(recursive: true);
-      }
-    }
-  }
-
-  Future<void> _applyImportedSpreadsheets(
-    Set<String> filenames, {
-    required bool restoredDatabase,
-    required bool incrementalHistory,
-  }) async {
-    final restoredRoutineSheet = filenames.any(
-      _routineSpreadsheetFilenames.contains,
-    );
-    final restoredLogSheet = filenames.contains('workout_log.xlsx');
-    final restoredSessionSheet = filenames.contains('workout_session.xlsx');
-
-    if (!restoredDatabase && restoredRoutineSheet) {
-      await _storageService.warmUpRoutineRuntimeCache(force: true);
-    }
-
-    if (incrementalHistory) {
-      await _storageService.mergeWorkoutHistoryFromCurrentXlsxFiles(
-        includeLogs: restoredLogSheet,
-        includeSessions: restoredSessionSheet,
-      );
-    } else {
-      if (restoredLogSheet &&
-          (!restoredDatabase ||
-              !await _storageService.hasUsableWorkoutLogs())) {
-        await _storageService.replaceWorkoutLogsFromCurrentXlsxFiles();
-      }
-
-      if (restoredSessionSheet &&
-          (!restoredDatabase ||
-              !await _storageService.hasUsableWorkoutSessions())) {
-        await _storageService.replaceWorkoutSessionsFromCurrentXlsxFiles();
+      if (stagedSpreadsheets.isEmpty) {
+        await sourceDirectory.delete(recursive: true);
       }
     }
   }
@@ -506,25 +452,70 @@ class AppDataRepositoryImpl implements AppDataRepository {
     );
   }
 
-  ExportDateRange? _findNextMissingRange(
-    List<DateTime> availableDates,
-    List<ExportDateRange> ranges,
-  ) {
-    final dates = availableDates.toSet().toList()..sort();
-    for (var index = 0; index < dates.length; index++) {
-      if (ranges.any((range) => range.contains(dates[index]))) {
-        continue;
-      }
-      final start = dates[index];
-      var end = start;
-      while (index + 1 < dates.length &&
-          !ranges.any((range) => range.contains(dates[index + 1]))) {
-        index++;
-        end = dates[index];
-      }
-      return ExportDateRange(start, end);
+  Map<String, String> _dailySignatures(
+      List<WorkoutLogEntry> logs, List<WorkoutSession> sessions) {
+    final rows = <String, List<String>>{};
+    for (final log in logs) {
+      rows.putIfAbsent(_formatDate(log.date), () => []).add(jsonEncode([
+            'log',
+            log.storageSessionId,
+            log.planId,
+            log.exerciseId,
+            log.setNumber,
+            log.reps,
+            log.weight,
+            log.rir,
+          ]));
     }
-    return null;
+    for (final session in sessions) {
+      rows.putIfAbsent(_formatDate(session.date), () => []).add(jsonEncode([
+            'session',
+            session.storageSessionId,
+            session.planId,
+            session.fatigueLevel,
+            session.durationMinutes,
+            session.mood,
+            session.notes,
+          ]));
+    }
+    return {
+      for (final entry in rows.entries)
+        entry.key: jsonEncode(entry.value..sort())
+    };
+  }
+
+  Future<Map<String, String>> _readSignatures() async {
+    final raw = await _storageService.readMetadata(_exportSignaturesKey);
+    if (raw == null) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map
+          ? decoded.map((key, value) => MapEntry('$key', '$value'))
+          : {};
+    } on FormatException {
+      return {};
+    }
+  }
+
+  Future<ExportDateRange?> _findChangedRange(
+      List<WorkoutLogEntry> logs, List<WorkoutSession> sessions) async {
+    final exported = await _readSignatures();
+    final current = _dailySignatures(logs, sessions);
+    final changed = current.keys
+        .where((day) => current[day] != exported[day])
+        .toList()
+      ..sort();
+    if (changed.isEmpty) return null;
+    return ExportDateRange(
+        DateTime.parse(changed.first), DateTime.parse(changed.last));
+  }
+
+  Future<void> _recordSignatures(
+      List<WorkoutLogEntry> logs, List<WorkoutSession> sessions) async {
+    final signatures = await _readSignatures();
+    signatures.addAll(_dailySignatures(logs, sessions));
+    await _storageService.writeMetadata(
+        _exportSignaturesKey, jsonEncode(signatures));
   }
 
   Future<File> _nextAvailableFile(Directory directory, String filename) async {
@@ -544,7 +535,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
 
   DateTime _nextDay(DateTime date) => date.add(const Duration(days: 1));
 
-  void _validateSpreadsheetFile(File file, String filename) {
+  static void _validateSpreadsheetFile(File file, String filename) {
     final schema = kTableSchemas[filename];
     if (schema == null) {
       throw FormatException('Unsupported spreadsheet: $filename');
@@ -581,7 +572,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
     }
   }
 
-  Map<String, List<String>> _requiredSpreadsheetHeaderGroups(
+  static Map<String, List<String>> _requiredSpreadsheetHeaderGroups(
     String filename,
     TableSchema schema,
   ) {
@@ -642,7 +633,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
     }
   }
 
-  Set<String> _spreadsheetHeaderSet(List<Data?> headerRow) {
+  static Set<String> _spreadsheetHeaderSet(List<Data?> headerRow) {
     return {
       for (final cell in headerRow)
         if (_cellText(cell).trim().isNotEmpty)
@@ -650,7 +641,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
     };
   }
 
-  String _cellText(Data? cell) {
+  static String _cellText(Data? cell) {
     final value = cell?.value;
     if (value == null) {
       return '';
@@ -670,7 +661,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
     return value.toString();
   }
 
-  String _normalizeHeaderName(String value) {
+  static String _normalizeHeaderName(String value) {
     return value
         .trim()
         .toLowerCase()
@@ -679,71 +670,119 @@ class AppDataRepositoryImpl implements AppDataRepository {
   }
 
   Future<void> _writeWorkoutLogExport(
-    Directory directory,
-    List<WorkoutLogEntry> logs,
-  ) async {
-    final schema = kTableSchemas['workout_log.xlsx'];
-    if (schema == null) return;
-    final excel = Excel.createExcel();
-    final defaultSheet = excel.getDefaultSheet();
-    if (defaultSheet != null) {
-      excel.rename(defaultSheet, schema.sheetName);
-    }
-    final sheet = excel[schema.sheetName];
-    sheet.appendRow(
-      schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList(),
-    );
-    for (var i = 0; i < logs.length; i++) {
-      final log = logs[i];
-      sheet.appendRow([
-        IntCellValue(i + 1),
-        TextCellValue(_formatDate(log.date)),
-        IntCellValue(log.planId),
-        IntCellValue(log.exerciseId),
-        IntCellValue(log.setNumber),
-        IntCellValue(log.reps),
-        DoubleCellValue(log.weight),
-        IntCellValue(log.rir),
-      ]);
-    }
-    final bytes = excel.save();
-    if (bytes == null) return;
-    final file = File(p.join(directory.path, 'workout_log.xlsx'));
-    await file.writeAsBytes(bytes, flush: true);
+      Directory directory, List<WorkoutLogEntry> logs) async {
+    final bytes = await compute(_encodeLogWorkbook, logs);
+    await File(p.join(directory.path, 'workout_log.xlsx'))
+        .writeAsBytes(bytes, flush: true);
   }
 
   Future<void> _writeWorkoutSessionExport(
-    Directory directory,
-    List<WorkoutSession> sessions,
-  ) async {
-    final schema = kTableSchemas['workout_session.xlsx'];
-    if (schema == null) return;
-    final excel = Excel.createExcel();
-    final defaultSheet = excel.getDefaultSheet();
-    if (defaultSheet != null) {
-      excel.rename(defaultSheet, schema.sheetName);
-    }
-    final sheet = excel[schema.sheetName];
-    sheet.appendRow(
-      schema.headers.map<CellValue?>((e) => TextCellValue(e)).toList(),
-    );
-    for (var i = 0; i < sessions.length; i++) {
-      final session = sessions[i];
-      sheet.appendRow([
-        IntCellValue(i + 1),
-        TextCellValue(_formatDate(session.date)),
-        IntCellValue(session.planId),
-        TextCellValue(session.fatigueLevel),
-        IntCellValue(session.durationMinutes),
-        TextCellValue(session.mood),
-        TextCellValue(session.notes),
-      ]);
-    }
-    final bytes = excel.save();
-    if (bytes == null) return;
-    final file = File(p.join(directory.path, 'workout_session.xlsx'));
-    await file.writeAsBytes(bytes, flush: true);
+      Directory directory, List<WorkoutSession> sessions) async {
+    final bytes = await compute(_encodeSessionWorkbook, sessions);
+    await File(p.join(directory.path, 'workout_session.xlsx'))
+        .writeAsBytes(bytes, flush: true);
   }
 
   String _formatDate(DateTime date) => date.toIso8601String().split('T').first;
+}
+
+void _validateImportSheets(Map<String, String> files) {
+  for (final entry in files.entries) {
+    AppDataRepositoryImpl._validateSpreadsheetFile(
+        File(entry.value), entry.key);
+  }
+}
+
+List<int> _encodeWorkbook(String filename, List<List<CellValue?>> rows) {
+  final schema = kTableSchemas[filename]!;
+  final excel = Excel.createExcel();
+  excel.rename(excel.getDefaultSheet()!, schema.sheetName);
+  final sheet = excel[schema.sheetName];
+  sheet.appendRow([
+    ...schema.headers.map((h) => TextCellValue(h)),
+    TextCellValue('workout_session_key')
+  ]);
+  for (final row in rows) {
+    sheet.appendRow(row);
+  }
+  return excel.save()!;
+}
+
+List<int> _encodeLogWorkbook(List<WorkoutLogEntry> logs) =>
+    _encodeWorkbook('workout_log.xlsx', [
+      for (var i = 0; i < logs.length; i++)
+        [
+          IntCellValue(i + 1),
+          TextCellValue(logs[i].date.toIso8601String().split('T').first),
+          IntCellValue(logs[i].planId),
+          IntCellValue(logs[i].exerciseId),
+          IntCellValue(logs[i].setNumber),
+          IntCellValue(logs[i].reps),
+          DoubleCellValue(logs[i].weight),
+          IntCellValue(logs[i].rir),
+          TextCellValue(logs[i].storageSessionId),
+        ],
+    ]);
+
+List<int> _encodeSessionWorkbook(List<WorkoutSession> sessions) =>
+    _encodeWorkbook('workout_session.xlsx', [
+      for (var i = 0; i < sessions.length; i++)
+        [
+          IntCellValue(i + 1),
+          TextCellValue(sessions[i].date.toIso8601String().split('T').first),
+          IntCellValue(sessions[i].planId),
+          TextCellValue(sessions[i].fatigueLevel),
+          IntCellValue(sessions[i].durationMinutes),
+          TextCellValue(sessions[i].mood),
+          TextCellValue(sessions[i].notes),
+          TextCellValue(sessions[i].storageSessionId),
+        ],
+    ]);
+
+List<int>? _mergeAncillarySheet(Map<String, String> paths) {
+  final incoming = File(paths['incoming']!);
+  final local = File(paths['local']!);
+  if (!local.existsSync()) return incoming.readAsBytesSync();
+  final schema = kTableSchemas[paths['filename']]!;
+  final existingBook = Excel.decodeBytes(local.readAsBytesSync());
+  final incomingBook = Excel.decodeBytes(incoming.readAsBytesSync());
+  final existing = existingBook[schema.sheetName];
+  final existingRows = existing.rows;
+  final incomingRows = incomingBook[schema.sheetName].rows;
+  final populated = existingRows
+      .skip(1)
+      .where((row) => row.any((cell) =>
+          cell?.value != null && cell!.value.toString().trim().isNotEmpty))
+      .toList();
+  if (paths['filename'] == 'user.xlsx' && populated.isNotEmpty) return null;
+  final signatures = populated
+      .map((row) => row
+          .skip(1)
+          .map((cell) => cell?.value.toString() ?? '')
+          .join('\u001f'))
+      .toSet();
+  var nextId = populated.fold<int>(0, (maxId, row) {
+    final id = int.tryParse(row.first?.value.toString() ?? '') ?? 0;
+    return id > maxId ? id : maxId;
+  });
+  final usedIds =
+      populated.map((row) => row.first?.value.toString() ?? '').toSet();
+  for (final row in incomingRows.skip(1)) {
+    if (row.every((cell) =>
+        cell?.value == null || cell!.value.toString().trim().isEmpty)) {
+      continue;
+    }
+    final signature =
+        row.skip(1).map((cell) => cell?.value.toString() ?? '').join('\u001f');
+    if (!signatures.add(signature)) continue;
+    final id = row.first?.value.toString() ?? '';
+    if (paths['filename'] != 'body_metrics.xlsx' && usedIds.contains(id)) {
+      continue;
+    }
+    final first =
+        usedIds.contains(id) ? IntCellValue(++nextId) : row.first?.value;
+    usedIds.add(first.toString());
+    existing.appendRow([first, ...row.skip(1).map((cell) => cell?.value)]);
+  }
+  return existingBook.save();
 }

@@ -44,6 +44,34 @@ void main() {
     GoogleFonts.config.allowRuntimeFetching = false;
   });
 
+  testWidgets('bundled typography loads without runtime network fetching',
+      (tester) async {
+    await tester.runAsync(() async {
+      for (final weight in [
+        FontWeight.w300,
+        FontWeight.w400,
+        FontWeight.w500,
+        FontWeight.w600,
+        FontWeight.w700,
+      ]) {
+        GoogleFonts.spaceGrotesk(fontWeight: weight);
+      }
+      for (final weight in [
+        FontWeight.w200,
+        FontWeight.w300,
+        FontWeight.w400,
+        FontWeight.w500,
+        FontWeight.w600,
+        FontWeight.w700,
+        FontWeight.w800,
+      ]) {
+        GoogleFonts.manrope(fontWeight: weight);
+      }
+      await GoogleFonts.pendingFonts();
+    });
+    expect(tester.takeException(), isNull);
+  });
+
   group('History Overview Date Boundaries & Dual Filter Regressions', () {
     final plan1 = WorkoutPlan(id: 1, name: 'Plan Alpha', frequency: '3x');
     final plan2 = WorkoutPlan(id: 2, name: 'Plan Beta', frequency: '2x');
@@ -62,10 +90,55 @@ void main() {
       mainMuscleGroup: 'Legs',
     );
 
-    test('includes timestamps with microsecond precision on end day and boundaries', () {
+    test('history separates two saved sessions of the same routine and day',
+        () async {
+      final day = DateTime(2026, 10, 1);
+      final container = ProviderContainer(overrides: [
+        workoutPlanProvider
+            .overrideWith((ref) => _FakeWorkoutPlanController([plan1])),
+        allExercisesProvider.overrideWith((ref) => [exercise1]),
+        workoutSessionsProvider.overrideWith((ref) => [
+              for (final id in ['morning', 'evening'])
+                WorkoutSession(
+                    planId: 1,
+                    date: day,
+                    sessionId: id,
+                    fatigueLevel: '5',
+                    durationMinutes: 30,
+                    mood: '3',
+                    notes: id)
+            ]),
+        workoutLogsProvider.overrideWith((ref) => [
+              for (final id in ['morning', 'evening'])
+                WorkoutLogEntry(
+                    planId: 1,
+                    exerciseId: 10,
+                    date: day,
+                    sessionId: id,
+                    setNumber: 1,
+                    weight: 40,
+                    reps: 8,
+                    rir: 2)
+            ]),
+      ]);
+      addTearDown(container.dispose);
+      final overview = container
+          .read(historyOverviewProvider(
+              const HistoryFilter(period: HistoryPeriod.oneWeek)))
+          .requireValue;
+      expect(overview.sessions, hasLength(2));
+      expect(overview.totalSets, 2);
+      expect(overview.sessions.map((session) => session.notes).toSet(),
+          {'morning', 'evening'});
+    });
+
+    test(
+        'includes timestamps with microsecond precision on end day and boundaries',
+        () {
       final container = ProviderContainer(
         overrides: [
-          workoutPlanProvider.overrideWith((ref) => _FakeWorkoutPlanController([plan1, plan2])),
+          workoutPlanProvider.overrideWith(
+              (ref) => _FakeWorkoutPlanController([plan1, plan2])),
           allExercisesProvider.overrideWith((ref) => [exercise1, exercise2]),
           workoutSessionsProvider.overrideWith(
             (ref) => [
@@ -145,36 +218,46 @@ void main() {
 
       // 1. All plans filter: 1W range should have 3 sessions (Oct 10, Oct 4, Oct 8), excluding Oct 3
       const allFilter = HistoryFilter(period: HistoryPeriod.oneWeek);
-      final allOverview = container.read(historyOverviewProvider(allFilter)).requireValue;
+      final allOverview =
+          container.read(historyOverviewProvider(allFilter)).requireValue;
       expect(allOverview.sessions.length, equals(3));
-      expect(allOverview.totalVolumeKg, equals(100 * 5 + 80 * 8 + 120 * 5)); // 500 + 640 + 600 = 1740
+      expect(allOverview.totalVolumeKg,
+          equals(100 * 5 + 80 * 8 + 120 * 5)); // 500 + 640 + 600 = 1740
       expect(allOverview.totalSets, equals(3));
       expect(allOverview.trainingDays, equals(3));
 
       // 2. Dual filter: planId = 1 isolates to plan 1 sessions
-      const plan1Filter = HistoryFilter(period: HistoryPeriod.oneWeek, planId: 1);
-      final plan1Overview = container.read(historyOverviewProvider(plan1Filter)).requireValue;
+      const plan1Filter =
+          HistoryFilter(period: HistoryPeriod.oneWeek, planId: 1);
+      final plan1Overview =
+          container.read(historyOverviewProvider(plan1Filter)).requireValue;
       expect(plan1Overview.sessions.length, equals(2));
       expect(plan1Overview.totalVolumeKg, equals(1140.0)); // 500 + 640
       expect(plan1Overview.sessions.every((s) => s.planId == 1), isTrue);
 
       // 3. Dual filter: exerciseId = 20 isolates to exercise 20 logs
-      const ex20Filter = HistoryFilter(period: HistoryPeriod.oneWeek, exerciseId: 20);
-      final ex20Overview = container.read(historyOverviewProvider(ex20Filter)).requireValue;
+      const ex20Filter =
+          HistoryFilter(period: HistoryPeriod.oneWeek, exerciseId: 20);
+      final ex20Overview =
+          container.read(historyOverviewProvider(ex20Filter)).requireValue;
       expect(ex20Overview.sessions.length, equals(1));
       expect(ex20Overview.totalVolumeKg, equals(600.0));
       expect(ex20Overview.sessions.first.planId, equals(2));
     });
 
-    test('invalidates cache and updates totals when underlying logs/sessions change', () {
+    test(
+        'invalidates cache and updates totals when underlying logs/sessions change',
+        () {
       final sessionsState = StateProvider<List<WorkoutSession>>((ref) => []);
       final logsState = StateProvider<List<WorkoutLogEntry>>((ref) => []);
 
       final container = ProviderContainer(
         overrides: [
-          workoutPlanProvider.overrideWith((ref) => _FakeWorkoutPlanController([plan1])),
+          workoutPlanProvider
+              .overrideWith((ref) => _FakeWorkoutPlanController([plan1])),
           allExercisesProvider.overrideWith((ref) => [exercise1]),
-          workoutSessionsProvider.overrideWith((ref) => ref.watch(sessionsState)),
+          workoutSessionsProvider
+              .overrideWith((ref) => ref.watch(sessionsState)),
           workoutLogsProvider.overrideWith((ref) => ref.watch(logsState)),
         ],
       );
@@ -183,7 +266,8 @@ void main() {
       const filter = HistoryFilter(period: HistoryPeriod.oneWeek);
 
       // Initially empty
-      var overview = container.read(historyOverviewProvider(filter)).requireValue;
+      var overview =
+          container.read(historyOverviewProvider(filter)).requireValue;
       expect(overview.sessions, isEmpty);
       expect(overview.totalVolumeKg, equals(0.0));
       expect(overview.planOptions, isEmpty);
@@ -222,14 +306,16 @@ void main() {
   });
 
   group('MainScaffold TickerMode Optimization', () {
-    testWidgets('pauses tickers on hidden tabs and activates on selected tab', (tester) async {
+    testWidgets('pauses tickers on hidden tabs and activates on selected tab',
+        (tester) async {
       await tester.binding.setSurfaceSize(const Size(1080, 2400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
       final container = ProviderContainer(
         overrides: [
           workoutPlanRepositoryProvider.overrideWithValue(_DummyRepo()),
-          workoutPlanProvider.overrideWith((ref) => _FakeWorkoutPlanController([])),
+          workoutPlanProvider
+              .overrideWith((ref) => _FakeWorkoutPlanController([])),
           routinePlanBusyIdsProvider.overrideWith((ref) => <int>{}),
           routineLibraryMetadataEpochProvider.overrideWith((ref) => 0),
           allExercisesProvider.overrideWith((ref) => <Exercise>[]),
@@ -250,7 +336,8 @@ void main() {
       await tester.pump();
 
       // Directly verify IndexedStack tab children TickerModes
-      final indexedStack = tester.widget<IndexedStack>(find.byType(IndexedStack));
+      final indexedStack =
+          tester.widget<IndexedStack>(find.byType(IndexedStack));
       expect(indexedStack.children.length, equals(3));
 
       final tab0Ticker = indexedStack.children[0] as TickerMode;
@@ -265,7 +352,8 @@ void main() {
       await tester.tap(find.byIcon(Icons.history_rounded));
       await tester.pump();
 
-      final updatedIndexedStack = tester.widget<IndexedStack>(find.byType(IndexedStack));
+      final updatedIndexedStack =
+          tester.widget<IndexedStack>(find.byType(IndexedStack));
       final updatedTab0Ticker = updatedIndexedStack.children[0] as TickerMode;
       final updatedTab1Ticker = updatedIndexedStack.children[1] as TickerMode;
       final updatedTab2Ticker = updatedIndexedStack.children[2] as TickerMode;

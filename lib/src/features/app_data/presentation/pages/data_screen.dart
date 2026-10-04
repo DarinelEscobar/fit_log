@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -19,6 +20,10 @@ import '../../domain/repositories/app_data_repository.dart';
 import '../providers/app_data_providers.dart';
 import '../../../routines/presentation/providers/exercises_provider.dart';
 import '../../../routines/presentation/providers/workout_plan_provider.dart';
+import '../../../routines/presentation/providers/plan_exercise_details_provider.dart';
+import '../../../routines/presentation/providers/warm_up_steps_provider.dart';
+import '../../../profile/presentation/providers/profile_providers.dart';
+import '../../../performance/presentation/providers/active_exercise_progress_provider.dart';
 
 enum _DataAction {
   exportAndShare,
@@ -116,6 +121,14 @@ class _DataScreenState extends ConsumerState<DataScreen> {
     final ExportRequest? request;
     try {
       request = await _chooseExportRequest(repo);
+    } catch (error) {
+      if (mounted) {
+        _showMessage(
+            title: 'Export failed',
+            detail: _friendlyError(error),
+            isError: true);
+      }
+      return;
     } finally {
       if (mounted) {
         setState(() => _isPickingRange = false);
@@ -173,10 +186,10 @@ class _DataScreenState extends ConsumerState<DataScreen> {
   }
 
   Future<void> _importData() async {
-    final confirmed = await _confirmImport();
-    if (confirmed != true || !mounted) return;
-
+    setState(() => _activeAction = _DataAction.import);
     try {
+      final confirmed = await _confirmImport();
+      if (confirmed != true || !mounted) return;
       final result = await FilePicker.platform.pickFiles();
       if (result == null || result.files.single.path == null) {
         if (!mounted) return;
@@ -184,29 +197,41 @@ class _DataScreenState extends ConsumerState<DataScreen> {
         return;
       }
 
+      if (!mounted) return;
       final file = File(result.files.single.path!);
       final repo = ref.read(appDataRepositoryProvider);
+      // Capture the container before await; a disposed widget must not hide an
+      // already committed restore behind a provider access error.
+      final container = ProviderScope.containerOf(context);
       await ImportAppDataUseCase(repo)(file);
-      ref.invalidate(workoutPlanProvider);
-      ref.invalidate(allExercisesProvider);
-      ref.invalidate(workoutLogsProvider);
-      ref.invalidate(workoutSessionsProvider);
-      ref.invalidate(performanceDashboardProvider);
-      ref.invalidate(exerciseProgressDetailProvider);
-      ref.read(routineLibraryMetadataEpochProvider.notifier).state++;
+      container.invalidate(workoutPlanProvider);
+      container.invalidate(allExercisesProvider);
+      container.invalidate(exercisesForPlanProvider);
+      container.invalidate(planExerciseDetailsProvider);
+      container.invalidate(warmUpStepsProvider);
+      container.invalidate(workoutLogsProvider);
+      container.invalidate(workoutSessionsProvider);
+      container.invalidate(performanceDashboardProvider);
+      container.invalidate(exerciseProgressDetailProvider);
+      container.invalidate(activeExerciseProgressProvider);
+      container.invalidate(userProfileProvider);
+      container.invalidate(bodyMetricsProvider);
+      container.read(routineLibraryMetadataEpochProvider.notifier).state++;
       if (!mounted) return;
       _showMessage(
         title: 'Data imported',
         detail: 'Routines, logs, and charts were refreshed.',
       );
-      await _refreshBackupStatus();
+      unawaited(_refreshBackupStatus());
     } catch (error) {
       if (!mounted) return;
       _showMessage(
         title: 'Import failed',
-        detail: '${_friendlyError(error)} Current data was not changed.',
+        detail: _friendlyError(error),
         isError: true,
       );
+    } finally {
+      if (mounted) setState(() => _activeAction = null);
     }
   }
 
@@ -224,7 +249,7 @@ class _DataScreenState extends ConsumerState<DataScreen> {
                 size: 24, weight: FontWeight.w700),
           ),
           content: Text(
-            'Incremental backups merge workout history. Full backups and spreadsheet imports can replace current data. Choose a trusted backup to continue.',
+            'Add missing routines, exercises, and workout history from your backup. Your current records and edits are kept. Older day-only backups cannot distinguish two sessions on the same day.',
             style: KineticNoirTypography.body(
               size: 15,
               weight: FontWeight.w500,
@@ -327,60 +352,64 @@ class _DataScreenState extends ConsumerState<DataScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: KineticNoirPalette.background,
-      appBar: AppBar(
+    return PopScope(
+      canPop: !_isBusy,
+      child: Scaffold(
         backgroundColor: KineticNoirPalette.background,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          onPressed: _isBusy ? null : () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_rounded),
-          color: KineticNoirPalette.primary,
-        ),
-        title: Text(
-          'DATA MANAGEMENT',
-          key: const Key('data-screen-title'),
-          style: KineticNoirTypography.headline(
-            size: 24,
-            weight: FontWeight.w700,
+        appBar: AppBar(
+          backgroundColor: KineticNoirPalette.background,
+          surfaceTintColor: Colors.transparent,
+          leading: IconButton(
+            onPressed: _isBusy ? null : () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back_rounded),
             color: KineticNoirPalette.primary,
           ),
+          title: Text(
+            'DATA MANAGEMENT',
+            key: const Key('data-screen-title'),
+            style: KineticNoirTypography.headline(
+              size: 24,
+              weight: FontWeight.w700,
+              color: KineticNoirPalette.primary,
+            ),
+          ),
         ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 10, 24, 40),
-        children: [
-          const _HeroCard(),
-          const SizedBox(height: 20),
-          _DataActionCard(
-            key: const Key('export-share-backup-card'),
-            title: 'Export & Share Backup',
-            description:
-                'Create a verified backup archive and open the system share sheet to save or send it.',
-            badge: 'ZIP ARCHIVE',
-            actionLabel: 'EXPORT & SHARE',
-            icon: Icons.ios_share_rounded,
-            accentColor: KineticNoirPalette.primary,
-            isBusy: _activeAction == _DataAction.exportAndShare,
-            onTap: _isBusy ? null : () => _runAction(_DataAction.exportAndShare),
-          ),
-          const SizedBox(height: 14),
-          _DataActionCard(
-            key: const Key('import-backup-card'),
-            title: 'Import Backup',
-            description:
-                'Merge incremental workout history or restore a full backup. Full restores can replace current data.',
-            badge: 'RESTORE',
-            actionLabel: 'VERIFY & IMPORT',
-            icon: Icons.upload_file_rounded,
-            accentColor: KineticNoirPalette.error,
-            isDestructive: true,
-            isBusy: _activeAction == _DataAction.import,
-            onTap: _isBusy ? null : () => _runAction(_DataAction.import),
-          ),
-          const SizedBox(height: 24),
-          _BackupStatusBanner(status: _backupStatus),
-        ],
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(24, 10, 24, 40),
+          children: [
+            const _HeroCard(),
+            const SizedBox(height: 20),
+            _DataActionCard(
+              key: const Key('export-share-backup-card'),
+              title: 'Export & Share Backup',
+              description:
+                  'Create a verified backup archive and open the system share sheet to save or send it.',
+              badge: 'ZIP ARCHIVE',
+              actionLabel: 'EXPORT & SHARE',
+              icon: Icons.ios_share_rounded,
+              accentColor: KineticNoirPalette.primary,
+              isBusy: _activeAction == _DataAction.exportAndShare,
+              onTap:
+                  _isBusy ? null : () => _runAction(_DataAction.exportAndShare),
+            ),
+            const SizedBox(height: 14),
+            _DataActionCard(
+              key: const Key('import-backup-card'),
+              title: 'Import Backup',
+              description:
+                  'Recover missing records from a backup while keeping your current routines and history.',
+              badge: 'RESTORE',
+              actionLabel: 'VERIFY & IMPORT',
+              icon: Icons.upload_file_rounded,
+              accentColor: KineticNoirPalette.error,
+              isDestructive: true,
+              isBusy: _activeAction == _DataAction.import,
+              onTap: _isBusy ? null : () => _runAction(_DataAction.import),
+            ),
+            const SizedBox(height: 24),
+            _BackupStatusBanner(status: _backupStatus),
+          ],
+        ),
       ),
     );
   }
@@ -419,10 +448,10 @@ class _ExportRangeDialogState extends State<_ExportRangeDialog> {
     final availability = widget.availability;
     final firstDate = availability.firstDate ?? DateTime(2020);
     final now = DateTime.now();
-    var lastDate = availability.lastDate != null &&
-            availability.lastDate!.isAfter(now)
-        ? availability.lastDate!
-        : now;
+    var lastDate =
+        availability.lastDate != null && availability.lastDate!.isAfter(now)
+            ? availability.lastDate!
+            : now;
     if (lastDate.isBefore(firstDate)) {
       lastDate = firstDate;
     }
@@ -430,9 +459,7 @@ class _ExportRangeDialogState extends State<_ExportRangeDialog> {
     final initialStart = _customRange?.start ??
         availability.firstDate ??
         DateTime(now.year, now.month, 1);
-    final initialEnd = _customRange?.end ??
-        availability.lastDate ??
-        now;
+    final initialEnd = _customRange?.end ?? availability.lastDate ?? now;
 
     final clampedStart = initialStart.isBefore(firstDate)
         ? firstDate
@@ -545,7 +572,8 @@ class _ExportRangeDialogState extends State<_ExportRangeDialog> {
       actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       title: Text(
         'Choose export range',
-        style: KineticNoirTypography.headline(size: 22, weight: FontWeight.w700),
+        style:
+            KineticNoirTypography.headline(size: 22, weight: FontWeight.w700),
       ),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
@@ -572,7 +600,8 @@ class _ExportRangeDialogState extends State<_ExportRangeDialog> {
                     : 'Up to date • All workout dates backed up',
                 enabled: hasAutomatic,
                 onTap: hasAutomatic
-                    ? () => setState(() => _selectedPreset = _ExportPreset.automatic)
+                    ? () => setState(
+                        () => _selectedPreset = _ExportPreset.automatic)
                     : null,
               ),
               const SizedBox(height: 6),
@@ -583,7 +612,8 @@ class _ExportRangeDialogState extends State<_ExportRangeDialog> {
                     ? '${_formatRange(availability.fullRange)} • Full DB & spreadsheets'
                     : 'Full app database & routines',
                 enabled: true,
-                onTap: () => setState(() => _selectedPreset = _ExportPreset.full),
+                onTap: () =>
+                    setState(() => _selectedPreset = _ExportPreset.full),
               ),
               const SizedBox(height: 6),
               _buildPresetTile(
@@ -617,7 +647,8 @@ class _ExportRangeDialogState extends State<_ExportRangeDialog> {
                   style: KineticNoirTypography.body(
                     size: 11,
                     weight: FontWeight.w600,
-                    color: KineticNoirPalette.onSurfaceVariant.withValues(alpha: 0.8),
+                    color: KineticNoirPalette.onSurfaceVariant
+                        .withValues(alpha: 0.8),
                   ),
                 ),
               ],
@@ -646,7 +677,8 @@ class _ExportRangeDialogState extends State<_ExportRangeDialog> {
             backgroundColor: KineticNoirPalette.primary,
             foregroundColor: KineticNoirPalette.onPrimary,
             minimumSize: const Size(120, 48),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: Text(
             'Export & Share',
@@ -736,7 +768,8 @@ class _ExportRangeDialogState extends State<_ExportRangeDialog> {
           const SizedBox(height: 6),
           Text(
             range != null ? _formatRange(range) : 'No range selected',
-            style: KineticNoirTypography.headline(size: 15, weight: FontWeight.w700),
+            style: KineticNoirTypography.headline(
+                size: 15, weight: FontWeight.w700),
           ),
           const SizedBox(height: 2),
           Text(
@@ -777,7 +810,8 @@ class _ExportRangeDialogState extends State<_ExportRangeDialog> {
                       ? Icons.radio_button_checked_rounded
                       : Icons.radio_button_unchecked_rounded,
                   color: !enabled
-                      ? KineticNoirPalette.onSurfaceVariant.withValues(alpha: 0.3)
+                      ? KineticNoirPalette.onSurfaceVariant
+                          .withValues(alpha: 0.3)
                       : (isSelected
                           ? KineticNoirPalette.primary
                           : KineticNoirPalette.onSurfaceVariant),
@@ -1007,4 +1041,3 @@ class _BackupStatusBanner extends StatelessWidget {
     );
   }
 }
-

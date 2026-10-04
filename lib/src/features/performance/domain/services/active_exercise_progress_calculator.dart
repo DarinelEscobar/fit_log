@@ -196,7 +196,8 @@ final class ActiveExerciseProgressCalculator {
   ) {
     final grouped = <_SessionKey, List<WorkoutLogEntry>>{};
     for (final log in logs) {
-      final key = _SessionKey(log.activeProgressDay, log.planId);
+      final key =
+          _SessionKey(log.activeProgressDay, log.planId, log.storageSessionId);
       grouped.putIfAbsent(key, () => []).add(log);
     }
 
@@ -259,16 +260,20 @@ final class _WorkingSetCandidate {
 }
 
 final class _SessionKey {
-  const _SessionKey(this.date, this.planId);
+  const _SessionKey(this.date, this.planId, this.sessionId);
+  final String sessionId;
 
   final DateTime date;
   final int planId;
 
   @override
   bool operator ==(Object other) {
-    return other is _SessionKey && other.date == date && other.planId == planId;
+    return other is _SessionKey &&
+        other.date == date &&
+        other.planId == planId &&
+        other.sessionId == sessionId;
   }
 
   @override
-  int get hashCode => Object.hash(date, planId);
+  int get hashCode => Object.hash(date, planId, sessionId);
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 
 import 'package:fit_log/src/features/app_data/domain/entities/export_models.dart';
@@ -49,6 +51,8 @@ class _FakeAppDataRepository implements AppDataRepository {
   ExportRequest? lastExportRequest;
   int exportCallCount = 0;
   bool exportShouldThrow = false;
+  Completer<void>? importGate;
+  int importCallCount = 0;
 
   @override
   Future<ExportAvailability> getExportAvailability() async => availability;
@@ -66,7 +70,33 @@ class _FakeAppDataRepository implements AppDataRepository {
   }
 
   @override
-  Future<void> importData(File file) async {}
+  Future<void> importData(File file) async {
+    importCallCount++;
+    await importGate?.future;
+  }
+}
+
+class _TestFilePicker extends FilePicker {
+  _TestFilePicker(this.file);
+  final File file;
+  @override
+  Future<FilePickerResult?> pickFiles({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    bool allowCompression = false,
+    int compressionQuality = 0,
+    bool allowMultiple = false,
+    bool withData = false,
+    bool withReadStream = false,
+    bool lockParentWindow = false,
+    bool readSequential = false,
+  }) async =>
+      FilePickerResult([
+        PlatformFile(name: p.basename(file.path), path: file.path, size: 3)
+      ]);
 }
 
 class _TestAssetManifest implements AssetManifest {
@@ -460,6 +490,49 @@ void main() {
       expect(fakeShare.shareCallCount, 1);
     });
 
+    testWidgets(
+        'import blocks other actions and system back until data has refreshed',
+        (tester) async {
+      tester.view.physicalSize = const Size(430, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final file = File(p.join(tempDocsDir.path, 'restore.zip'))
+        ..writeAsBytesSync([1, 2, 3]);
+      final originalPicker = _TestFilePicker(file);
+      FilePicker.platform = _TestFilePicker(file);
+      addTearDown(() => FilePicker.platform = originalPicker);
+      final gate = Completer<void>();
+      final repo = _FakeAppDataRepository(fileToReturn: file)
+        ..importGate = gate;
+      await tester.pumpWidget(ProviderScope(
+          overrides: [appDataRepositoryProvider.overrideWithValue(repo)],
+          child: const MaterialApp(home: DataScreen())));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('import-backup-card')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Import').last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(repo.importCallCount, 1);
+      expect(tester.widget<PopScope>(find.byType(PopScope)).canPop, isFalse);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      await tester.tap(find.byKey(const Key('export-share-backup-card')),
+          warnIfMissed: false);
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(repo.exportCallCount, 0);
+      expect(find.byType(DataScreen), findsOneWidget);
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Data imported'), findsOneWidget);
+      expect(tester.widget<PopScope>(find.byType(PopScope)).canPop, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('busy state prevents double export on multiple taps',
         (tester) async {
       tester.view.physicalSize = const Size(430, 1000);
@@ -508,7 +581,8 @@ void main() {
       await tester.tap(find.text('Export & Share'));
       await tester.pump();
 
-      await tester.tap(find.byKey(const Key('export-share-backup-card')), warnIfMissed: false);
+      await tester.tap(find.byKey(const Key('export-share-backup-card')),
+          warnIfMissed: false);
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
 
