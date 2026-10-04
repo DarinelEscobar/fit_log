@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.8+10] - 2026-10-04
+
+### Fixes
+- **Release CI**: Load DataScreen test fonts from tracked assets and use the configured Java runtime instead of a developer-specific Windows JDK path.
+
 ## [1.1.7+9] - 2026-10-04
 
 ### Fixes

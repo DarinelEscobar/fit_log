@@ -163,7 +163,7 @@ Use fictional QA data only via `lib/main_demo.dart`; ship `lib/main.dart`.
 - Publication attempt: GitHub Actions run [37221689409](https://github.com/DarinelEscobar/fit_log/actions/runs/37221689409) for tag `v1.1.6` failed during tests before signing, build, or upload. It reported 138 passing and 8 failing `DataScreen` tests because the test-only asset mock checked a Windows Flutter SDK font path that does not exist on the Ubuntu runner; the app's tracked fonts were present. No `1.1.6` APK was published. The tag is retained and is not rewritten.
 - Zero SQLite / user data files bundled in assets (verified via `aapt list`).
 
-## Release 1.1.7+9 Candidate — Cross-Platform Release Test Fix
+## Release 1.1.7+9 Candidate (Superseded) — Cross-Platform Release Test Fix
 
 - `v1.1.6+8` was already tagged and its workflow failed before artifact creation. The follow-up patch uses the next version code and tag (`1.1.7+9`, `v1.1.7`) rather than changing a published tag.
 - `test/data_screen_unified_flow_test.dart` now serves Google Fonts test assets from tracked `assets/fonts/` files, without relying on an operating-system-specific Flutter SDK path.
@@ -172,7 +172,17 @@ Use fictional QA data only via `lib/main_demo.dart`; ship `lib/main.dart`.
 - Release build: `flutter build apk --release --no-pub -t lib/main.dart` passed. Local APK: `build/app/outputs/flutter-apk/app-release.apk`, 65,353,182 bytes, SHA-256 `A3860051FB228CA5F3C01494039EF9F84C73DF05F5C72D0089EFB06E5F085CEA`.
 - APK inspection: package `com.yourcompany.fit_log`, version `1.1.7`, version code `9`, no `INTERNET` permission, no debuggable flag, and no bundled database or spreadsheet entries. APK signature verified using the established certificate SHA-256 `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`.
 - In-place upgrade: installed `1.1.7+9` over `1.1.6+8` on isolated `emulator-5554` using `adb install -r`; Android reported `Success`, and the existing synthetic `Upgrade QA` routine remained visible after launch. No uninstall or app-data clear was used.
-- GitHub workflow publication: pending the new `v1.1.7` tag and Actions run.
+- GitHub Actions run [37222794804](https://github.com/DarinelEscobar/fit_log/actions/runs/37222794804): all 146 tests and signing-secret checks passed, but the Android release build failed because tracked `android/gradle.properties` set `org.gradle.java.home` to a Windows-only JDK path. No APK was uploaded. The existing `v1.1.7` tag is retained.
+
+## Release 1.1.8+10 Candidate — Portable Android Build Configuration
+
+- Both earlier tag attempts are preserved: `v1.1.6` failed eight DataScreen tests due to a Windows-only Flutter SDK font lookup; `v1.1.7` passed tests but failed Gradle startup due to a hard-coded Windows JDK path.
+- The release candidate removes `org.gradle.java.home` from tracked `android/gradle.properties`, allowing the CI runner's configured `JAVA_HOME` (JDK 17) to select Gradle's runtime. The DataScreen font mock continues to load tracked app assets.
+- Focused validation: `flutter test test/data_screen_unified_flow_test.dart` passed 8/8 tests. Full validation: `flutter test` passed all 146 tests; `flutter analyze --no-pub --no-fatal-infos` exited 0 with 12 existing informational findings and no errors or warnings.
+- Release build: `flutter build apk --release --no-pub -t lib/main.dart` passed after removing the JDK override. Local APK: `build/app/outputs/flutter-apk/app-release.apk`, 65,353,182 bytes, SHA-256 `FCAA7D8417D3840CA5C2FCBAE2123D5743B83D0D0F368DFF7AA5170CD8814D2C`.
+- APK inspection: package `com.yourcompany.fit_log`, version `1.1.8`, code `10`, minimum SDK 24, no `INTERNET` permission or debuggable flag, and no bundled SQLite/database or spreadsheet entries. APK Signature Scheme v2 is valid with the established certificate SHA-256 `6296a3ef924ced13c2344d843aa783111a29b61b2fc7a1e07a1fe9045f993490`.
+- In-place upgrade: installed `1.1.8+10` over `1.1.7+9` on isolated `emulator-5554` using `adb install -r`; Android reported `Success`, and the existing synthetic `Upgrade QA` routine remained on the Routines screen. No uninstall or app-data clear was used.
+- GitHub workflow publication: pending the new `v1.1.8` tag and Actions run.
 
 ### 5. Visual QA & Interactive Review Catalog (`emulator-5554`, Profile Mode)
 Artifacts captured in `build/redesign-review/performance/`:
