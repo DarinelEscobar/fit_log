@@ -36,10 +36,28 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
   bool _loadQueued = false;
   int _lastMetadataEpoch = 0;
 
+  List<WorkoutPlan>? _lastRawPlans;
+  List<WorkoutPlan> _cachedActivePlans = const [];
+  List<WorkoutPlan> _cachedInactivePlans = const [];
+
+  void _updatePartitionedPlans(List<WorkoutPlan> plans) {
+    if (identical(_lastRawPlans, plans)) return;
+    _lastRawPlans = plans;
+    _cachedActivePlans = plans.where((plan) => plan.isActive).toList()
+      ..sort((a, b) {
+        final nameCompare = a.name.trim().toLowerCase().compareTo(
+              b.name.trim().toLowerCase(),
+            );
+        if (nameCompare != 0) return nameCompare;
+        return a.id.compareTo(b.id);
+      });
+    _cachedInactivePlans = plans.where((plan) => !plan.isActive).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
   @override
   Widget build(BuildContext context) {
     final asyncPlans = ref.watch(workoutPlanProvider);
-    final busyPlanIds = ref.watch(routinePlanBusyIdsProvider);
     final metadataEpoch = ref.watch(routineLibraryMetadataEpochProvider);
 
     if (_lastMetadataEpoch != metadataEpoch) {
@@ -56,16 +74,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
         bottom: false,
         child: asyncPlans.when(
           data: (plans) {
-            final activePlans = plans.where((plan) => plan.isActive).toList()
-              ..sort((a, b) {
-                final nameCompare = a.name.trim().toLowerCase().compareTo(
-                      b.name.trim().toLowerCase(),
-                    );
-                if (nameCompare != 0) return nameCompare;
-                return a.id.compareTo(b.id);
-              });
-            final inactivePlans = plans.where((plan) => !plan.isActive).toList()
-              ..sort((a, b) => a.name.compareTo(b.name));
+            _updatePartitionedPlans(plans);
+            final activePlans = _cachedActivePlans;
+            final inactivePlans = _cachedInactivePlans;
 
             _scheduleMetadataLoad(activePlans);
 
@@ -159,36 +170,53 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                             padding: EdgeInsets.only(
                               bottom: index == activePlans.length - 1 ? 0 : 16,
                             ),
-                            child: RoutineLibraryCard(
-                              key: ValueKey(plan.id),
-                              plan: plan,
-                              exerciseCount: metadata?.exerciseCount ?? 0,
-                              muscleGroups: metadata?.groups ?? const [],
-                              isBusy: busyPlanIds.contains(plan.id),
-                              isMetadataReady: metadata != null,
-                              onOpen: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ExercisesScreen(plan: plan),
+                            child: Consumer(
+                              builder: (context, ref, _) {
+                                final isBusy = ref.watch(
+                                  routinePlanBusyIdsProvider.select(
+                                    (set) => set.contains(plan.id),
                                   ),
                                 );
-                              },
-                              onEdit: () async {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        EditRoutineScreen(plan: plan),
-                                  ),
+                                return RoutineLibraryCard(
+                                  key: ValueKey(plan.id),
+                                  plan: plan,
+                                  exerciseCount: metadata?.exerciseCount ?? 0,
+                                  muscleGroups: metadata?.groups ?? const [],
+                                  isBusy: isBusy,
+                                  isMetadataReady: metadata != null,
+                                  onOpen: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ExercisesScreen(plan: plan),
+                                      ),
+                                    );
+                                  },
+                                  onEdit: () async {
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            EditRoutineScreen(plan: plan),
+                                      ),
+                                    );
+                                  },
+                                  onToggleActive: () =>
+                                      _togglePlanActive(plan, false),
                                 );
                               },
-                              onToggleActive: () =>
-                                  _togglePlanActive(plan, false),
                             ),
                           );
                         },
                         childCount: activePlans.length,
+                        findChildIndexCallback: (Key key) {
+                          if (key is ValueKey<int>) {
+                            final idx =
+                                activePlans.indexWhere((p) => p.id == key.value);
+                            return idx == -1 ? null : idx;
+                          }
+                          return null;
+                        },
                       ),
                     ),
                   ),
@@ -250,9 +278,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
       return;
     }
 
-    setState(() {
-      _metadataInFlight.addAll(planIds);
-    });
+    _metadataInFlight.addAll(planIds);
 
     try {
       _libraryExercises ??= await ref.read(allExercisesProvider.future);
@@ -285,9 +311,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _metadataInFlight.removeAll(planIds);
-      });
+      _metadataInFlight.removeAll(planIds);
     }
   }
 

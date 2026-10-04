@@ -33,6 +33,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
 
   void _selectTab(int index) {
     if (_currentIndex == index) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _currentIndex = index;
       _loadedTabs.add(index);
@@ -127,15 +128,22 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          RoutinesScreen(onOpenDataManagement: _openDataManagement),
-          if (_loadedTabs.contains(1))
-            const HistoryScreen()
-          else
-            const SizedBox.shrink(),
-          if (_loadedTabs.contains(2))
-            const PerformanceDashboardScreen()
-          else
-            const SizedBox.shrink(),
+          TickerMode(
+            enabled: _currentIndex == 0,
+            child: RoutinesScreen(onOpenDataManagement: _openDataManagement),
+          ),
+          TickerMode(
+            enabled: _currentIndex == 1,
+            child: _loadedTabs.contains(1)
+                ? const HistoryScreen()
+                : const SizedBox.shrink(),
+          ),
+          TickerMode(
+            enabled: _currentIndex == 2,
+            child: _loadedTabs.contains(2)
+                ? const PerformanceDashboardScreen()
+                : const SizedBox.shrink(),
+          ),
         ],
       ),
       bottomNavigationBar: KineticBottomNavBar(

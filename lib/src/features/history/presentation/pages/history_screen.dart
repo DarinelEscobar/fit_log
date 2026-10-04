@@ -199,7 +199,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     sliver: SliverToBoxAdapter(
                       child: KineticEntrance(
-                        child: _OverviewSummaryBand(data: data),
+                        child: RepaintBoundary(
+                          child: _OverviewSummaryBand(data: data),
+                        ),
                       ),
                     ),
                   ),
@@ -222,6 +224,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                     index == data.groups.length - 1 ? 0 : 10,
                               ),
                               child: _HistoryGroupSection(
+                                key: ValueKey(group.key),
                                 group: group,
                                 isExpanded: isExpanded,
                                 onToggle: () => _toggleGroup(group.key),
@@ -230,6 +233,14 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                             );
                           },
                           childCount: data.groups.length,
+                          findChildIndexCallback: (Key key) {
+                            if (key is ValueKey<String>) {
+                              final idx = data.groups
+                                  .indexWhere((g) => g.key == key.value);
+                              return idx == -1 ? null : idx;
+                            }
+                            return null;
+                          },
                         ),
                       ),
                     )
@@ -246,12 +257,33 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                     index == data.sessions.length - 1 ? 0 : 10,
                               ),
                               child: _HistorySessionCard(
+                                key: ValueKey(
+                                  '${session.planId}_${session.date.millisecondsSinceEpoch}',
+                                ),
                                 session: session,
                                 onTap: () => _openSessionDetail(session),
                               ),
                             );
                           },
                           childCount: data.sessions.length,
+                          findChildIndexCallback: (Key key) {
+                            if (key is ValueKey<String>) {
+                              final parts = key.value.split('_');
+                              if (parts.length == 2) {
+                                final planId = int.tryParse(parts[0]);
+                                final millis = int.tryParse(parts[1]);
+                                if (planId != null && millis != null) {
+                                  final idx = data.sessions.indexWhere(
+                                    (s) =>
+                                        s.planId == planId &&
+                                        s.date.millisecondsSinceEpoch == millis,
+                                  );
+                                  return idx == -1 ? null : idx;
+                                }
+                              }
+                            }
+                            return null;
+                          },
                         ),
                       ),
                     ),
@@ -331,27 +363,29 @@ class _PlanFilter extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: 38,
-      child: ListView(
+      child: ListView.separated(
         key: const Key('history-plan-filter-list'),
         scrollDirection: Axis.horizontal,
-        children: [
-          _PillButton(
-            key: const Key('history-plan-filter-all'),
-            label: 'All Routines',
-            selected: selectedPlanId == null,
-            onTap: () => onChanged(null),
-          ),
-          const SizedBox(width: 6),
-          for (final option in options) ...[
-            _PillButton(
-              key: Key('history-plan-filter-${option.planId}'),
-              label: option.name,
-              selected: selectedPlanId == option.planId,
-              onTap: () => onChanged(option.planId),
-            ),
-            const SizedBox(width: 6),
-          ],
-        ],
+        cacheExtent: 300,
+        itemCount: options.length + 1,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return _PillButton(
+              key: const Key('history-plan-filter-all'),
+              label: 'All Routines',
+              selected: selectedPlanId == null,
+              onTap: () => onChanged(null),
+            );
+          }
+          final option = options[index - 1];
+          return _PillButton(
+            key: Key('history-plan-filter-${option.planId}'),
+            label: option.name,
+            selected: selectedPlanId == option.planId,
+            onTap: () => onChanged(option.planId),
+          );
+        },
       ),
     );
   }
@@ -372,27 +406,29 @@ class _ExerciseFilter extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: 38,
-      child: ListView(
+      child: ListView.separated(
         key: const Key('history-exercise-filter-list'),
         scrollDirection: Axis.horizontal,
-        children: [
-          _PillButton(
-            key: const Key('history-exercise-filter-all'),
-            label: 'All Exercises',
-            selected: selectedExerciseId == null,
-            onTap: () => onChanged(null),
-          ),
-          const SizedBox(width: 6),
-          for (final option in options) ...[
-            _PillButton(
-              key: Key('history-exercise-filter-${option.exerciseId}'),
-              label: option.name,
-              selected: selectedExerciseId == option.exerciseId,
-              onTap: () => onChanged(option.exerciseId),
-            ),
-            const SizedBox(width: 6),
-          ],
-        ],
+        cacheExtent: 300,
+        itemCount: options.length + 1,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return _PillButton(
+              key: const Key('history-exercise-filter-all'),
+              label: 'All Exercises',
+              selected: selectedExerciseId == null,
+              onTap: () => onChanged(null),
+            );
+          }
+          final option = options[index - 1];
+          return _PillButton(
+            key: Key('history-exercise-filter-${option.exerciseId}'),
+            label: option.name,
+            selected: selectedExerciseId == option.exerciseId,
+            onTap: () => onChanged(option.exerciseId),
+          );
+        },
       ),
     );
   }
@@ -667,6 +703,7 @@ class _StatColumn extends StatelessWidget {
 
 class _HistoryGroupSection extends StatelessWidget {
   const _HistoryGroupSection({
+    super.key,
     required this.group,
     required this.isExpanded,
     required this.onToggle,
@@ -776,6 +813,9 @@ class _HistoryGroupSection extends StatelessWidget {
                   for (int i = 0; i < group.sessions.length; i++) ...[
                     if (i > 0) const SizedBox(height: 8),
                     _HistorySessionCard(
+                      key: ValueKey(
+                        '${group.sessions[i].planId}_${group.sessions[i].date.millisecondsSinceEpoch}',
+                      ),
                       session: group.sessions[i],
                       onTap: () => onSelectSession(group.sessions[i]),
                       isNested: true,
@@ -793,6 +833,7 @@ class _HistoryGroupSection extends StatelessWidget {
 
 class _HistorySessionCard extends StatelessWidget {
   const _HistorySessionCard({
+    super.key,
     required this.session,
     required this.onTap,
     this.isNested = false,
@@ -833,7 +874,7 @@ class _HistorySessionCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      DateFormat('EEE, MMM d').format(session.date).toUpperCase(),
+                      _sessionHeaderDateFormatter.format(session.date).toUpperCase(),
                       style: KineticNoirTypography.body(
                         size: 10,
                         weight: FontWeight.w800,
@@ -1009,9 +1050,12 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
+final DateFormat _rangeDateFormatter = DateFormat('MMM d, yyyy');
+final DateFormat _keyDateFormatter = DateFormat('yyyy-MM-dd');
+final DateFormat _sessionHeaderDateFormatter = DateFormat('EEE, MMM d');
+
 String _rangeLabel(HistoryDateRange range) {
-  final formatter = DateFormat('MMM d, yyyy');
-  return '${formatter.format(range.start)} - ${formatter.format(range.end)}';
+  return '${_rangeDateFormatter.format(range.start)} - ${_rangeDateFormatter.format(range.end)}';
 }
 
 String _formatCompactKg(double value) {
@@ -1021,4 +1065,4 @@ String _formatCompactKg(double value) {
   return value.toStringAsFixed(0);
 }
 
-String _keyDate(DateTime date) => DateFormat('yyyy-MM-dd').format(date);
+String _keyDate(DateTime date) => _keyDateFormatter.format(date);

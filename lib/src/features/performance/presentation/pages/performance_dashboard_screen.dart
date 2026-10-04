@@ -28,6 +28,13 @@ class _PerformanceDashboardScreenState
   late final TextEditingController _exerciseSearchController;
   late final ValueNotifier<String> _exerciseQueryNotifier;
 
+  List<WorkoutPlan>? _lastPlans;
+  List<WorkoutPlan> _cachedActivePlans = const [];
+  List<int> _cachedActivePlanIds = const [];
+
+  List<Exercise>? _lastExercises;
+  Map<int, Exercise> _cachedExerciseMap = const {};
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +51,26 @@ class _PerformanceDashboardScreenState
     _exerciseSearchController.dispose();
     _exerciseQueryNotifier.dispose();
     super.dispose();
+  }
+
+  void _updateActivePlans(List<WorkoutPlan> plans) {
+    if (identical(_lastPlans, plans)) return;
+    _lastPlans = plans;
+    _cachedActivePlans = plans.where((plan) => plan.isActive).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    _cachedActivePlanIds = [
+      for (final WorkoutPlan plan in _cachedActivePlans) plan.id,
+    ];
+  }
+
+  Map<int, Exercise> _resolveExerciseMap(List<Exercise>? exercises) {
+    if (exercises == null) return const {};
+    if (identical(_lastExercises, exercises)) return _cachedExerciseMap;
+    _lastExercises = exercises;
+    _cachedExerciseMap = {
+      for (final exercise in exercises) exercise.id: exercise,
+    };
+    return _cachedExerciseMap;
   }
 
   void _openExerciseProgress(
@@ -124,27 +151,20 @@ class _PerformanceDashboardScreenState
           ),
         ),
         data: (plans) {
-          final activePlans = plans.where((plan) => plan.isActive).toList()
-            ..sort((a, b) => a.name.compareTo(b.name));
+          _updateActivePlans(plans);
+          final activePlans = _cachedActivePlans;
           if (activePlans.isEmpty) {
             return const _PerformanceEmptyState();
           }
 
-          final activePlanIds = [
-            for (final WorkoutPlan plan in activePlans) plan.id,
-          ];
+          final activePlanIds = _cachedActivePlanIds;
           final request = PerformanceDashboardRequest(
             period: _selectedPeriod,
             activePlanIds: activePlanIds,
           );
           final summaryAsync = ref.watch(performanceDashboardProvider(request));
 
-          final exerciseMap = allExercisesAsync.maybeWhen(
-            data: (exercises) => {
-              for (final exercise in exercises) exercise.id: exercise,
-            },
-            orElse: () => const <int, Exercise>{},
-          );
+          final exerciseMap = _resolveExerciseMap(allExercisesAsync.valueOrNull);
 
           return summaryAsync.when(
             loading: () => const Center(
@@ -248,21 +268,26 @@ class _PerformanceDashboardScreenState
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                       sliver: SliverToBoxAdapter(
-                        child: _TrendSection(
-                          summary: summary,
+                        child: RepaintBoundary(
+                          child: _TrendSection(
+                            summary: summary,
+                          ),
                         ),
                       ),
                     ),
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                       sliver: SliverToBoxAdapter(
-                        child: _MuscleFocusSection(summary: summary),
+                        child: RepaintBoundary(
+                          child: _MuscleFocusSection(summary: summary),
+                        ),
                       ),
                     ),
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                       sliver: SliverToBoxAdapter(
-                        child: _RecentPrsSection(
+                        child: RepaintBoundary(
+                          child: _RecentPrsSection(
                           summary: summary,
                           onOpenExercise: (exerciseId) {
                             final item = summary.activeExercises.firstWhere(
@@ -289,6 +314,7 @@ class _PerformanceDashboardScreenState
                         ),
                       ),
                     ),
+                  ),
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(24, 18, 24, 120),
                       sliver: SliverToBoxAdapter(
@@ -1177,6 +1203,7 @@ class _ExerciseExplorerSection extends StatelessWidget {
               children: [
                 for (final item in filtered) ...[
                   _ExerciseProgressTile(
+                    key: ValueKey(item.exerciseId),
                     item: item,
                     onTap: () => onSelectExercise(item),
                   ),
@@ -1193,6 +1220,7 @@ class _ExerciseExplorerSection extends StatelessWidget {
 
 class _ExerciseProgressTile extends StatelessWidget {
   const _ExerciseProgressTile({
+    super.key,
     required this.item,
     required this.onTap,
   });
@@ -1202,105 +1230,107 @@ class _ExerciseProgressTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: KineticNoirPalette.surfaceLow,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        key: Key('performance-exercise-card-${item.exerciseId}'),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+    return RepaintBoundary(
+      child: Material(
+        color: KineticNoirPalette.surfaceLow,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: Key('performance-exercise-card-${item.exerciseId}'),
+          onTap: onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.12),
+              ),
             ),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: KineticNoirPalette.surfaceBright,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.show_chart_rounded,
-                  color: KineticNoirPalette.primary,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.name,
-                      style: KineticNoirTypography.headline(
-                        size: 16,
-                        weight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        if (item.category.isNotEmpty)
-                          _MiniBadge(label: item.category),
-                        if (item.mainMuscleGroup.isNotEmpty)
-                          _MiniBadge(label: item.mainMuscleGroup),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      item.totalVolumeKg > 0
-                          ? '${_formatKg(item.bestWeightKg)} kg top • ${item.sessionCount} sessions'
-                          : 'No sessions in period',
-                      style: KineticNoirTypography.body(
-                        size: 11,
-                        weight: FontWeight.w600,
-                        color: KineticNoirPalette.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (item.estimatedOneRmKg > 0) ...[
-                    Text(
-                      '${_formatKg(item.estimatedOneRmKg)} kg',
-                      style: KineticNoirTypography.headline(
-                        size: 17,
-                        weight: FontWeight.w700,
-                        color: KineticNoirPalette.primary,
-                      ),
-                    ),
-                    Text(
-                      'EST. 1RM',
-                      style: KineticNoirTypography.body(
-                        size: 9,
-                        weight: FontWeight.w800,
-                        color: KineticNoirPalette.onSurfaceVariant,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 4),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: KineticNoirPalette.onSurfaceVariant,
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: KineticNoirPalette.surfaceBright,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.show_chart_rounded,
+                    color: KineticNoirPalette.primary,
                     size: 20,
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.name,
+                        style: KineticNoirTypography.headline(
+                          size: 16,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          if (item.category.isNotEmpty)
+                            _MiniBadge(label: item.category),
+                          if (item.mainMuscleGroup.isNotEmpty)
+                            _MiniBadge(label: item.mainMuscleGroup),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        item.totalVolumeKg > 0
+                            ? '${_formatKg(item.bestWeightKg)} kg top • ${item.sessionCount} sessions'
+                            : 'No sessions in period',
+                        style: KineticNoirTypography.body(
+                          size: 11,
+                          weight: FontWeight.w600,
+                          color: KineticNoirPalette.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (item.estimatedOneRmKg > 0) ...[
+                      Text(
+                        '${_formatKg(item.estimatedOneRmKg)} kg',
+                        style: KineticNoirTypography.headline(
+                          size: 17,
+                          weight: FontWeight.w700,
+                          color: KineticNoirPalette.primary,
+                        ),
+                      ),
+                      Text(
+                        'EST. 1RM',
+                        style: KineticNoirTypography.body(
+                          size: 9,
+                          weight: FontWeight.w800,
+                          color: KineticNoirPalette.onSurfaceVariant,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: KineticNoirPalette.onSurfaceVariant,
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

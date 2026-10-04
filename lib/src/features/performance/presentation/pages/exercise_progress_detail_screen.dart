@@ -26,8 +26,6 @@ class ExerciseProgressDetailScreen extends ConsumerStatefulWidget {
 
 class _ExerciseProgressDetailScreenState
     extends ConsumerState<ExerciseProgressDetailScreen> {
-  _ExerciseChartMetric _chartMetric = _ExerciseChartMetric.oneRm;
-
   @override
   Widget build(BuildContext context) {
     final asyncData =
@@ -105,18 +103,18 @@ class _ExerciseProgressDetailScreenState
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                 sliver: SliverToBoxAdapter(
-                  child: _KeyStats(summary: summary),
+                  child: RepaintBoundary(
+                    child: _KeyStats(summary: summary),
+                  ),
                 ),
               ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                 sliver: SliverToBoxAdapter(
-                  child: _ProgressChart(
-                    summary: summary,
-                    metric: _chartMetric,
-                    onMetricChanged: (metric) {
-                      setState(() => _chartMetric = metric);
-                    },
+                  child: RepaintBoundary(
+                    child: _ProgressChart(
+                      summary: summary,
+                    ),
                   ),
                 ),
               ),
@@ -422,16 +420,19 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _ProgressChart extends StatelessWidget {
+class _ProgressChart extends StatefulWidget {
   const _ProgressChart({
     required this.summary,
-    required this.metric,
-    required this.onMetricChanged,
   });
 
   final ExerciseProgressDetailData summary;
-  final _ExerciseChartMetric metric;
-  final ValueChanged<_ExerciseChartMetric> onMetricChanged;
+
+  @override
+  State<_ProgressChart> createState() => _ProgressChartState();
+}
+
+class _ProgressChartState extends State<_ProgressChart> {
+  _ExerciseChartMetric _metric = _ExerciseChartMetric.oneRm;
 
   @override
   Widget build(BuildContext context) {
@@ -461,8 +462,11 @@ class _ProgressChart extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               _ChartMetricToggle(
-                selected: metric,
-                onChanged: onMetricChanged,
+                selected: _metric,
+                onChanged: (metric) {
+                  if (_metric == metric) return;
+                  setState(() => _metric = metric);
+                },
               ),
             ],
           ),
@@ -470,17 +474,17 @@ class _ProgressChart extends StatelessWidget {
           SizedBox(
             height: 220,
             child: _ProgressChartBody(
-              points: summary.trend,
-              metric: metric,
+              points: widget.summary.trend,
+              metric: _metric,
             ),
           ),
           const SizedBox(height: 12),
           Center(
             child: _Legend(
-              color: metric == _ExerciseChartMetric.oneRm
+              color: _metric == _ExerciseChartMetric.oneRm
                   ? KineticNoirPalette.primary
                   : KineticNoirPalette.primaryDim,
-              text: metric == _ExerciseChartMetric.oneRm
+              text: _metric == _ExerciseChartMetric.oneRm
                   ? 'Estimated 1RM (kg)'
                   : 'Session Volume (kg·reps)',
             ),
@@ -945,7 +949,10 @@ class _RecentSessions extends StatelessWidget {
           Column(
             children: [
               for (final session in summary.recentSessions) ...[
-                _SessionCard(session: session),
+                _SessionCard(
+                  key: ValueKey(session.date.millisecondsSinceEpoch),
+                  session: session,
+                ),
                 const SizedBox(height: 10),
               ],
             ],
@@ -956,7 +963,7 @@ class _RecentSessions extends StatelessWidget {
 }
 
 class _SessionCard extends StatelessWidget {
-  const _SessionCard({required this.session});
+  const _SessionCard({super.key, required this.session});
 
   final ExerciseRecentSession session;
 
@@ -965,7 +972,8 @@ class _SessionCard extends StatelessWidget {
     final textScale = MediaQuery.textScalerOf(context).scale(1.0);
     final isLargeText = textScale >= 1.35;
 
-    return Container(
+    return RepaintBoundary(
+      child: Container(
       decoration: BoxDecoration(
         color: KineticNoirPalette.surfaceLow,
         borderRadius: BorderRadius.circular(18),
@@ -1107,6 +1115,7 @@ class _SessionCard extends StatelessWidget {
                 ),
               ],
             ),
+      ),
     );
   }
 }
@@ -1120,6 +1129,8 @@ String _formatKg(double value) {
 
 String _formatCompactKg(double value) => _formatKg(value);
 
+final DateFormat _relativeMonthDayFormatter = DateFormat('MMM d');
+
 String _formatRelativeDate(DateTime date) {
   final normalized = DateTime(date.year, date.month, date.day);
   final today = DateTime.now();
@@ -1130,5 +1141,5 @@ String _formatRelativeDate(DateTime date) {
   if (normalized == todayDate.subtract(const Duration(days: 1))) {
     return 'Yesterday';
   }
-  return DateFormat('MMM d').format(normalized);
+  return _relativeMonthDayFormatter.format(normalized);
 }

@@ -114,7 +114,7 @@ PerformanceDashboardSummary _buildDashboardSummary({
     }
 
     final uniqueDays = exerciseLogs
-        .map((e) => DateTime(e.date.year, e.date.month, e.date.day))
+        .map((e) => e.date.year * 10000 + e.date.month * 100 + e.date.day)
         .toSet()
         .length;
 
@@ -168,7 +168,7 @@ PerformanceDashboardSummary _buildDashboardSummary({
   final totalReps = logs.fold<int>(0, (sum, entry) => sum + entry.reps);
   final uniqueTrainingDays = logs
       .map((entry) =>
-          DateTime(entry.date.year, entry.date.month, entry.date.day))
+          entry.date.year * 10000 + entry.date.month * 100 + entry.date.day)
       .toSet()
       .length;
 
@@ -227,9 +227,19 @@ PerformanceDashboardSummary _buildDashboardSummary({
       ),
   ];
 
+  final sortedGroupedByExercise = <int, List<WorkoutLogEntry>>{
+    for (final entry in groupedByExercise.entries)
+      entry.key: List<WorkoutLogEntry>.from(entry.value)
+        ..sort((a, b) {
+          final dateCompare = a.date.compareTo(b.date);
+          if (dateCompare != 0) return dateCompare;
+          return a.setNumber.compareTo(b.setNumber);
+        }),
+  };
+
   final prCards = <PerformancePrCard>[];
   final oneRmCandidate = _bestSetForMetric(
-    groupedByExercise,
+    sortedGroupedByExercise,
     exerciseMap,
     metric: _Metric.oneRm,
   );
@@ -237,7 +247,7 @@ PerformanceDashboardSummary _buildDashboardSummary({
     prCards.add(oneRmCandidate);
   }
   final volumeCandidate = _bestSetForMetric(
-    groupedByExercise,
+    sortedGroupedByExercise,
     exerciseMap,
     metric: _Metric.volume,
   );
@@ -370,14 +380,7 @@ PerformancePrCard? _bestSetForMetric(
 }) {
   PerformancePrCard? best;
   for (final entry in groupedByExercise.entries) {
-    final logs = List<WorkoutLogEntry>.from(entry.value)
-      ..sort((a, b) {
-        final dateCompare = a.date.compareTo(b.date);
-        if (dateCompare != 0) {
-          return dateCompare;
-        }
-        return a.setNumber.compareTo(b.setNumber);
-      });
+    final logs = entry.value;
     if (logs.isEmpty) {
       continue;
     }

@@ -9,6 +9,54 @@ import '../../../routines/presentation/providers/workout_plan_provider.dart';
 import '../models/history_models.dart';
 import 'history_providers.dart';
 
+final historyFilterOptionsProvider = Provider<({
+  List<HistoryPlanOption> planOptions,
+  List<HistoryExerciseOption> exerciseOptions,
+  DateTime anchorDate,
+  Map<int, WorkoutPlan> planMap,
+  Map<int, Exercise> exerciseMap,
+})>((ref) {
+  final plans = ref.watch(workoutPlanProvider).valueOrNull ?? const [];
+  final sessions = ref.watch(workoutSessionsProvider).valueOrNull ?? const [];
+  final logs = ref.watch(workoutLogsProvider).valueOrNull ?? const [];
+  final exercises = ref.watch(allExercisesProvider).valueOrNull ?? const [];
+
+  final planMap = {for (final plan in plans) plan.id: plan};
+  final exerciseMap = {for (final exercise in exercises) exercise.id: exercise};
+  final anchorDate = _latestDate(sessions, logs) ?? DateTime.now();
+
+  final availablePlanIds = <int>{
+    for (final session in sessions) session.planId,
+    for (final log in logs) log.planId,
+  };
+  final planOptions = [
+    for (final planId in availablePlanIds)
+      HistoryPlanOption(
+        planId: planId,
+        name: planMap[planId]?.name ?? 'Plan $planId',
+      ),
+  ]..sort((a, b) => a.name.compareTo(b.name));
+
+  final availableExerciseIds = <int>{
+    for (final log in logs) log.exerciseId,
+  };
+  final exerciseOptions = [
+    for (final exerciseId in availableExerciseIds)
+      HistoryExerciseOption(
+        exerciseId: exerciseId,
+        name: exerciseMap[exerciseId]?.name ?? 'Exercise $exerciseId',
+      ),
+  ]..sort((a, b) => a.name.compareTo(b.name));
+
+  return (
+    planOptions: planOptions,
+    exerciseOptions: exerciseOptions,
+    anchorDate: anchorDate,
+    planMap: planMap,
+    exerciseMap: exerciseMap,
+  );
+});
+
 final historyOverviewProvider =
     Provider.family<AsyncValue<HistoryOverviewData>, HistoryFilter>(
   (ref, filter) {
@@ -34,6 +82,8 @@ final historyOverviewProvider =
       return const AsyncLoading();
     }
 
+    final options = ref.watch(historyFilterOptionsProvider);
+
     return AsyncData(
       _buildHistoryOverview(
         filter: filter,
@@ -41,6 +91,7 @@ final historyOverviewProvider =
         sessions: sessionsAsync.requireValue,
         logs: logsAsync.requireValue,
         exercises: exercisesAsync.requireValue,
+        options: options,
       ),
     );
   },
@@ -62,41 +113,29 @@ HistoryOverviewData _buildHistoryOverview({
   required List<WorkoutSession> sessions,
   required List<WorkoutLogEntry> logs,
   required List<Exercise> exercises,
+  required ({
+    List<HistoryPlanOption> planOptions,
+    List<HistoryExerciseOption> exerciseOptions,
+    DateTime anchorDate,
+    Map<int, WorkoutPlan> planMap,
+    Map<int, Exercise> exerciseMap,
+  }) options,
 }) {
-  final planMap = {for (final plan in plans) plan.id: plan};
-  final exerciseMap = {for (final exercise in exercises) exercise.id: exercise};
-  final anchorDate = _latestDate(sessions, logs) ?? DateTime.now();
-  final range = filter.period.resolve(anchorDate);
-
-  final availablePlanIds = <int>{
-    for (final session in sessions) session.planId,
-    for (final log in logs) log.planId,
-  };
-  final planOptions = [
-    for (final planId in availablePlanIds)
-      HistoryPlanOption(
-        planId: planId,
-        name: planMap[planId]?.name ?? 'Plan $planId',
-      ),
-  ]..sort((a, b) => a.name.compareTo(b.name));
-
-  final availableExerciseIds = <int>{
-    for (final log in logs) log.exerciseId,
-  };
-  final exerciseOptions = [
-    for (final exerciseId in availableExerciseIds)
-      HistoryExerciseOption(
-        exerciseId: exerciseId,
-        name: exerciseMap[exerciseId]?.name ?? 'Exercise $exerciseId',
-      ),
-  ]..sort((a, b) => a.name.compareTo(b.name));
+  final planMap = options.planMap;
+  final exerciseMap = options.exerciseMap;
+  final range = filter.period.resolve(options.anchorDate);
+  final startDayKey =
+      range.start.year * 10000 + range.start.month * 100 + range.start.day;
+  final endDayKey =
+      range.end.year * 10000 + range.end.month * 100 + range.end.day;
 
   final filteredSessions = sessions.where((session) {
     return _matchesFilter(
       planId: session.planId,
       date: session.date,
       filter: filter,
-      range: range,
+      startDayKey: startDayKey,
+      endDayKey: endDayKey,
     );
   }).toList(growable: false);
 
@@ -108,7 +147,8 @@ HistoryOverviewData _buildHistoryOverview({
       planId: log.planId,
       date: log.date,
       filter: filter,
-      range: range,
+      startDayKey: startDayKey,
+      endDayKey: endDayKey,
     );
   }).toList(growable: false);
 
@@ -181,8 +221,8 @@ HistoryOverviewData _buildHistoryOverview({
   return HistoryOverviewData(
     filter: filter,
     range: range,
-    planOptions: planOptions,
-    exerciseOptions: exerciseOptions,
+    planOptions: options.planOptions,
+    exerciseOptions: options.exerciseOptions,
     sessions: sessionSummaries,
     groups: groups,
     totalVolumeKg: totalVolumeKg,
@@ -327,13 +367,14 @@ bool _matchesFilter({
   required int planId,
   required DateTime date,
   required HistoryFilter filter,
-  required HistoryDateRange range,
+  required int startDayKey,
+  required int endDayKey,
 }) {
   if (filter.planId != null && planId != filter.planId) {
     return false;
   }
-  final day = _day(date);
-  return !day.isBefore(range.start) && !day.isAfter(range.end);
+  final dateKey = date.year * 10000 + date.month * 100 + date.day;
+  return dateKey >= startDayKey && dateKey <= endDayKey;
 }
 
 HistorySessionSummary _buildSessionSummary({
