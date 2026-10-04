@@ -101,7 +101,8 @@ Fit Log uses a hybrid local storage model:
 
 - `SQLite` is the runtime source for routines, exercises, plan details, workout logs, and workout sessions
 - `.xlsx` tables are retained for compatibility, import/export, and human-readable backups
-- startup warmup seeds or rebuilds the runtime cache from `.xlsx` when needed
+- startup opens SQLite and migrates legacy `.xlsx` history when needed; it renders a loading or retry screen before initialization can fail
+- Space Grotesk and Manrope fonts are bundled with their licenses; the normal release disables runtime font downloads
 
 Current tables and backup artifacts include:
 
@@ -172,7 +173,7 @@ On a fresh emulator or an empty app database:
 flutter run -t lib/main_demo.dart
 ```
 
-This separate development entrypoint seeds fictional routines, warm-up steps and recent workout history for visual review. It skips seeding when routines, logs or sessions already exist, and a second launch does not duplicate the fixture. The normal `lib/main.dart` entrypoint does not seed demo data. The fixture is for UI review, not a prescribed training plan.
+This separate development entrypoint seeds fictional routines, warm-up steps and recent workout history for visual review. It skips seeding when routines, logs or sessions already exist, and a second launch does not duplicate the fixture. The normal `lib/main.dart` entrypoint starts with no routines, exercises, sessions or sample history. Existing user data is preserved during updates. It does not run the demo seeder. The fixture is for UI review, not a prescribed training plan.
 
 At startup the app:
 
@@ -196,16 +197,16 @@ Important runtime entrypoints:
 
 ## Backup and Import
 
-The app features a unified **Export & Share Backup** flow alongside **Import Backup**, whose restore behavior depends on the backup type:
+The app features a unified **Export & Share Backup** flow alongside a non-destructive **Import Backup** flow:
 
 - **Unified Export & Share**: Generating a backup automatically presents the system share sheet in a single flow without requiring a separate share step.
 - **Range Presets & Selection**:
-  - **Automatic Incremental**: Exports only missing workout sessions and logs since the last successful export.
+  - **Automatic Incremental**: Detects new or changed records, including additional sets or workouts on an already exported day.
   - **Full Backup**: Packages the complete SQLite database archive along with all historical spreadsheets.
   - **Custom Range**: Allows selecting explicit inclusive start and end dates with real-time validation and preview.
 - **ZIP Archive Format**: Names include exported bounds (e.g. `fitlog_backup_2026-09-07_to_2026-09-13.zip` or `fitlog_backup_full_2026-10-02.zip`).
-- **Import Behavior**: Incremental range archives merge workout history into the existing database. Full backups restore their database snapshot, and full or spreadsheet imports can replace current data.
-- **Local Ownership**: Preserves offline ownership of training data while keeping runtime operations optimized for SQLite. Successful export ranges are tracked in local SQLite metadata.
+- **Import Behavior**: Full, incremental, and spreadsheet backups add missing records in one SQLite transaction. Current routines, setup presets, profile settings and edited sets take precedence. The live database is never replaced. Imports validate before merging and block other data actions until complete; Home, History, Performance and routine-detail caches are then refreshed. Legacy day-only records retain their original granularity and cannot reconstruct previously lost sessions.
+- **Local Ownership**: Preserves offline ownership of training data. Successful export ranges and per-day record signatures are tracked in SQLite metadata. New backups include `workout_session_key` alongside the legacy spreadsheet headers; SQLite schema version 4 preserves distinct same-day workouts. See [data stability verification](docs/data-stability-review.md).
 
 ## Validation
 

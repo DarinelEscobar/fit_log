@@ -43,7 +43,7 @@ Preserve ignored signing files, build outputs and fictional QA fixtures.
 - Data & Backups: unify Export & Share into a single action presenting date
   range presets, automatic incremental detection, full backups and custom ranges.
   Import behavior distinguishes incremental archives (which merge workout history)
-  from full database snapshots or spreadsheet imports (which can replace existing data).
+  from full database snapshots or spreadsheet imports. Since 1.1.5, all imports merge missing records and retain current data; see `data-stability-review.md`.
 
 ## Motion identity
 
