@@ -84,7 +84,7 @@ class ActiveSessionExerciseCard extends StatefulWidget {
   final Exercise? exercise;
   final int planId;
   final int exerciseNumber;
-  final DateTime now;
+  final DateTime Function() now;
   final bool expanded;
   final Map<String, WorkoutLogEntry> logsMap;
   final WeightDisplayUnit weightUnit;
@@ -106,6 +106,8 @@ class ActiveSessionExerciseCard extends StatefulWidget {
 
 class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     with AutomaticKeepAliveClientMixin {
+  DateTime get _now => widget.now();
+
   final List<TextEditingController> _weightControllers = [];
   final List<TextEditingController> _repControllers = [];
   final List<TextEditingController> _rirControllers = [];
@@ -196,7 +198,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     FocusScope.of(context).unfocus();
     widget.completeLog(
       WorkoutLogEntry(
-        date: widget.now,
+        date: _now,
         planId: widget.planId,
         exerciseId: widget.detail.exerciseId,
         setNumber: nextSet,
@@ -206,7 +208,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
         completed: true,
       ),
     );
-    if (!wasCompleted) _startRestTimer(widget.now);
+    if (!wasCompleted) _startRestTimer(_now);
     setState(() => _editingSetNumber = null);
     final nextTarget = _nextPendingSetNumber ?? nextSet;
     if (MediaQuery.disableAnimationsOf(context)) {
@@ -215,6 +217,12 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
       });
     } else {
       _awaitingSettledSetNumber = nextTarget;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _awaitingSettledSetNumber == nextTarget) {
+          _awaitingSettledSetNumber = null;
+          unawaited(ensurePrimarySetVisible());
+        }
+      });
     }
     return LogCurrentSetResult.registered;
   }
@@ -463,7 +471,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     final current = _logFor(setNumber);
     widget.saveDraftLog(
       WorkoutLogEntry(
-        date: widget.now,
+        date: _now,
         planId: widget.planId,
         exerciseId: widget.detail.exerciseId,
         setNumber: setNumber,
@@ -623,7 +631,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     widget.onSetCountChanged(_visibleSets);
     widget.saveDraftLog(
       WorkoutLogEntry(
-        date: widget.now,
+        date: _now,
         planId: widget.planId,
         exerciseId: widget.detail.exerciseId,
         setNumber: _visibleSets,
@@ -660,7 +668,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     widget.onSetCountChanged(_visibleSets);
     widget.removeLog(
       WorkoutLogEntry(
-        date: widget.now,
+        date: _now,
         planId: widget.planId,
         exerciseId: widget.detail.exerciseId,
         setNumber: removedSet,
@@ -736,7 +744,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
     if (restEndsAt == null) {
       return 0;
     }
-    final remaining = restEndsAt.difference(widget.now).inSeconds;
+    final remaining = restEndsAt.difference(_now).inSeconds;
     return remaining > 0 ? remaining : 0;
   }
 
@@ -914,7 +922,7 @@ class ActiveSessionExerciseCardState extends State<ActiveSessionExerciseCard>
             ),
             ActiveExerciseProgressPanel(
               exerciseId: widget.detail.exerciseId,
-              sessionDate: widget.now,
+              sessionDate: _now,
               currentLogs: _completedExerciseLogs,
               weightUnit: widget.weightUnit,
             ),
@@ -1230,6 +1238,7 @@ class _NumberInput extends StatelessWidget {
           extentOffset: controller.text.length,
         );
       },
+      scrollPadding: const EdgeInsets.only(top: 52, bottom: 20),
       style: KineticNoirTypography.headline(
         size: 22,
         weight: FontWeight.w700,

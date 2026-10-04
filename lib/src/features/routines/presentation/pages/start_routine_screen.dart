@@ -62,6 +62,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
 
   late final DateTime _sessionStartedAt;
   late final Timer _ticker;
+  late final ValueNotifier<DateTime> _clockNotifier;
   late DateTime _now;
   Timer? _draftSaveTimer;
   final TextEditingController _notesCtl = TextEditingController();
@@ -92,6 +93,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _now = widget.now();
+    _clockNotifier = ValueNotifier<DateTime>(_now);
     _sessionStartedAt = widget.recoveredDraft?.startedAt ?? _now;
     _restoreDraftIfNeeded();
     _notesCtl.addListener(_scheduleDraftPersist);
@@ -105,6 +107,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     WidgetsBinding.instance.removeObserver(this);
     _draftSaveTimer?.cancel();
     _ticker.cancel();
+    _clockNotifier.dispose();
     _notesCtl.dispose();
     _notesFocusNode.dispose();
     _warmUpVisible.dispose();
@@ -186,9 +189,8 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     }
 
     final now = widget.now();
-    setState(() {
-      _now = now;
-    });
+    _now = now;
+    _clockNotifier.value = now;
     if (syncRestTimers) {
       _syncRestTimers(now, vibrateOnCompletion: vibrateOnCompletion);
       _syncWarmUpTimer(now, vibrateOnCompletion: vibrateOnCompletion);
@@ -545,10 +547,15 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
     DateTime now, {
     required bool vibrateOnCompletion,
   }) {
+    var timerExpired = false;
     for (final entry in _restEndsAtByExercise.entries.toList()) {
       if (!entry.value.isAfter(now)) {
         _restEndsAtByExercise.remove(entry.key);
+        timerExpired = true;
       }
+    }
+    if (timerExpired && mounted) {
+      setState(() {});
     }
     for (final key in _cardKeys.values) {
       unawaited(
@@ -1209,16 +1216,12 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
 
   @override
   Widget build(BuildContext context) {
-    final now = _now;
-    final sessionDuration = _sessionDurationAt(now);
     final asyncDetails = ref.watch(planExerciseDetailsProvider(widget.plan.id));
     final asyncExercises = ref.watch(allExercisesProvider);
     final asyncWarmUpSteps = ref.watch(warmUpStepsProvider(widget.plan.id));
     final showWarmUpChrome = _isWarmUpActive ||
         (_warmUpState == null &&
             (asyncWarmUpSteps.asData?.value.isNotEmpty ?? false));
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final activeRestTimer = _activeRestTimerSummary(now);
     final resolvedSessionDetails =
         (_sessionDetails ?? asyncDetails.asData?.value) ??
             const <PlanExerciseDetail>[];
@@ -1275,15 +1278,28 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                showWarmUpChrome
-                    ? 'Prepare for your session'
-                    : '${WorkoutSessionHelper.formatDuration(sessionDuration)} · $_completedSetCount/$_totalSetCount sets · ${_volumeKg.toStringAsFixed(0)} kg',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: KineticNoirTypography.body(
-                    size: 11, color: KineticNoirPalette.onSurfaceVariant),
-              ),
+              showWarmUpChrome
+                  ? Text(
+                      'Prepare for your session',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: KineticNoirTypography.body(
+                          size: 11, color: KineticNoirPalette.onSurfaceVariant),
+                    )
+                  : ValueListenableBuilder<DateTime>(
+                      valueListenable: _clockNotifier,
+                      builder: (context, clockTime, _) {
+                        final sessionDuration = _sessionDurationAt(clockTime);
+                        return Text(
+                          '${WorkoutSessionHelper.formatDuration(sessionDuration)} · $_completedSetCount/$_totalSetCount sets · ${_volumeKg.toStringAsFixed(0)} kg',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: KineticNoirTypography.body(
+                              size: 11,
+                              color: KineticNoirPalette.onSurfaceVariant),
+                        );
+                      },
+                    ),
             ],
           ),
           actions: [
@@ -1309,66 +1325,17 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
           builder: (context, warmUpVisible, _) => showWarmUpChrome ||
                   warmUpVisible
               ? const SizedBox.shrink()
-              : Padding(
-                  padding: EdgeInsets.only(bottom: bottomInset),
-                  child: SafeArea(
-                    top: false,
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                      decoration: BoxDecoration(
-                        color: KineticNoirPalette.background,
-                        border: Border(
-                            top: BorderSide(
-                                color: KineticNoirPalette.outlineVariant
-                                    .withValues(alpha: 0.3))),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (activeRestTimer != null) ...[
-                            _FloatingRestTimerPill(summary: activeRestTimer),
-                            const SizedBox(height: 8),
-                          ],
-                          Row(children: [
-                            _SessionNavigationButton(
-                              buttonKey: const Key('active-session-nav-up'),
-                              icon: Icons.keyboard_arrow_up_rounded,
-                              onPressed: canNavigateUp
-                                  ? () => _moveExpandedExercise(-1)
-                                  : null,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: FilledButton.icon(
-                                key: const Key('active-session-register-set'),
-                                onPressed: activeExpandedExerciseId == null
-                                    ? null
-                                    : () => _logExpandedSet(
-                                        activeExpandedExerciseId),
-                                icon: const Icon(Icons.check_rounded),
-                                label: const Text('LOG SET'),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: KineticNoirPalette.primary,
-                                  foregroundColor: KineticNoirPalette.onPrimary,
-                                  minimumSize: const Size(0, 48),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16)),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            _SessionNavigationButton(
-                              buttonKey: const Key('active-session-nav-down'),
-                              icon: Icons.keyboard_arrow_down_rounded,
-                              onPressed: canNavigateDown
-                                  ? () => _moveExpandedExercise(1)
-                                  : null,
-                            ),
-                          ]),
-                        ],
-                      ),
-                    ),
-                  ),
+              : _ActiveSessionBottomBar(
+                  clockNotifier: _clockNotifier,
+                  getRestTimerSummary: _activeRestTimerSummary,
+                  canNavigateUp: canNavigateUp,
+                  canNavigateDown: canNavigateDown,
+                  onNavigateUp: () => _moveExpandedExercise(-1),
+                  onNavigateDown: () => _moveExpandedExercise(1),
+                  onLogSet: activeExpandedExerciseId == null
+                      ? null
+                      : () => _logExpandedSet(
+                          activeExpandedExerciseId),
                 ),
         ),
         body: asyncExercises.when(
@@ -1405,13 +1372,16 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                   }
 
                   if (_isWarmUpActive) {
-                    return WarmUpFlow(
-                      steps: _warmUpSteps!,
-                      state: _warmUpState!,
-                      now: now,
-                      onPauseResume: _toggleWarmUpPause,
-                      onSkipStep: _skipWarmUpStep,
-                      onFinish: _finishWarmUp,
+                    return ValueListenableBuilder<DateTime>(
+                      valueListenable: _clockNotifier,
+                      builder: (context, clockTime, _) => WarmUpFlow(
+                        steps: _warmUpSteps!,
+                        state: _warmUpState!,
+                        now: clockTime,
+                        onPauseResume: _toggleWarmUpPause,
+                        onSkipStep: _skipWarmUpStep,
+                        onFinish: _finishWarmUp,
+                      ),
                     );
                   }
 
@@ -1492,7 +1462,7 @@ class _StartRoutineScreenState extends ConsumerState<StartRoutineScreen>
                                     sessionDetails[index].exerciseId],
                                 planId: widget.plan.id,
                                 exerciseNumber: index + 1,
-                                now: now,
+                                now: widget.now,
                                 expanded: _expandedExerciseId ==
                                     sessionDetails[index].exerciseId,
                                 logsMap: _sessionLogs,
@@ -1675,6 +1645,98 @@ class _SessionNavigationButton extends StatelessWidget {
       tooltip: icon == Icons.keyboard_arrow_up_rounded
           ? 'Open previous exercise'
           : 'Open next exercise',
+    );
+  }
+}
+
+class _ActiveSessionBottomBar extends StatelessWidget {
+  const _ActiveSessionBottomBar({
+    required this.clockNotifier,
+    required this.getRestTimerSummary,
+    required this.canNavigateUp,
+    required this.canNavigateDown,
+    required this.onNavigateUp,
+    required this.onNavigateDown,
+    required this.onLogSet,
+  });
+
+  final ValueNotifier<DateTime> clockNotifier;
+  final _ActiveRestTimerSummary? Function(DateTime now) getRestTimerSummary;
+  final bool canNavigateUp;
+  final bool canNavigateDown;
+  final VoidCallback? onNavigateUp;
+  final VoidCallback? onNavigateDown;
+  final VoidCallback? onLogSet;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          decoration: BoxDecoration(
+            color: KineticNoirPalette.background,
+            border: Border(
+              top: BorderSide(
+                color: KineticNoirPalette.outlineVariant.withValues(alpha: 0.3),
+              ),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ValueListenableBuilder<DateTime>(
+                valueListenable: clockNotifier,
+                builder: (context, now, _) {
+                  final activeRestTimer = getRestTimerSummary(now);
+                  if (activeRestTimer == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _FloatingRestTimerPill(summary: activeRestTimer),
+                  );
+                },
+              ),
+              Row(
+                children: [
+                  _SessionNavigationButton(
+                    buttonKey: const Key('active-session-nav-up'),
+                    icon: Icons.keyboard_arrow_up_rounded,
+                    onPressed: canNavigateUp ? onNavigateUp : null,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      key: const Key('active-session-register-set'),
+                      onPressed: onLogSet,
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('LOG SET'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: KineticNoirPalette.primary,
+                        foregroundColor: KineticNoirPalette.onPrimary,
+                        minimumSize: const Size(0, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _SessionNavigationButton(
+                    buttonKey: const Key('active-session-nav-down'),
+                    icon: Icons.keyboard_arrow_down_rounded,
+                    onPressed: canNavigateDown ? onNavigateDown : null,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
