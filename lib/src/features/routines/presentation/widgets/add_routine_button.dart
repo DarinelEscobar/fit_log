@@ -19,43 +19,23 @@ class _AddRoutineButtonState extends ConsumerState<AddRoutineButton> {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: kineticPrimaryGradient,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: KineticNoirPalette.shadow.withValues(alpha: 0.14),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          key: const Key('add-routine-button'),
-          borderRadius: BorderRadius.circular(18),
-          onTap: _isCreating ? null : _handleCreate,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: _isCreating
-                ? const SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.4,
-                      color: KineticNoirPalette.onPrimary,
-                    ),
-                  )
-                : const Icon(
-                    Icons.add_rounded,
-                    size: 28,
-                    color: KineticNoirPalette.onPrimary,
-                  ),
-          ),
-        ),
-      ),
+    return FloatingActionButton(
+      key: const Key('add-routine-button'),
+      tooltip: 'Create routine',
+      backgroundColor: KineticNoirPalette.primary,
+      foregroundColor: KineticNoirPalette.onPrimary,
+      shape: const CircleBorder(),
+      onPressed: _isCreating ? null : _handleCreate,
+      child: _isCreating
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.2,
+                color: KineticNoirPalette.onPrimary,
+              ),
+            )
+          : const Icon(Icons.add_rounded, size: 28),
     );
   }
 
