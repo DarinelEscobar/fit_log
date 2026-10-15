@@ -55,3 +55,4 @@ lib/src/data/var/
 
 # Local scripts (WiFi run configuration)
 flutter_wifi_run.ps1
+/.codex-remote-attachments/
