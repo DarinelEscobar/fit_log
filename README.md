@@ -67,7 +67,7 @@ Analytics summarize workouts from active routines over a selectable time window.
 
 ### Data Management
 
-`Export & Share Backup` creates a verified ZIP and opens the system share sheet. `Import Backup` merges missing records while preserving current routines and history.
+`Export & Share Backup` creates a verified ZIP and opens the system share sheet. `Import Backup` merges missing records while preserving current routines and history. An explicit prescription-update manifest can replace only the named routine prescriptions; it never removes workout history or old exercise definitions.
 
 ![Data Management](docs/images/screens/data-management.png)
 
@@ -128,16 +128,18 @@ Current tables and backup artifacts include:
 - `body_metrics.xlsx`
 - `muscle.xlsx`
 - `exercise_target.xlsx`
+- `physique_check_in.xlsx` (append-only measurements, daily food/activity quality and exercise tolerance)
 
 Operationally, the app now favors SQLite for responsive reads and writes during normal use, while still exporting a portable ZIP backup that includes both the database and spreadsheet-compatible tables.
 
 ## Current Navigation Model
 
-The current app shell exposes three primary tabs from the bottom navigation:
+The current app shell exposes four primary tabs from the bottom navigation:
 
 - `Routines`
 - `History`
 - `Performance`
+- `Check-in`
 
 The following screens are secondary routes opened from those tabs:
 
@@ -208,6 +210,18 @@ Important runtime entrypoints:
 - [workout_storage_service.dart](lib/src/data/services/workout_storage_service.dart)
 
 ## Backup and Import
+
+### Quick check-in (1.1.10+12)
+
+`Check-in` provides optional weight, separate upper/lower abdominal readings (including repeat readings), fasting, water and last bowel movement. Daily entries record calories/protein, diary completeness separately from estimated portions, steps/source and optional self-reported sleep. Exercise entries link an exercise ID/name and setup to during-exercise pain, next-morning pain, next-morning abnormal sensation and why a set stopped. Blank remains unknown; zero is an explicit observed value. Corrections append a new row with `supersedes_id`, retaining the original.
+
+The personal 19–31 Oct calibration card displays 3,000 recorded kcal, 150 g protein, stable activity and a Nov 1 decision. It becomes a completed-block card after Oct 31, without automatically switching phase. Weight is suggested 5–7 mornings/week, abdomen Monday/Wednesday/Saturday with two readings per point, relaxed photos now and Oct 30–31 then every four weeks. Photos remain separate files with an optional reference; image data is not embedded or uploaded.
+
+An opt-in morning reminder uses the device timezone, a user-selected hour and inexact local scheduling through Oct 31. Notification permission is checked, and tapping it opens Check-in on warm/cold launch. The app does not promise exact delivery under Android battery restrictions. Disabling cancels these IDs without cancelling workout timers. Reminder preferences are local device settings, not part of the health export.
+
+The XLSX workbook is the authoritative local store for these ancillary observations, consistent with the profile spreadsheets. It is included in all ZIP exports. New check-ins alone trigger automatic export even without new workouts; corrections and re-imports retain originals and avoid duplicate IDs. Full backups still include the runtime SQLite database.
+
+Special prepared archives may declare `routineUpdate: {mode: "replace-prescription-only", plans: {"<id>": "<exact name>"}}` in the standard manifest. The importer validates every named plan and a non-empty incoming prescription, resolves IDs, and atomically replaces only its `plan_exercises`/warm-up rows. Ordinary backups retain the previous preserve-local-routines behavior. Historical sets, sessions, exercise definitions, other routines and setup presets are kept. Such archives require this app version; an older app cannot apply the new contract.
 
 The app features a unified **Export & Share Backup** flow alongside a non-destructive **Import Backup** flow:
 

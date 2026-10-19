@@ -806,7 +806,8 @@ class WorkoutStorageService {
 
   /// Read and validate the entire staged backup before writing anything live.
   /// The live database is never replaced or closed by an import.
-  Future<void> mergeBackup(Directory spreadsheets, {File? database}) async {
+  Future<void> mergeBackup(Directory spreadsheets,
+      {File? database, Map<int, String> replaceRoutines = const {}}) async {
     final payload = await compute(_parseBackupSheets, spreadsheets.path);
     if (database != null) {
       final source = await _databaseFactory.openDatabase(database.path,
@@ -890,6 +891,28 @@ class WorkoutStorageService {
         }
       }
       final batch = txn.batch();
+      // Only an explicit prescription-update archive can replace My Routines.
+      // History and exercise definitions are never removed by this operation.
+      for (final entry in replaceRoutines.entries) {
+        final matching = payload['workout_plans']!.where((row) =>
+            _intValue(row['plan_id']) == entry.key &&
+            _stringValue(row['name']) == entry.value);
+        final hasPrescription = payload['plan_exercises']!
+            .any((row) => _intValue(row['plan_id']) == entry.key);
+        if (matching.length != 1 ||
+            !hasPrescription ||
+            !planIds.containsKey(entry.key)) {
+          throw const FormatException(
+              'Routine update identity or prescription missing.');
+        }
+        final id = planIds[entry.key]!;
+        await txn
+            .delete('plan_exercises', where: 'plan_id = ?', whereArgs: [id]);
+        await txn
+            .delete('plan_warmup_steps', where: 'plan_id = ?', whereArgs: [id]);
+        configuredPlans.remove(id);
+        configuredWarmups.remove(id);
+      }
       for (final table in [
         'plan_exercises',
         'plan_warmup_steps',

@@ -7,6 +7,8 @@ import 'package:fit_log/src/data/create/initialize_xlsx.dart';
 import 'package:fit_log/src/data/services/workout_storage_service.dart';
 import 'package:fit_log/src/features/app_data/data/repositories/app_data_repository_impl.dart';
 import 'package:fit_log/src/features/app_data/domain/entities/export_models.dart';
+import 'package:fit_log/src/features/check_in/data/check_in_repository.dart';
+import 'package:fit_log/src/data/schema/schemas.dart';
 import 'package:fit_log/src/features/routines/domain/entities/active_workout_session_draft.dart';
 import 'package:fit_log/src/features/routines/domain/entities/exercise.dart';
 import 'package:fit_log/src/features/routines/domain/entities/plan_exercise_detail.dart';
@@ -738,6 +740,162 @@ void main() {
     expect(range.contains(DateTime(2026, 2, 28)), isFalse);
     expect(range.contains(DateTime(2026, 3, 6)), isFalse);
   });
+
+  test('check-in-only exports include corrections and restore idempotently',
+      () async {
+    final storage = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    addTearDown(storage.close);
+    final checkIns = CheckInRepository(directory: documentsDirectory);
+    await checkIns.save({
+      'record_id': 'fixture:first',
+      'kind': 'morning',
+      'measured_at': '2026-10-17T08:00:00',
+      'weight_kg': '75.3',
+      'water_ml': '0'
+    });
+    final repository = AppDataRepositoryImpl(storageService: storage);
+    final first = await repository.exportData();
+    expect(
+        _readExportManifest(ZipDecoder()
+            .decodeBytes(await first.readAsBytes()))['checkInCount'],
+        1);
+    await expectLater(repository.exportData(), throwsStateError);
+    await checkIns.save({
+      'record_id': 'fixture:correction',
+      'supersedes_id': 'fixture:first',
+      'kind': 'morning',
+      'measured_at': '2026-10-16T08:00:00',
+      'weight_kg': '75.1'
+    });
+    final correction = await repository.exportData();
+    await repository.importData(correction);
+    await repository.importData(correction);
+    final rows = await checkIns.readAll();
+    expect(rows, hasLength(2));
+    expect(rows.first['water_ml'], '0');
+    expect(rows.first['abdomen_upper_cm'], '');
+    expect(rows.last['supersedes_id'], 'fixture:first');
+    expect(
+        () => CheckInRepository.validate({
+              'kind': 'morning',
+              'measured_at': '2026-10-17',
+              'weight_kg': '-3'
+            }),
+        throwsFormatException);
+  });
+
+  test('explicit routine update replaces prescription but preserves history',
+      () async {
+    final service = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    addTearDown(service.close);
+    await _seedRoutine(service);
+    final date = DateTime(2026, 10, 16, 18);
+    await service.finishWorkout([_finishedLog(date)], _sessionFor(date));
+    final archive = Archive();
+    void addSheet(String filename, List<List<CellValue?>> rows) {
+      final schema = kTableSchemas[filename]!;
+      final book = Excel.createExcel();
+      book.rename(book.getDefaultSheet()!, schema.sheetName);
+      book[schema.sheetName]
+          .appendRow(schema.headers.map(TextCellValue.new).toList());
+      for (final row in rows) {
+        book[schema.sheetName].appendRow(row);
+      }
+      final bytes = book.save()!;
+      archive.addFile(ArchiveFile(filename, bytes.length, bytes));
+    }
+
+    addSheet('workout_plan.xlsx', [
+      [
+        const IntCellValue(1),
+        TextCellValue('Original routine'),
+        TextCellValue('Weekly'),
+        const IntCellValue(1)
+      ]
+    ]);
+    addSheet('exercise.xlsx', [
+      [
+        const IntCellValue(2),
+        TextCellValue('Tolerable trial'),
+        TextCellValue('Stop if symptomatic'),
+        TextCellValue('Isolation'),
+        TextCellValue('Chest')
+      ]
+    ]);
+    addSheet('plan_exercise.xlsx', [
+      [
+        const IntCellValue(1),
+        const IntCellValue(2),
+        const IntCellValue(2),
+        const IntCellValue(15),
+        const DoubleCellValue(0),
+        const IntCellValue(90),
+        const IntCellValue(4),
+        TextCellValue('2-1-2-0'),
+        TextCellValue('')
+      ]
+    ]);
+    final manifest = utf8.encode(jsonEncode({
+      'format': 'fitlog-range-export-v1',
+      'historyMode': 'incremental',
+      'routineUpdate': {
+        'mode': 'replace-prescription-only',
+        'plans': {'1': 'Original routine'}
+      }
+    }));
+    archive.addFile(
+        ArchiveFile('export_manifest.json', manifest.length, manifest));
+    final file = File(p.join(tempRoot.path, 'routine-update.zip'));
+    await file.writeAsBytes(ZipEncoder().encode(archive)!);
+    final repo = AppDataRepositoryImpl(storageService: service);
+    await repo.importData(file);
+    await repo.importData(file);
+    expect(await service.fetchAllLogs(), hasLength(1));
+    expect(await service.fetchAllSessions(), hasLength(1));
+    final db = await databaseFactoryFfi.openDatabase(databasePath);
+    final prescription =
+        await db.query('plan_exercises', where: 'plan_id = ?', whereArgs: [1]);
+    expect(prescription.map((r) => r['exercise_id']), [2]);
+    expect(
+        await db.query('exercises', where: 'exercise_id = ?', whereArgs: [1]),
+        hasLength(1));
+    await db.close();
+  });
+
+  const packagePath = String.fromEnvironment('FITLOG_IMPORT_PACKAGE');
+  test(
+      'prepared owner package imports all history and applies routine changes twice',
+      () async {
+    final storage = WorkoutStorageService(dbFactory: databaseFactoryFfi);
+    addTearDown(storage.close);
+    final repository = AppDataRepositoryImpl(storageService: storage);
+    final file = File(packagePath);
+    await repository.importData(file);
+    final firstLogs = (await storage.fetchAllLogs()).length;
+    final firstSessions = (await storage.fetchAllSessions()).length;
+    expect(firstLogs, 7189);
+    expect(firstSessions, 383);
+    await repository.importData(file);
+    expect((await storage.fetchAllLogs()).length, firstLogs);
+    expect((await storage.fetchAllSessions()).length, firstSessions);
+    final exported =
+        await repository.exportData(request: const ExportRequest.full());
+    final archive = ZipDecoder().decodeBytes(await exported.readAsBytes());
+    expect(
+        archive.files.any((f) => f.name == 'physique_check_in.xlsx'), isTrue);
+    final db = await databaseFactoryFfi.openDatabase(databasePath);
+    expect(await db.rawQuery('PRAGMA integrity_check'), [
+      {'integrity_check': 'ok'}
+    ]);
+    expect(
+        await db.rawQuery(
+            'SELECT * FROM plan_exercises WHERE plan_id IN (7,10,11) AND exercise_id IN (82,70,23)'),
+        isEmpty);
+    expect(
+        await db.query('exercises', where: 'exercise_id = ?', whereArgs: [82]),
+        isNotEmpty);
+    await db.close();
+  }, skip: packagePath.isEmpty);
 }
 
 Map<String, dynamic> _readExportManifest(Archive archive) {

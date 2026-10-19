@@ -16,6 +16,7 @@ import '../../../../features/routines/domain/entities/workout_log_entry.dart';
 import '../../../../features/routines/domain/entities/workout_session.dart';
 import '../../domain/repositories/app_data_repository.dart';
 import '../../domain/entities/export_models.dart';
+import '../../../check_in/data/check_in_repository.dart';
 
 class AppDataRepositoryImpl implements AppDataRepository {
   AppDataRepositoryImpl({WorkoutStorageService? storageService})
@@ -25,6 +26,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
   static const String _manifestFilename = 'export_manifest.json';
   static const String _exportSignaturesKey = 'successful_export_signatures_v2';
   static const String _exportHistoryKey = 'successful_export_date_ranges_v1';
+  static const String _checkInSignatureKey = 'exported_check_in_ids_v1';
   static const Set<String> _routineSpreadsheetFilenames = {
     'workout_plan.xlsx',
     'exercise.xlsx',
@@ -38,9 +40,13 @@ class AppDataRepositoryImpl implements AppDataRepository {
   Future<ExportAvailability> getExportAvailability() async {
     final logs = await _storageService.fetchAllLogs();
     final sessions = await _storageService.fetchAllSessions();
+    final checkIns = await CheckInRepository().readAll();
+    final checkInDates =
+        checkIns.map((row) => DateTime.parse(row['date']!)).toList()..sort();
     final dates = [
       ...logs.map((log) => _dateOnly(log.date)),
       ...sessions.map((session) => _dateOnly(session.date)),
+      ...checkIns.map((row) => DateTime.parse(row['date']!)),
     ]..sort();
     final ranges = await _readExportRanges();
     final firstDate = dates.isEmpty ? null : dates.first;
@@ -48,7 +54,10 @@ class AppDataRepositoryImpl implements AppDataRepository {
     return ExportAvailability(
       firstDate: firstDate,
       lastDate: lastDate,
-      nextMissingRange: await _findChangedRange(logs, sessions),
+      nextMissingRange: await _findChangedRange(logs, sessions) ??
+          (await _checkInsChanged(checkIns) && checkIns.isNotEmpty
+              ? ExportDateRange(checkInDates.first, checkInDates.last)
+              : null),
       lastExportedDate: ranges.isEmpty
           ? null
           : ranges.map((range) => range.endDate).reduce(
@@ -67,6 +76,8 @@ class AppDataRepositoryImpl implements AppDataRepository {
     await XlsxInitializer.ensureXlsxFilesExist(includeSampleRows: false);
     await _storageService.repairDataIntegrity();
     await _storageService.exportRoutineRuntimeToXlsxFiles(dir);
+    final checkIns = await CheckInRepository().readAll();
+    final checkInsChanged = await _checkInsChanged(checkIns);
 
     final availability = await getExportAvailability();
     final selectedRange = switch (request.mode) {
@@ -98,7 +109,10 @@ class AppDataRepositoryImpl implements AppDataRepository {
       startDate: selectedRange.startDate,
       endDate: selectedRange.endDate,
     );
-    if (logs.isEmpty && sessions.isEmpty && availability.hasWorkoutData) {
+    if (logs.isEmpty &&
+        sessions.isEmpty &&
+        availability.hasWorkoutData &&
+        !checkInsChanged) {
       throw StateError('No workout data exists in the selected date range.');
     }
 
@@ -137,6 +151,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
       'createdAt': DateTime.now().toIso8601String(),
       'workoutLogCount': logs.length,
       'workoutSessionCount': sessions.length,
+      'checkInCount': checkIns.length,
     });
     _addBytesToArchive(
       archive,
@@ -154,6 +169,8 @@ class AppDataRepositoryImpl implements AppDataRepository {
     await outFile.writeAsBytes(data, flush: true);
     await _recordExportRange(selectedRange);
     await _recordSignatures(logs, sessions);
+    await _storageService.writeMetadata(
+        _checkInSignatureKey, _checkInSignature(checkIns));
 
     // Try to also copy the backup to external storage so the user can access it
     try {
@@ -175,6 +192,14 @@ class AppDataRepositoryImpl implements AppDataRepository {
 
     return outFile;
   }
+
+  String _checkInSignature(List<Map<String, String>> rows) =>
+      jsonEncode(rows.map((row) => row['record_id']).toList()..sort());
+
+  Future<bool> _checkInsChanged(List<Map<String, String>> rows) async =>
+      rows.isNotEmpty &&
+      _checkInSignature(rows) !=
+          await _storageService.readMetadata(_checkInSignatureKey);
 
   @override
   Future<void> importData(File file) async {
@@ -205,6 +230,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
       File? stagedDatabase;
       final stagedSpreadsheets = <String, File>{};
       var incrementalHistory = false;
+      Map<int, String> replaceRoutines = const {};
 
       final bytes = await file.readAsBytes();
       final archive = ZipDecoder().decodeBytes(bytes);
@@ -222,6 +248,22 @@ class AppDataRepositoryImpl implements AppDataRepository {
           if (manifest is Map &&
               manifest['format'] == 'fitlog-range-export-v1') {
             incrementalHistory = manifest['historyMode'] == 'incremental';
+            if (manifest['routineUpdate'] is Map) {
+              final update = manifest['routineUpdate'] as Map;
+              if (update['mode'] != 'replace-prescription-only' ||
+                  update['plans'] is! Map) {
+                throw const FormatException('Invalid routine-update manifest.');
+              }
+              replaceRoutines = {
+                for (final entry in (update['plans'] as Map).entries)
+                  int.parse(entry.key.toString()): entry.value.toString(),
+              };
+              if (replaceRoutines.isEmpty ||
+                  replaceRoutines.keys.any((id) => id <= 0)) {
+                throw const FormatException(
+                    'Routine update requires explicit plan identities.');
+              }
+            }
           }
           continue;
         }
@@ -273,6 +315,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
         stagedDatabase: stagedDatabase,
         stagedSpreadsheets: stagedSpreadsheets,
         incrementalHistory: incrementalHistory,
+        replaceRoutines: replaceRoutines,
       );
     } finally {
       if (await stagingDirectory.exists()) {
@@ -340,6 +383,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
     File? stagedDatabase,
     required Map<String, File> stagedSpreadsheets,
     bool incrementalHistory = false,
+    Map<int, String> replaceRoutines = const {},
   }) async {
     final sourceDirectory = stagedSpreadsheets.isEmpty
         ? await Directory.systemTemp.createTemp('fitlog_empty_sheets_')
@@ -370,7 +414,7 @@ class AppDataRepositoryImpl implements AppDataRepository {
         await pending.rename(target.path);
       }
       await _storageService.mergeBackup(sourceDirectory,
-          database: stagedDatabase);
+          database: stagedDatabase, replaceRoutines: replaceRoutines);
       // SQLite is authoritative. Failure to refresh compatibility sheets must
       // not undo a successful history merge or replace the live database.
       try {

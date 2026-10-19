@@ -10,6 +10,8 @@ import '../features/routines/presentation/providers/workout_plan_repository_prov
 import '../features/routines/presentation/pages/routines_screen.dart';
 import '../theme/kinetic_noir.dart';
 import 'widgets/kinetic_bottom_nav_bar.dart';
+import '../features/check_in/presentation/check_in_screen.dart';
+import '../utils/notification_service.dart';
 
 class MainScaffold extends ConsumerStatefulWidget {
   const MainScaffold({super.key});
@@ -22,13 +24,40 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   int _currentIndex = 0;
   final Set<int> _loadedTabs = {0};
   bool _checkedRecoverableSession = false;
+  bool _notificationCheckInOpen = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkRecoverableSession();
+      _handleNotification();
+      if (_currentIndex != 3) _checkRecoverableSession();
     });
+    NotificationService.navigationRequest.addListener(_handleNotification);
+  }
+
+  void _handleNotification() {
+    if (!mounted ||
+        NotificationService.navigationRequest.value !=
+            NotificationService.checkInPayload) {
+      return;
+    }
+    NotificationService.navigationRequest.value = null;
+    _selectTab(3);
+    final navigator = Navigator.of(context);
+    if (navigator.canPop() && !_notificationCheckInOpen) {
+      // Open above an active workout without discarding its route or draft.
+      _notificationCheckInOpen = true;
+      navigator
+          .push<void>(MaterialPageRoute(builder: (_) => const CheckInScreen()))
+          .whenComplete(() => _notificationCheckInOpen = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    NotificationService.navigationRequest.removeListener(_handleNotification);
+    super.dispose();
   }
 
   void _selectTab(int index) {
@@ -144,6 +173,11 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                 ? const PerformanceDashboardScreen()
                 : const SizedBox.shrink(),
           ),
+          TickerMode(
+              enabled: _currentIndex == 3,
+              child: _loadedTabs.contains(3)
+                  ? const CheckInScreen()
+                  : const SizedBox.shrink()),
         ],
       ),
       bottomNavigationBar: KineticBottomNavBar(
@@ -160,6 +194,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
             icon: Icons.show_chart_rounded,
             label: 'Performance',
           ),
+          KineticBottomNavItem(
+              icon: Icons.monitor_weight_outlined, label: 'Check-in'),
         ],
       ),
     );

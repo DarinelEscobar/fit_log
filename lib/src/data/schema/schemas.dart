@@ -16,6 +16,43 @@ class TableSchema {
 }
 
 const Map<String, TableSchema> kTableSchemas = {
+  'physique_check_in.xlsx': TableSchema(
+    sheetName: 'PhysiqueCheckIn',
+    headers: [
+      'record_id',
+      'date',
+      'kind',
+      'measured_at',
+      'recorded_at',
+      'source',
+      'supersedes_id',
+      'weight_kg',
+      'abdomen_upper_cm',
+      'abdomen_upper_repeat_cm',
+      'abdomen_lower_cm',
+      'abdomen_lower_repeat_cm',
+      'fasted',
+      'water_ml',
+      'last_bowel_movement',
+      'calories_kcal',
+      'protein_g',
+      'diary_complete',
+      'portions_estimated',
+      'steps',
+      'step_source',
+      'sleep_hours',
+      'exercise_id',
+      'exercise_name',
+      'apparatus_setup',
+      'pain_during',
+      'pain_next_morning',
+      'discomfort_next_morning',
+      'stopped_for',
+      'photo_reference',
+      'notes',
+    ],
+    sample: [],
+  ),
   'user.xlsx': TableSchema(
     sheetName: 'User',
     headers: [
